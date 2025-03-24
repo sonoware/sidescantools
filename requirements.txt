@@ -1,0 +1,9 @@
+geopy
+napari[all]
+numpy
+Pillow
+pyxtf
+scipy
+scikit-image
+utm
+GDAL

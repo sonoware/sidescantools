@@ -1,0 +1,807 @@
+import numpy as np
+import copy
+import scipy.signal as scisig
+from sidescan_file import SidescanFile
+from skimage.morphology.misc import remove_small_holes, remove_small_objects
+import skimage
+from skimage import feature
+from pathlib import Path
+import geopy.distance as geo_dist
+
+
+class SidescanPreprocessor:
+    """Main class to apply preprocessing functionalities to sidescan sonar data:
+    - Init by loading a SidescanFile with desired parameters
+    - Bottom line detection by threshold and display in napari
+    - Slant range correction
+    - Gain correction by EGN table
+    """
+
+    num_ch: int
+    sidescan_file: SidescanFile
+    doFilt: bool
+    chunk_size: int
+    bottom_strategy_choices = [
+        "Each side individually",
+        "Combine both sides",
+        "Only use portside",
+        "Only use starboard",
+    ]
+    """["Each side individually", "Combine both sides", "Only use portside", "Only use starboard"]"""
+    convert_to_dB: bool
+    downsampling_factor: int
+
+    def __init__(
+        self,
+        sidescan_file: SidescanFile,
+        convert_to_dB=False,
+        chunk_size=500,
+        num_ch=2,
+        downsampling_factor=1,
+    ):
+        """Main class to apply preprocessing functionalities (reading SidescanFiles, 
+        bottom line detection using napari, slant range and EGN correction)
+
+        Parameters
+        ----------
+        sidescan_file: SidescanFile
+            Reference to SidescanFile class that holds a loaded sidescan data file (XTF/JSF)
+        convert_to_dB: bool
+            If ``True`` data will be converted to dB
+        chunk_size: int
+            Number of pings per single chunk
+        num_ch: int
+            Number of channels - defaults to 2. This should be the usual case. 
+            Other cases are only partly integrated right now and it is not clear 
+            if there is a use case for this. This param will probably be deleted in the future.
+        downsampling_factor: int
+            Factor used for decimation of ping signals
+        """
+        self.sidescan_file = sidescan_file
+        self.sonar_data_proc = copy.deepcopy(self.sidescan_file.data)
+
+        self.chunk_size = chunk_size
+        self.ping_len = self.sidescan_file.ping_len
+        self.num_ch = num_ch
+        self.convert_to_dB = convert_to_dB
+        self.downsampling_factor = downsampling_factor
+
+        if downsampling_factor != 1:
+            self.sonar_data_proc = scisig.decimate(
+                self.sonar_data_proc, downsampling_factor, axis=2
+            )
+            self.ping_len = int(np.ceil(self.ping_len / self.downsampling_factor))
+        # TODO: This conversion has to be redone. Here the incoming data has to be analyzed to find a suitable conversion to a log scale.
+        if convert_to_dB:
+            self.convert_to_dB = convert_to_dB
+            self.sonar_data_proc = 20 * np.log10(np.abs(self.sonar_data_proc) + 0.1)
+
+        ## Print spatial information estimation
+        start_idx = 0
+        start_coord = (
+            sidescan_file.longitude[start_idx],
+            sidescan_file.latitude[start_idx],
+        )
+        while sidescan_file.longitude[start_idx] < 0.1:
+            start_idx += 1
+            start_coord = (
+                sidescan_file.longitude[start_idx],
+                sidescan_file.latitude[start_idx],
+            )
+        end_coord = (
+            sidescan_file.longitude[-1],
+            sidescan_file.latitude[-1],
+        )
+        print("------------------------------------------------------------")
+        print("--- Estimated spatial information by SidescanPreprocessor:")
+        if np.size(self.sidescan_file.slant_range) > 1:
+            print(
+                f"Resolution in ping direction: {self.sidescan_file.slant_range[0, 0]/self.ping_len} m"
+            )
+        else:
+            print(
+                f"Resolution in ping direction: {self.sidescan_file.slant_range/self.ping_len} m"
+            )
+        print("(Estimated from slant range of first ping)")
+        print(
+            f"Resolution in tow/heading direction: {geo_dist.geodesic(end_coord, start_coord).m / self.sidescan_file.num_ping} m"
+        )
+        print("(Estimated from start and end GPS position")
+        print("------------------------------------------------------------")
+
+    def detect_bottom_line_t(
+        self,
+        threshold_bin=0.75,
+        combine_both_sides=False,
+        plotting=False,
+    ):
+
+        # normalize each ping individually
+        portside = self.sonar_data_proc[0]
+        indv_max_portside = np.max(portside, 1)
+        portside = portside / indv_max_portside[:, None]
+        starboard = self.sonar_data_proc[1]
+        indv_max_starboard = np.max(starboard, 1)
+        starboard = starboard / indv_max_starboard[:, None]
+
+        # edge detection
+        initial_guess = True
+        while initial_guess:
+
+            portside_edges, starboard_edges = self.detect_edges(
+                portside, starboard, threshold_bin, combine_both_sides, plotting
+            )
+
+            # convert most likely edge to bottom distance
+            self.portside_bottom_dist = self.edges_to_bottom_dist(
+                portside_edges, threshold_bin, data_is_port_side=True
+            )
+            self.starboard_bottom_dist = self.edges_to_bottom_dist(
+                starboard_edges, threshold_bin, data_is_port_side=True
+            )
+            if plotting:
+                usr_in = input(
+                    f"Thresh is {threshold_bin}, enter new thresh or nothing to keep current threshold: "
+                )
+                if usr_in != "":
+                    try:
+                        threshold_bin = float(usr_in)
+                    except:
+                        print(f"Couldn't interpret input: {usr_in}")
+                        finding_thresh = True
+                        while finding_thresh:
+                            usr_in = input("Enter new threshold:")
+                            try:
+                                threshold_bin = float(usr_in)
+                                finding_thresh = False
+                            except:
+                                print(f"Couldn't interpret input: {usr_in}")
+                else:
+                    initial_guess = False
+            else:
+                initial_guess = False
+
+
+    def init_napari_bottom_detect(
+        self, default_threshold
+    ):
+
+        # normalize each ping individually
+        portside = np.array(self.sonar_data_proc[0], dtype=float)
+        indv_max_portside = np.max(portside, 1)
+        portside = portside / indv_max_portside[:, None]
+        starboard = np.array(self.sonar_data_proc[1], dtype=float)
+        indv_max_starboard = np.max(starboard, 1)
+        starboard = starboard / indv_max_starboard[:, None]
+
+        # do initial bottom line detection for start values
+        self.detect_bottom_line_t(
+            threshold_bin=default_threshold,
+            combine_both_sides=True,
+            plotting=False,
+        )
+
+        ## prepare data to chunks
+        # build list containing each chunk
+        self.num_chunk = int(np.ceil(len(self.portside_bottom_dist) / self.chunk_size))
+        self.napari_portside_chunk = np.zeros(
+            (self.num_chunk, self.chunk_size, self.ping_len)
+        )
+        self.napari_starboard_chunk = np.zeros(
+            (self.num_chunk, self.chunk_size, self.ping_len)
+        )
+        self.napari_fullmat = np.zeros(
+            (self.num_chunk, self.chunk_size, int(2 * self.ping_len))
+        )
+        self.napari_portside_bottom = np.zeros(
+            (self.num_chunk, self.chunk_size), dtype=int
+        )
+        self.napari_starboard_bottom = np.zeros(
+            (self.num_chunk, self.chunk_size), dtype=int
+        )
+        for chunk_idx in range(self.num_chunk):
+            if chunk_idx < self.num_chunk - 1:
+                num_ping = self.chunk_size
+            else:
+                num_ping = np.shape(
+                    portside[
+                        chunk_idx * self.chunk_size : (chunk_idx + 1) * self.chunk_size
+                    ]
+                )[0]
+            self.napari_portside_chunk[chunk_idx, :num_ping] = portside[
+                chunk_idx * self.chunk_size : (chunk_idx + 1) * self.chunk_size
+            ]
+            self.napari_starboard_chunk[chunk_idx, :num_ping] = starboard[
+                chunk_idx * self.chunk_size : (chunk_idx + 1) * self.chunk_size
+            ]
+            self.napari_fullmat[chunk_idx, :num_ping] = np.hstack(
+                (
+                    portside[
+                        chunk_idx * self.chunk_size : (chunk_idx + 1) * self.chunk_size
+                    ],
+                    starboard[
+                        chunk_idx * self.chunk_size : (chunk_idx + 1) * self.chunk_size
+                    ],
+                )
+            )
+            self.napari_portside_bottom[chunk_idx, :num_ping] = (
+                self.portside_bottom_dist[
+                    chunk_idx * self.chunk_size : (chunk_idx + 1) * self.chunk_size
+                ]
+            )
+            self.napari_starboard_bottom[chunk_idx, :num_ping] = (
+                self.starboard_bottom_dist[
+                    chunk_idx * self.chunk_size : (chunk_idx + 1) * self.chunk_size
+                ]
+            )
+
+            self.build_bottom_line_map()
+
+    def build_bottom_line_map(self):
+
+        ## build map for plotting
+        map_shape = (self.num_chunk, self.chunk_size, self.ping_len)
+        star_map = np.zeros(map_shape)
+        port_map = np.zeros(map_shape)
+
+        for chunk_idx in range(self.num_chunk):
+            starboard_dep_chunk = self.starboard_bottom_dist[
+                chunk_idx * self.chunk_size : (chunk_idx + 1) * self.chunk_size
+            ]
+            portside_dep_chunk = self.portside_bottom_dist[
+                chunk_idx * self.chunk_size : (chunk_idx + 1) * self.chunk_size
+            ]
+            cur_chunk_len = len(portside_dep_chunk)
+            for crnr in range(cur_chunk_len):
+
+                # make wider if not at border
+                if (
+                    1 < starboard_dep_chunk[crnr] < map_shape[2] - 2
+                    and 1 < portside_dep_chunk[crnr] < map_shape[2] - 2
+                ):
+                    star_map[
+                        chunk_idx,
+                        crnr,
+                        starboard_dep_chunk[crnr] - 1 : starboard_dep_chunk[crnr] + 2,
+                    ] = 1
+                    port_map[
+                        chunk_idx,
+                        crnr,
+                        portside_dep_chunk[crnr] - 1 : portside_dep_chunk[crnr] + 2,
+                    ] = 1
+                else:
+                    star_map[
+                        chunk_idx,
+                        crnr,
+                        starboard_dep_chunk[crnr] : starboard_dep_chunk[crnr] + 1,
+                    ] = 1
+                    port_map[
+                        chunk_idx,
+                        crnr,
+                        portside_dep_chunk[crnr] : portside_dep_chunk[crnr] + 1,
+                    ] = 1
+
+        # chunk_data = np.hstack((portside_chunk, starboard_chunk))
+        self.bottom_map = np.dstack((port_map, star_map))
+
+    def detect_bottom_napari(
+        self,
+        chunk_idx,
+        threshold_bin=0.6,
+        bottom_strategy_choice="",
+        add_line_width=0,
+    ):
+        """Do bottom line detection update for a single chunk of given idx"""
+
+        # edge detection
+        combine_both_sides = bottom_strategy_choice == self.bottom_strategy_choices[1]
+        portside_edges_chunk, starboard_edges_chunk = self.detect_edges(
+            self.napari_portside_chunk[chunk_idx],
+            self.napari_starboard_chunk[chunk_idx],
+            threshold_bin,
+            combine_both_sides,
+            False,
+        )
+        # convert most likely edge to bottom distance
+        self.napari_portside_bottom[chunk_idx] = self.edges_to_bottom_dist(
+            portside_edges_chunk, threshold_bin, data_is_port_side=True
+        )
+        self.napari_starboard_bottom[chunk_idx] = self.edges_to_bottom_dist(
+            starboard_edges_chunk, threshold_bin, data_is_port_side=False
+        )
+
+        if bottom_strategy_choice == self.bottom_strategy_choices[2]:
+            self.napari_starboard_bottom[chunk_idx] = (
+                self.ping_len - self.napari_portside_bottom[chunk_idx]
+            )
+        elif bottom_strategy_choice == self.bottom_strategy_choices[3]:
+            self.napari_portside_bottom[chunk_idx] = (
+                self.ping_len - self.napari_starboard_bottom[chunk_idx]
+            )
+
+        self.update_bottom_map_napari(chunk_idx, add_line_width=add_line_width)
+
+    def update_bottom_map_napari(self, chunk_idx, add_line_width=0):
+        # update bottom map
+        chunk_shape = (self.chunk_size, self.ping_len)
+        star_map = np.zeros(chunk_shape)
+        port_map = np.zeros(chunk_shape)
+        for crnr in range(self.chunk_size):
+
+            # make wider if not at border
+            if (
+                1 + add_line_width
+                < self.napari_starboard_bottom[chunk_idx, crnr]
+                < chunk_shape[1] - 2 - add_line_width
+                and 1 + add_line_width
+                < self.napari_portside_bottom[chunk_idx, crnr]
+                < chunk_shape[1] - 2 - add_line_width
+            ):
+                star_map[
+                    crnr,
+                    self.napari_starboard_bottom[chunk_idx, crnr]
+                    - add_line_width : self.napari_starboard_bottom[chunk_idx, crnr]
+                    + 1
+                    + add_line_width,
+                ] = 1
+                port_map[
+                    crnr,
+                    self.napari_portside_bottom[chunk_idx, crnr]
+                    - add_line_width : self.napari_portside_bottom[chunk_idx, crnr]
+                    + 1
+                    + add_line_width,
+                ] = 1
+            else:
+                star_map[
+                    crnr,
+                    self.napari_starboard_bottom[
+                        chunk_idx, crnr
+                    ] : self.napari_starboard_bottom[chunk_idx, crnr]
+                    + 1,
+                ] = 1
+                port_map[
+                    crnr,
+                    self.napari_portside_bottom[
+                        chunk_idx, crnr
+                    ] : self.napari_portside_bottom[chunk_idx, crnr]
+                    + 1,
+                ] = 1
+
+        self.bottom_map[chunk_idx] = np.hstack((port_map, star_map))
+
+    def update_bottom_detect_plot_napari(
+        self,
+        image_layer,
+        map_layer,
+        portside_chunk,
+        starboard_chunk,
+        portside_dep_chunk,
+        starboard_dep_chunk,
+        chunk_size,
+    ):
+        map_shape = np.shape(portside_chunk)
+        star_map = np.zeros(map_shape)
+        port_map = np.zeros(map_shape)
+        for crnr in range(map_shape[0]):
+
+            # make wider if not at border
+            if (
+                1 < starboard_dep_chunk[crnr] < map_shape[0] - 2
+                and 1 < portside_dep_chunk[crnr] < map_shape[0] - 2
+            ):
+                star_map[
+                    crnr, starboard_dep_chunk[crnr] - 1 : starboard_dep_chunk[crnr] + 2
+                ] = 1
+                port_map[
+                    crnr, portside_dep_chunk[crnr] - 1 : portside_dep_chunk[crnr] + 2
+                ] = 1
+            else:
+                star_map[
+                    crnr, starboard_dep_chunk[crnr] : starboard_dep_chunk[crnr] + 1
+                ] = 1
+                port_map[
+                    crnr, portside_dep_chunk[crnr] : portside_dep_chunk[crnr] + 1
+                ] = 1
+
+        chunk_data = np.hstack((portside_chunk, starboard_chunk))
+        cur_map = np.hstack((port_map, star_map))
+
+        image_layer.data = chunk_data
+        map_layer.data = cur_map
+
+    # wrapper function for edge detection
+    def detect_edges(
+        self, portside, starboard, threshold_bin, combine_both_sides, plotting
+    ):
+        # make binary and invert
+        portside_bin = portside > threshold_bin
+        portside_bin = portside_bin - 1
+        portside_bin = np.abs(portside_bin)
+        portside_bin = np.array(portside_bin, dtype=bool)
+        starboard_bin = starboard > threshold_bin
+        starboard_bin = starboard_bin - 1
+        starboard_bin = np.abs(starboard_bin)
+        starboard_bin = np.array(starboard_bin, dtype=bool)
+
+        # remove holes
+        remove_small_holes(portside_bin)
+        remove_small_objects(portside_bin)
+        remove_small_holes(starboard_bin)
+        remove_small_objects(starboard_bin)
+
+        # smoothing
+        portside_bin = skimage.filters.gaussian(portside_bin, sigma=3)
+        starboard_bin = skimage.filters.gaussian(starboard_bin, sigma=3)
+        portside_bin = np.array(np.round(portside_bin), dtype=bool)
+        starboard_bin = np.array(np.round(starboard_bin), dtype=bool)
+
+        # combine both sides with AND if wanted
+        if combine_both_sides:
+            combined_bin = np.logical_not(
+                np.logical_and(
+                    np.logical_not(portside_bin),
+                    np.logical_not(np.fliplr(starboard_bin)),
+                )
+            )  # no nand functionality? :(
+
+        # edge detection
+        if combine_both_sides:
+            portside_edges = feature.canny(combined_bin, sigma=3)
+            starboard_edges = feature.canny(np.fliplr(combined_bin), sigma=3)
+        else:
+            portside_edges = feature.canny(portside_bin, sigma=3)
+            starboard_edges = feature.canny(starboard_bin, sigma=3)
+
+        return (portside_edges, starboard_edges)
+
+    # find depth TODO: is there a better way to do this with skimage?
+    def edges_to_bottom_dist(self, edges, threshold_bin, data_is_port_side):
+        dist_at_ends = 20  # TODO: find a good val
+        cand_start = 0
+        idx = 0
+
+        # find first ping edge result, where only one candidate is present as initial guess
+        ping_len = np.shape(edges)[1]
+        while cand_start == 0 and idx < np.shape(edges)[0]:
+            edge_list = (
+                np.where(edges[idx, dist_at_ends : -1 * dist_at_ends])[0] + dist_at_ends
+            )
+            idx += 1
+            if len(edge_list) == 1:
+                cand_start = edge_list[0]
+
+        candidates = []
+        # if no start idx is found, choose first or last idx, depending on where thresh is closer to
+        if len(edge_list) == 0:
+            if threshold_bin < 0.5:
+                if data_is_port_side:
+                    cand_start = ping_len - 3
+                else:
+                    cand_start = 2
+            else:
+                if data_is_port_side:
+                    cand_start = 2
+                else:
+                    cand_start = ping_len - 3
+
+        # iterate over all pings to determine bottom distance for each ping
+        last_cand = cand_start
+        for ping_idx in range(np.shape(edges)[0]):
+            edge_list = (
+                np.where(edges[ping_idx, dist_at_ends : -1 * dist_at_ends])[0]
+                + dist_at_ends
+            )
+            # else choose closest candidate, otherwise if no edge is present, just keep last guess
+            if len(edge_list > 0):
+                closest_idx = np.argmin(abs(edge_list - last_cand))
+                last_cand = edge_list[closest_idx]
+            candidates.append(last_cand)
+
+        return np.array(candidates, dtype=int)
+
+    # Slant range correction, partly taken from PINGMapper
+    def slant_range_correction(
+        self,
+        active_interpolation=True,
+        save_to=None,
+        nadir_angle=0,
+        use_intern_depth=False,
+        remove_wc=False,
+        active_mult_slant_range_resampling=False,
+    ):
+        """Correct slant range for current data. The current sidescan data is projected
+        to the seafloor, assuming that the seafloor is flat and using the bottom line detection data.
+        Therefore a new index for eachsample is calculated to determine its position on the ground range.
+        This results in a new matrix ``self.slant_corrected_mat`` containing the ground range intensity
+        values, which might contain gaps. These gaps are interpolated if active_interpolation is 
+        set to ``True``, otherwise the matrix contains NANs.
+
+        Parameters
+        ----------
+        active_interpolation: bool
+            If ``active`` gaps in slant range corrected signals are interpolated (highly recommended)
+        save_to: str | os.PathLike | None
+            If not ``None`` the resulting slant corrected matrix is saved as ``.npz`` to the provided path
+        nadir_angle: int
+            Angle below the sidescan sonar in degree which is invisible because of nadir (per side). 
+            Use 0 if it is not known.
+        use_intern_depth: bool
+            If ``True`` internal depth information is used. Otherwise the depth is estimated from the bottom detection data.
+        remove_wc: bool
+             If ``True`` the distorted watercolumn data is removed
+        active_mult_slant_range_resampling: bool
+            If ``True`` pings with different slant ranges are resampled to the longest slant range.
+            This results in a slant corrected matrix where all samples are equidistant. 
+        """
+
+        # to make both channels have their wc left
+        self.sonar_data_proc[0] = np.fliplr(self.sonar_data_proc[0])
+
+        # check whether depth data is present
+        if (
+            use_intern_depth and np.mean(self.sidescan_file.depth == 0) < 0.01
+        ):  # maximum 1% depth==0
+            # read depth info and calc corresponding sample idx
+            stepsize = (
+                self.sidescan_file.slant_range[0, :] / self.ping_len
+            )  # TODO: is there a case where the channels have different slant ranges?
+            self.dep_info = [
+                self.sidescan_file.depth / stepsize,
+                self.sidescan_file.depth / stepsize,
+            ]  # is the same for both sides
+            print(
+                "SidescanPreprocessor - Slant range correction: Using intern depth data."
+            )
+        elif nadir_angle != 0:
+            print(
+                f"SidescanPreprocessor - Slant range correction: No intern depth data used -> Using nadir angle {nadir_angle}° to estimate depth."
+            )
+            portside_dist = (self.ping_len - self.portside_bottom_dist) * np.sin(
+                np.deg2rad(90 - nadir_angle)
+            )
+            starboard_dist = self.starboard_bottom_dist * np.sin(
+                np.deg2rad(90 - nadir_angle)
+            )
+            self.dep_info = [portside_dist, starboard_dist]
+        else:
+            print(
+                "SidescanPreprocessor - Slant range correction: No beam angle known -> Using raw slant values as depth info."
+            )
+            self.dep_info = [
+                self.ping_len - self.portside_bottom_dist,
+                self.starboard_bottom_dist,
+            ]
+
+        # check whether the slant range has been changed in the process
+        # if yes -> decimate pings using resample to higher resolition by zero padding at the end
+        portside_bottom_dist_conv = copy.copy(self.portside_bottom_dist)
+        starboard_bottom_dist_conv = copy.copy(self.starboard_bottom_dist)
+        slant_range = np.flip(self.sidescan_file.slant_range[0, :])
+        if active_mult_slant_range_resampling:
+            if np.min(slant_range) != np.max(slant_range):
+                max_slant_range = np.max(slant_range)
+
+                for ping_idx in range(self.sidescan_file.num_ping):
+                    if slant_range[ping_idx] != max_slant_range:
+                        num_res_sample = int(
+                            np.round(
+                                slant_range[ping_idx] / max_slant_range * self.ping_len
+                            )
+                        )
+
+                        for ch in range(2):
+                            pre_max = np.max(self.sonar_data_proc[ch][ping_idx])
+                            sig_down = scisig.resample(
+                                self.sonar_data_proc[ch][ping_idx], num_res_sample
+                            )
+                            sig_down = np.clip(sig_down, 0, pre_max)
+                            self.sonar_data_proc[ch][
+                                ping_idx, :num_res_sample
+                            ] = sig_down
+                            self.sonar_data_proc[ch][ping_idx, num_res_sample:] = 0
+                            self.dep_info[ch][ping_idx] = int(
+                                np.round(
+                                    self.dep_info[ch][ping_idx]
+                                    * slant_range[ping_idx]
+                                    / max_slant_range
+                                )
+                            )
+                        portside_bottom_dist_conv[ping_idx] = int(
+                            np.round(
+                                self.portside_bottom_dist[ping_idx]
+                                * slant_range[ping_idx]
+                                / max_slant_range
+                            )
+                        )
+                        starboard_bottom_dist_conv[ping_idx] = int(
+                            np.round(
+                                self.starboard_bottom_dist[ping_idx]
+                                * slant_range[ping_idx]
+                                / max_slant_range
+                            )
+                        )
+
+        self.slant_corrected_dat = []
+        for ch in range(2):
+            slant_cor_mat = np.zeros(
+                np.shape(self.sonar_data_proc[0]), dtype=np.float32
+            )
+            son_data = self.sonar_data_proc[ch]
+
+            num_ping = np.shape(slant_cor_mat)[0]
+            for ping_idx in range(num_ping):
+                if ping_idx % 1000 == 0:
+                    print(
+                        f"\rSlant range correction progress: {ping_idx/num_ping*100:.2f}%"
+                    )
+
+                depth = int(self.dep_info[ch][ping_idx])  # in px
+                # Remove water column
+                if remove_wc:
+                    son_data[ping_idx, : depth + 1] = 0
+
+                dd = depth**2
+                # vector to store reloacted pixels
+                ping_dat = (
+                    np.ones((slant_cor_mat.shape[1])).astype(np.float32)
+                ) * np.nan
+
+                for dep_idx in range(len(ping_dat)):
+                    if dep_idx > depth:
+                        if dep_idx**2 <= dd:
+                            hor_idx = dep_idx
+                        else:
+                            hor_idx = int(round(np.sqrt(dep_idx**2 - dd), 0))
+                        if hor_idx < len(ping_dat):
+                            ping_dat[hor_idx] = son_data[ping_idx, dep_idx]
+
+                # Process of relocating bed pixels will introduce across track gaps
+                ## in the array so we will interpolate over gaps to fill them.
+                if active_interpolation:
+                    last_val = np.where(~np.isnan(ping_dat))[-1]
+                    nans, x = np.isnan(ping_dat), lambda z: z.nonzero()[0]
+                    if np.isnan(ping_dat).all():
+                        ping_dat = np.zeros_like(ping_dat)
+                    else:
+                        ping_dat[nans] = np.interp(x(nans), x(~nans), ping_dat[~nans])
+                    if len(last_val) > 0:
+                        ping_dat[last_val[-1] + 1 :] = (
+                            0  # remove all interpolated values after last known val
+                        )
+
+                # TODO: revise this part
+                # if ch == 0:
+                #     depth_on_ground = int(
+                #         np.round(
+                #             np.sin(np.deg2rad(90 - nadir_angle))
+                #             * starboard_bottom_dist_conv[ping_idx]
+                #         )
+                #     )  # (self.ping_len - portside_bottom_dist_conv[ping_idx])))
+                # else:
+                #     depth_on_ground = int(
+                #         np.round(
+                #             np.sin(np.deg2rad(90 - nadir_angle))
+                #             * starboard_bottom_dist_conv[ping_idx]
+                #         )
+                #     )
+
+                # remove remaining nadir
+                if nadir_angle != 0:
+                    depth_on_ground = int(round(np.sqrt((depth+1)**2 - dd), 0))
+                    ping_dat[:depth_on_ground] = 0
+
+                if ch == 0:
+                    ping_dat = np.flip(ping_dat)
+
+                slant_cor_mat[ping_idx] = ping_dat
+
+            self.slant_corrected_dat.append(slant_cor_mat)
+
+        print("Slant range correction completed.")
+
+        # TODO: quick and dirty y-Axis in m build 
+        #       this might be useful later and is therefore kept for now
+        stepsize = 1
+        num_step = int(num_ping / stepsize)
+        y_axis_m = np.zeros(num_step)
+        old_coord = 0
+        new_coord = 0
+        for ping_idx in range(num_step):
+            old_coord = new_coord
+            new_coord = (
+                self.sidescan_file.longitude[ping_idx * stepsize],
+                self.sidescan_file.latitude[ping_idx * stepsize],
+            )
+            if ping_idx > 0:
+                if all(new_coord) and all(old_coord):
+                    y_axis_m[ping_idx] = (
+                        y_axis_m[ping_idx - 1]
+                        + geo_dist.geodesic(old_coord, new_coord).m
+                    )
+                else:
+                    y_axis_m[ping_idx] = y_axis_m[ping_idx - 1]
+        # interpolate unknown points
+        y_axis_m[y_axis_m == 0.0] = np.nan
+        y_axis_m[0] = 0.0
+        nans, x = np.isnan(y_axis_m), lambda z: z.nonzero()[0]
+        y_axis_m[nans] = np.interp(x(nans), x(~nans), y_axis_m[~nans])
+
+        self.slant_corrected_mat = np.hstack(
+            (self.slant_corrected_dat[0], self.slant_corrected_dat[1])
+        )
+
+        # revert flip
+        self.sonar_data_proc[0] = np.fliplr(self.sonar_data_proc[0])
+
+        # save intensity table/histogram for EGN
+        if save_to is not None:
+            save_to = Path(save_to)
+            if save_to.suffix != ".npz":
+                save_to = save_to.with_suffix(".npz")
+            np.savez(
+                save_to,
+                slant_corr=self.slant_corrected_mat,
+                depth_info=self.dep_info,
+                y_axis_m=y_axis_m,
+            )
+
+    def do_EGN_correction(self, egn_table_path, save_to=None):
+        """
+        
+        Parameters
+        ----------
+        egn_table_path: str | os.PathLike
+            Path to EGN table (``.npz``) file
+        save_to: str | os.PathLike | None
+            If not ``None`` the resulting slant corrected matrix is saved as ``.npz`` to the provided path
+        """
+
+        egn_info = np.load(egn_table_path)
+        egn_table = egn_info["egn_table"]
+        egn_hit_cnt = egn_info["egn_hit_cnt"]
+        angle_range = egn_info["angle_range"]
+        angle_num = egn_info["angle_num"]
+        angle_stepsize = egn_info["angle_stepsize"]
+        ping_len = egn_info["ping_len"]
+        r_size = egn_info["r_size"]
+        r_reduc_factor = egn_info["r_reduc_factor"]
+
+        # do EGN
+        self.egn_corrected_mat = np.zeros(np.shape(self.slant_corrected_mat))
+        num_ping = np.shape(self.slant_corrected_mat)[0]
+        mean_depth = np.array(np.round(np.mean(self.dep_info, 0)), dtype=int)
+
+        dd = mean_depth**2
+        EPS = np.finfo(float).eps
+        for vector_idx in range(num_ping):
+            r = np.sqrt(
+                (np.linspace(0, 2 * self.ping_len - 1, 2 * self.ping_len) - ping_len)
+                ** 2
+                + dd[vector_idx]
+            )
+            r_idx = np.array(np.round(r / r_reduc_factor), dtype=int)
+            alpha = np.sign(
+                np.linspace(0, 2 * self.ping_len - 1, 2 * self.ping_len) - ping_len
+            ) * np.arccos(mean_depth[vector_idx] / (r + EPS))
+            alpha_idx = np.array(
+                np.round(alpha / angle_stepsize) + angle_num / 2, dtype=int
+            )
+
+            if vector_idx % 1000 == 0:
+                print(f"EGN Progress: {vector_idx/num_ping:.2%}")
+            for ping_idx in range(2 * ping_len):
+                if (
+                    0 <= r_idx[ping_idx] < r_size
+                    and 0 <= alpha_idx[ping_idx] < angle_num
+                ):
+                    self.egn_corrected_mat[vector_idx, ping_idx] = (
+                        self.slant_corrected_mat[vector_idx, ping_idx]
+                        / egn_table[r_idx[ping_idx], alpha_idx[ping_idx]]
+                    )
+
+        if save_to is not None:
+            np.savez(
+                save_to,
+                egn_table_path=egn_table_path,
+                egn_corrected_mat=self.egn_corrected_mat,
+            )

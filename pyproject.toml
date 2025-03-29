@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sidescantools"
+version = "0.0"
+dependencies = [
+    "geopy",
+    "napari[all]",
+    "numpy",
+    "Pillow",
+    "pyxtf",
+    "scipy",
+    "scikit-image",
+    "utm",
+    "GDAL",
+]
+requires-python = ">=3.11"
+authors = [
+  {name = "NN", email = "NN@example.com"},
+  {name = "MM", email = "MM@example.com"},
+]
+maintainers = [
+  {name = "NN", email = "NN@example.com"},
+  {name = "MM", email = "MM@example.com"},
+]
+description = "Sidescan Tools"
+readme = "README.md"
+license = "GPL-3.0-or-later"
+license-files = ["LICEN[CS]E*"]
+keywords = ["sidescan", "tools"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python"
+]
+
+[project.optional-dependencies]
+gui = ["QtPy"]
+cli = [
+]
+
+[project.urls]
+Homepage = "https://example.com"
+Documentation = "https://readthedocs.org"
+Repository = "https://github.com/sonoware/sidescantools.git"
+"Bug Tracker" = "https://github.com/sonoware/sidescantools/issues"
+Changelog = "https://github.com/sonoware/sidescantools/commits/main"
+
+# [project.scripts]
+# sidescantools-cli = "sidescantools.main:main_cli"
+
+[project.gui-scripts]
+sidescantools-gui = "sidescantools.main:main"

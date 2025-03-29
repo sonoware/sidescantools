@@ -1,7 +1,7 @@
 import numpy as np
 import copy
 import scipy.signal as scisig
-from sidescan_file import SidescanFile
+from .sidescan_file import SidescanFile
 from skimage.morphology.misc import remove_small_holes, remove_small_objects
 import skimage
 from skimage import feature

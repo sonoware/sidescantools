@@ -25,15 +25,15 @@ from qtpy.QtGui import QPixmap, QPalette, QColor, QShortcut, QKeySequence
 import qtpy.QtCore as QtCore
 import qtpy.QtGui as QtGui
 import sys, os, pathlib
-from bottom_detection_napari_ui import run_napari_btm_line
-from egn_building_batch import generate_slant_and_egn_files
-from sidescan_georeferencer import SidescanGeoreferencer
+from .bottom_detection_napari_ui import run_napari_btm_line
+from .egn_building_batch import generate_slant_and_egn_files
+from .sidescan_georeferencer import SidescanGeoreferencer
 import yaml
 from math import log
 import multiprocessing
 import numpy as np
-from sidescan_preproc import SidescanPreprocessor
-from sidescan_file import SidescanFile
+from .sidescan_preproc import SidescanPreprocessor
+from .sidescan_file import SidescanFile
 import napari
 from napari.utils.colormaps import Colormap
 

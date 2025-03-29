@@ -1,7 +1,7 @@
 import pathlib
-from sidescan_preproc import SidescanPreprocessor
+from .sidescan_preproc import SidescanPreprocessor
 import numpy as np
-from sidescan_file import SidescanFile
+from .sidescan_file import SidescanFile
 import multiprocessing
 from itertools import repeat
 

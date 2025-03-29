@@ -5,7 +5,7 @@ import os
 import numpy as np
 import utm
 import math
-from sidescan_file import SidescanFile
+from .sidescan_file import SidescanFile
 import subprocess
 import itertools
 from PIL import Image

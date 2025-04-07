@@ -13,6 +13,8 @@ from PIL.PngImagePlugin import PngInfo
 
 
 # TODO: Doc/Type hints
+# TODO change ping size fixed chunks, also print command, change naming (zweimal ch0 in chunk file namen)
+
 class SidescanGeoreferencer:
     filepath: Path
     sidescan_file: SidescanFile
@@ -69,7 +71,8 @@ class SidescanGeoreferencer:
         SLANT_RANGE = self.sidescan_file.slant_range[self.channel]
         GROUND_RANGE = []
         swath_len = len(PING)
-        print(f"swath_len: {swath_len}")
+        swath_width = len(self.sidescan_file.data[self.channel][0])
+        print(f"swath_len: {swath_len}, swath_width: {swath_width}")
 
         PING = np.ndarray.flatten(np.array(PING))
         LON = np.ndarray.flatten(np.array(LON))
@@ -119,13 +122,13 @@ class SidescanGeoreferencer:
                     for ground_range, head, north in zip(GROUND_RANGE, HEAD, NORTH)
                 ]
             )
-            LALO_EDGE = [
+            LALO_OUTER = [
                 utm.to_latlon(north_ch1, east_ch1, utm_zone, utm_let)
                 for (north_ch1, east_ch1, utm_zone, utm_let) in zip(
                     NORTH, EAST, UTM_ZONE, UTM_LET
                 )
             ]
-            LA_EDGE, LO_EDGE = map(np.array, zip(*LALO_EDGE))
+            LA_EDGE, LO_OUTER = map(np.array, zip(*LALO_OUTER))
 
         elif self.channel == 1:
             EAST = np.array(
@@ -140,26 +143,26 @@ class SidescanGeoreferencer:
                     for ground_range, head, north in zip(GROUND_RANGE, HEAD, NORTH)
                 ]
             )
-            LALO_EDGE = [
+            LALO_OUTER = [
                 utm.to_latlon(north_ch2, east_ch2, utm_zone, utm_let)
                 for (north_ch2, east_ch2, utm_zone, utm_let) in zip(
                     NORTH, EAST, UTM_ZONE, UTM_LET
                 )
             ]
-            LA_EDGE, LO_EDGE = map(np.array, zip(*LALO_EDGE))
+            LA_EDGE, LO_OUTER = map(np.array, zip(*LALO_OUTER))
 
         if self.dynamic_chunking:
             print("Dynamic chunking active.")
             self.chunk_indices = np.where(np.diff(LAT) != 0)[0] + 2
 
         elif not self.dynamic_chunking:
-            chunksize = 5
+            chunksize = 20
             self.chunk_indices = int(swath_len / chunksize)
-            print(f"Fixed chunk size: {chunksize} pings.")
+            print(f"Fixed chunk size: {20} pings.")
 
         lo_split_ce = np.array_split(LON, self.chunk_indices, axis=0)
         la_split_ce = np.array_split(LAT, self.chunk_indices, axis=0)
-        lo_split_e = np.array_split(LO_EDGE, self.chunk_indices, axis=0)
+        lo_split_e = np.array_split(LO_OUTER, self.chunk_indices, axis=0)
         la_split_e = np.array_split(LA_EDGE, self.chunk_indices, axis=0)
 
         """
@@ -170,9 +173,6 @@ class SidescanGeoreferencer:
             zip(lo_split_ce, la_split_ce, lo_split_e, la_split_e)
         ):
 
-            if self.dynamic_chunking:
-
-                # print(f'chunk_num, chunk_indices: {chunk_num, len(chunk_indices)}')
                 """
                 Define corner coordinates for chunks and set gcps:
                 - ul, ur: upper left/right --> nadir coordinates
@@ -189,40 +189,34 @@ class SidescanGeoreferencer:
                 la_e_ll = la_chunk_e[0]
                 la_e_lr = la_chunk_e[-1]
 
-                im_x_right = np.shape(lo_chunk_ce)[0]
-                im_x_left = 0
-                im_y_up = 0
-                im_y_low = 1000
-                # TODO: IS 1000 samples/Swathwidth cottrect in every case? Or read it out and implement as argument?
+                im_x_right_nad = np.shape(lo_chunk_ce)[0] - 2
+                im_x_right_outer = np.shape(lo_chunk_ce)[0] - 2
+                im_x_left_nad = 0
+                im_x_left_outer = 0
+                im_y_nad = 1
+                im_y_outer = -swath_width
 
                 gcp = np.array(
                     (
-                        (im_x_left, im_y_up, lo_ce_ul, la_ce_ul),
-                        (im_x_left, im_y_low, lo_e_ll, la_e_ll),
-                        (im_x_right, im_y_up, lo_ce_ur, la_ce_ur),
-                        (im_x_right, im_y_low, lo_e_lr, la_e_lr),
+                        (im_x_left_nad, im_y_nad, lo_ce_ul, la_ce_ul),
+                        (im_x_left_outer, im_y_outer, lo_e_ll, la_e_ll),
+                        (im_x_right_nad, im_y_nad, lo_ce_ur, la_ce_ur),
+                        (im_x_right_outer, im_y_outer, lo_e_lr, la_e_lr),
                     )
                 )
-                self.GCP_SPLIT.append(gcp)
 
-            elif not self.dynamic_chunking:
+                points = np.array(
+                    (
+                        (lo_ce_ul, la_ce_ul, im_x_left_nad, im_y_nad),
+                        (lo_e_ll, la_e_ll, im_x_left_outer, im_y_outer),
+                        (lo_ce_ur, la_ce_ur, im_x_right_nad, im_y_nad),
+                        (lo_e_lr, la_e_lr, im_x_right_outer, im_y_outer),
+                    )
+                )
 
-                im_x = np.array([x for x in range(len(lo_chunk_ce))])
-                im_y_nadir = np.array([0 for y in range(len(lo_chunk_ce))])
-                im_y_outer = np.array([-1000 for y in range(len(lo_chunk_ce))])
-
-                # Create one DF for each channel and combine with '-gcp' for gdal command
-
-                # gcp_cmd = np.array([ '-gcp' for gcp in range(chunksize) ])
-                Nadir_GCP = np.column_stack(
-                    (im_x, im_y_nadir, lo_chunk_ce, la_chunk_ce)
-                ).astype(object)
-                Outer_GCP = np.column_stack(
-                    (im_x, im_y_outer, lo_chunk_e, la_chunk_e)
-                ).astype(object)
-                gcp = np.vstack([Nadir_GCP, Outer_GCP])
 
                 self.GCP_SPLIT.append(gcp)
+                self.POINTS_SPLIT.append(points)      
 
 
     def channel_stack(self):
@@ -360,8 +354,7 @@ class SidescanGeoreferencer:
                         "gdalwarp",
                         "-r",
                         "bilinear",
-                        "-order",
-                        "1",
+                        "-tps",
                         "-co",
                         "COMPRESS=DEFLATE",
                         "-t_srs",
@@ -478,7 +471,7 @@ class SidescanGeoreferencer:
         except Exception as e:
             print(f"An error occurred: {str(e)}")
 
-        self.cleanup()
+        #self.cleanup()
 
     def cleanup(self):
         print(f"Cleaning ...")

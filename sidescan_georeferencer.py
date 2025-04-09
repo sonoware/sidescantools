@@ -37,7 +37,7 @@ class SidescanGeoreferencer:
         filepath: str | os.PathLike,
         channel: int = 0,
         dynamic_chunking: bool = False,
-        UTM: bool = False,
+        UTM: bool = True,
         proc_data=None,
         output_folder: str | os.PathLike = "./georef_out",
         vertical_beam_angle: int = 60,
@@ -569,8 +569,8 @@ def main():
     parser.add_argument(
         "--UTM",
         type=bool,
-        default=False,
-        help="Uses UTM projection rather than WGS84. Default is WGS84",
+        default=True,
+        help="Uses UTM projection rather than WGS84. Default is UTM",
     )
 
     args = parser.parse_args()

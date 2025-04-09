@@ -128,7 +128,7 @@ class SidescanGeoreferencer:
                     NORTH, EAST, UTM_ZONE, UTM_LET
                 )
             ]
-            LA_EDGE, LO_OUTER = map(np.array, zip(*LALO_OUTER))
+            LA_OUTER, LO_OUTER = map(np.array, zip(*LALO_OUTER))
 
         elif self.channel == 1:
             EAST = np.array(
@@ -149,7 +149,7 @@ class SidescanGeoreferencer:
                     NORTH, EAST, UTM_ZONE, UTM_LET
                 )
             ]
-            LA_EDGE, LO_OUTER = map(np.array, zip(*LALO_OUTER))
+            LA_OUTER, LO_OUTER = map(np.array, zip(*LALO_OUTER))
 
         if self.dynamic_chunking:
             print("Dynamic chunking active.")
@@ -163,7 +163,7 @@ class SidescanGeoreferencer:
         lo_split_ce = np.array_split(LON, self.chunk_indices, axis=0)
         la_split_ce = np.array_split(LAT, self.chunk_indices, axis=0)
         lo_split_e = np.array_split(LO_OUTER, self.chunk_indices, axis=0)
-        la_split_e = np.array_split(LA_EDGE, self.chunk_indices, axis=0)
+        la_split_e = np.array_split(LA_OUTER, self.chunk_indices, axis=0)
 
         """
         Calculate edge coordinates for first and last coordinates in chunks:

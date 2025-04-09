@@ -20,6 +20,7 @@ class SidescanGeoreferencer:
     sidescan_file: SidescanFile
     channel: int
     dynamic_chunking: bool
+    UTM: bool
     output_folder: Path
     proc_data: np.array
     active_proc_data: bool
@@ -110,13 +111,13 @@ class SidescanGeoreferencer:
                 UTM_LET = [utm_coord[3] for utm_coord in UTM]
 
         if self.channel == 0:
-            EAST = np.array(
+            EAST_OUTER = np.array(
                 [
                     ground_range * math.sin(head) + east
                     for ground_range, head, east in zip(GROUND_RANGE, HEAD, EAST)
                 ]
             )
-            NORTH = np.array(
+            NORTH_OUTER = np.array(
                 [
                     (ground_range * math.cos(head) * -1) + north
                     for ground_range, head, north in zip(GROUND_RANGE, HEAD, NORTH)
@@ -125,19 +126,19 @@ class SidescanGeoreferencer:
             LALO_OUTER = [
                 utm.to_latlon(north_ch1, east_ch1, utm_zone, utm_let)
                 for (north_ch1, east_ch1, utm_zone, utm_let) in zip(
-                    NORTH, EAST, UTM_ZONE, UTM_LET
+                    NORTH_OUTER, EAST_OUTER, UTM_ZONE, UTM_LET
                 )
             ]
             LA_OUTER, LO_OUTER = map(np.array, zip(*LALO_OUTER))
 
         elif self.channel == 1:
-            EAST = np.array(
+            EAST_OUTER = np.array(
                 [
                     (ground_range * math.sin(head) * -1) + east
                     for ground_range, head, east in zip(GROUND_RANGE, HEAD, EAST)
                 ]
             )
-            NORTH = np.array(
+            NORTH_OUTER = np.array(
                 [
                     (ground_range * math.cos(head)) + north
                     for ground_range, head, north in zip(GROUND_RANGE, HEAD, NORTH)
@@ -146,7 +147,7 @@ class SidescanGeoreferencer:
             LALO_OUTER = [
                 utm.to_latlon(north_ch2, east_ch2, utm_zone, utm_let)
                 for (north_ch2, east_ch2, utm_zone, utm_let) in zip(
-                    NORTH, EAST, UTM_ZONE, UTM_LET
+                    NORTH_OUTER, EAST_OUTER, UTM_ZONE, UTM_LET
                 )
             ]
             LA_OUTER, LO_OUTER = map(np.array, zip(*LALO_OUTER))
@@ -160,10 +161,19 @@ class SidescanGeoreferencer:
             self.chunk_indices = int(swath_len / chunksize)
             print(f"Fixed chunk size: {20} pings.")
 
-        lo_split_ce = np.array_split(LON, self.chunk_indices, axis=0)
-        la_split_ce = np.array_split(LAT, self.chunk_indices, axis=0)
-        lo_split_e = np.array_split(LO_OUTER, self.chunk_indices, axis=0)
-        la_split_e = np.array_split(LA_OUTER, self.chunk_indices, axis=0)
+        # UTM
+        if self.UTM: 
+            lo_split_ce = np.array_split(NORTH, self.chunk_indices, axis=0)
+            la_split_ce = np.array_split(EAST, self.chunk_indices, axis=0)
+            lo_split_e = np.array_split(NORTH_OUTER, self.chunk_indices, axis=0)
+            la_split_e = np.array_split(EAST_OUTER, self.chunk_indices, axis=0)
+
+        else:
+            lo_split_ce = np.array_split(LON, self.chunk_indices, axis=0)
+            la_split_ce = np.array_split(LAT, self.chunk_indices, axis=0)
+            lo_split_e = np.array_split(LO_OUTER, self.chunk_indices, axis=0)
+            la_split_e = np.array_split(LA_OUTER, self.chunk_indices, axis=0)
+
 
         """
         Calculate edge coordinates for first and last coordinates in chunks:
@@ -208,9 +218,9 @@ class SidescanGeoreferencer:
                 points = np.array(
                     (
                         (lo_ce_ul, la_ce_ul, im_x_left_nad, im_y_nad),
-                        (lo_e_ll, la_e_ll, im_x_left_outer, im_y_outer),
+                        (lo_e_ll, la_e_ll, im_x_left_outer, im_y_outer*(-1)),
                         (lo_ce_ur, la_ce_ur, im_x_right_nad, im_y_nad),
-                        (lo_e_lr, la_e_lr, im_x_right_outer, im_y_outer),
+                        (lo_e_lr, la_e_lr, im_x_right_outer, im_y_outer*(-1)),
                     )
                 )
 
@@ -304,9 +314,9 @@ class SidescanGeoreferencer:
                 ).with_suffix(".csv")
 
                 # optional: export points
-                #points_path = otiff.with_stem(
-                #    f"{otiff.stem}_{chunk_num}_ch{self.channel}_points_tmp"
-                #).with_suffix(".points")
+                points_path = otiff.with_stem(
+                    f"{otiff.stem}_{chunk_num}_ch{self.channel}_points_tmp"
+                    ).with_suffix(".points")
 
                 # Flip image chunks according to side
                 if self.channel == 0:
@@ -332,13 +342,15 @@ class SidescanGeoreferencer:
                     ]
                     im_x, im_y, lo, la = zip(*coords)
 
-                    # optional: export points
-                    # points = [(lo, la, im_x, im_y) for (lo, la, im_x, im_y) in points_chunk]
-                    # np.savetxt(csv_path, points, fmt="%s", delimiter=",")
-
                 except Exception as e:
                     print(f"gcp chunk: {np.shape(gcp_chunk)}")
 
+                # optional: export points
+                try:
+                    points = [(lo, la, im_x, im_y) for (lo, la, im_x, im_y) in points_chunk]
+                    np.savetxt(csv_path, points, fmt="%s", delimiter=",")
+                except Exception as e:
+                    print(f'Exception: {e}')
 
                 gdal_translate = ["gdal_translate", "-of", "GTiff"]
 
@@ -348,20 +360,33 @@ class SidescanGeoreferencer:
                             ["-gcp", str(im_x[i]), str(im_y[i]), str(lo[i]), str(la[i])]
                         )
                     gdal_translate.extend([str(im_path), str(chunk_path)])
-                    print(gdal_translate)
 
-                    gdal_warp = [
-                        "gdalwarp",
-                        "-r",
-                        "bilinear",
-                        "-tps",
-                        "-co",
-                        "COMPRESS=DEFLATE",
-                        "-t_srs",
-                        "EPSG:4326",
-                        str(chunk_path),
-                        str(warp_path),
-                    ]
+                    if self.UTM:
+                        gdal_warp = [
+                            "gdalwarp",
+                            "-r",
+                            "cubicspline",
+                            "-tps",
+                            "-co",
+                            "COMPRESS=DEFLATE",
+                            "-t_srs",
+                            "EPSG:32632",
+                            str(chunk_path),
+                            str(warp_path),
+                        ]
+                    else:
+                        gdal_warp = [
+                            "gdalwarp",
+                            "-r",
+                            "cubicspline",
+                            "-tps",
+                            "-co",
+                            "COMPRESS=DEFLATE",
+                            "-t_srs",
+                            "EPSG:4326",
+                            str(chunk_path),
+                            str(warp_path),
+                        ]
 
                 elif not self.dynamic_chunking:
                     for i in range(len(gcp_chunk)):
@@ -370,30 +395,45 @@ class SidescanGeoreferencer:
                         )
                     gdal_translate.extend([str(im_path), str(chunk_path)])
 
-                    gdal_warp = [
-                        "gdalwarp",
-                        "-r",
-                        "bilinear",
-                        "-tps",
-                        "-co",
-                        "COMPRESS=DEFLATE",
-                        "-t_srs",
-                        "EPSG:4326",
-                        str(chunk_path),
-                        str(warp_path),
-                    ]
+                    if self.UTM:
+                        gdal_warp = [
+                            "gdalwarp",
+                            "-r",
+                            "cubicspline",
+                            "-tps",
+                            "-co",
+                            "COMPRESS=DEFLATE",
+                            "-t_srs",
+                            "EPSG:32632",
+                            str(chunk_path),
+                            str(warp_path),
+                        ]
+                    else:
+                        gdal_warp = [
+                            "gdalwarp",
+                            "-r",
+                            "cubicspline",
+                            "-tps",
+                            "-co",
+                            "COMPRESS=DEFLATE",
+                            "-t_srs",
+                            "EPSG:4326",
+                            str(chunk_path),
+                            str(warp_path),
+                        ]
 
-                    # optional: append .points header and fist and last center point
+                # optional: append .points header and fist and last center point
 
-                    #first_line = '#CRS: GEOGCRS["WGS 84",ENSEMBLE["World Geodetic System 1984 ensemble",MEMBER["World Geodetic System 1984                  (Transit)"],MEMBER["World Geodetic System 1984 (G730)"],MEMBER["World Geodetic System 1984 (G873)"],MEMBER["World                   Geodetic System 1984 (G1150)"],MEMBER["World Geodetic System 1984 (G1674)"],MEMBER["World Geodetic System 1984 (G1762)"],               ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]],ENSEMBLEACCURACY[2.0]],PRIMEM["Greenwich",0,ANGLEUNIT           ["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.        0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],USAGE[SCOPE             ["Horizontal component of 3D system."],AREA["World."],BBOX[-90,-180,90,180]],ID["EPSG",4326]]'
-                    #second_line = "mapX,mapY,sourceX,sourceY,enable,dX,dY,residual"
-                    #with open(csv_path, "r") as ori_f:
-                    #    ori_txt = ori_f.read()
-                    #    # print(ori_txt)
-                    #with open(points_path, "w") as mod_f:
-                    #    mod_f.write(
-                    #        first_line + "\n" + second_line + "\n" + ori_txt
-                    #    )
+                try:
+                    first_line = '#CRS: GEOGCRS["WGS 84",ENSEMBLE["World Geodetic System 1984 ensemble",MEMBER["World Geodetic System 1984(Transit)"],MEMBER["World Geodetic System 1984 (G730)"],MEMBER["World Geodetic System 1984 (G873)"],MEMBER["World                   Geodetic System 1984 (G1150)"],MEMBER["World Geodetic System 1984 (G1674)"],MEMBER["World Geodetic System 1984 (G1762)"],               ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]],ENSEMBLEACCURACY[2.0]],PRIMEM["Greenwich",0,ANGLEUNIT           ["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.        0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],USAGE[SCOPE             ["Horizontal component of 3D system."],AREA["World."],BBOX[-90,-180,90,180]],ID["EPSG",4326]]'
+                    second_line='mapX,mapY,sourceX,sourceY,enable,dX,dY,residual'
+                    with open(csv_path, 'r') as ori_f:
+                        ori_txt = ori_f.read()
+                        #print(ori_txt)
+                    with open(points_path, 'w') as mod_f:
+                        mod_f.write(first_line + '\n' + second_line + '\n' + ori_txt)
+                except Exception as e:
+                    print(f'Exception: {e}')
 
                 self.run_command(gdal_translate)
                 self.run_command(gdal_warp)
@@ -516,11 +556,17 @@ def main():
         default=False,
         help="Implements chunking based on GPS information density",
     )
+    parser.add_argument(
+        "--UTM",
+        type=bool,
+        default=False,
+        help="Uses UTM projection rather than WGS84. Default is WGS84",
+    )
 
     args = parser.parse_args()
     print("args:", args)
 
-    georeferencer = SidescanGeoreferencer(args.xtf, args.channel, args.dynamic_chunking)
+    georeferencer = SidescanGeoreferencer(args.xtf, args.channel, args.dynamic_chunking, args.UTM)
     georeferencer.process()
 
 

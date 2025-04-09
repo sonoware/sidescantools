@@ -310,21 +310,21 @@ class SidescanGeoreferencer:
             if chunk_num < len(ch_split) - 1:
 
                 im_path = otiff.with_stem(
-                    f"{otiff.stem}_{chunk_num}_ch{self.channel}_tmp"
+                    f"{otiff.stem}_{chunk_num}_tmp"
                 ).with_suffix(".png")
                 chunk_path = otiff.with_stem(
-                    f"{otiff.stem}_{chunk_num}_ch{self.channel}_chunk_tmp"
+                    f"{otiff.stem}_{chunk_num}_chunk_tmp"
                 ).with_suffix(".tif")
                 warp_path = otiff.with_stem(
-                    f"{otiff.stem}_{chunk_num}_ch{self.channel}_WGS84_chunk_tmp"
+                    f"{otiff.stem}_{chunk_num}_georef_chunk_tmp"
                 ).with_suffix(".tif")
                 csv_path = otiff.with_stem(
-                    f"{otiff.stem}_{chunk_num}_ch{self.channel}_tmp"
+                    f"{otiff.stem}_{chunk_num}_tmp"
                 ).with_suffix(".csv")
 
                 # optional: export points
                 points_path = otiff.with_stem(
-                    f"{otiff.stem}_{chunk_num}_ch{self.channel}_points_tmp"
+                    f"{otiff.stem}_{chunk_num}_points_tmp"
                     ).with_suffix(".points")
 
                 # Flip image chunks according to side
@@ -468,7 +468,7 @@ class SidescanGeoreferencer:
 
         for root, dirs, files in os.walk(self.output_folder):
             for name in files:
-                if name.endswith("_WGS84_chunk_tmp.tif") and not name.startswith("._"):
+                if name.endswith("_georef_chunk_tmp.tif") and not name.startswith("._"):
                     TIF.append(os.path.join(root, name))
                     np.savetxt(txt_path, TIF, fmt="%s")
 
@@ -531,6 +531,7 @@ class SidescanGeoreferencer:
                 or str(file_path).endswith("_tmp.txt")
                 or str(file_path).endswith("_tmp.csv")
                 or str(file_path).endswith("_tmp.tif")
+                or str(file_path).endswith("_tmp.points")
                 or str(file_path).endswith(".xml")
             ):
                 try:

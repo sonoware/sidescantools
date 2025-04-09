@@ -10,6 +10,8 @@ import subprocess
 import itertools
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
+from pyproj import CRS
+
 
 
 # TODO: Doc/Type hints
@@ -28,12 +30,14 @@ class SidescanGeoreferencer:
     POINTS_SPLIT: list
     chunk_indices: np.array
     vertical_beam_angle: int
+    epsg_code: str
 
     def __init__(
         self,
         filepath: str | os.PathLike,
         channel: int = 0,
         dynamic_chunking: bool = False,
+        UTM: bool = False,
         proc_data=None,
         output_folder: str | os.PathLike = "./georef_out",
         vertical_beam_angle: int = 60,
@@ -42,6 +46,7 @@ class SidescanGeoreferencer:
         self.sidescan_file = SidescanFile(self.filepath)
         self.channel = channel
         self.dynamic_chunking = dynamic_chunking
+        self.UTM = UTM
         self.output_folder = Path(output_folder)
         self.vertical_beam_angle = vertical_beam_angle
 
@@ -109,6 +114,10 @@ class SidescanGeoreferencer:
                 EAST = [utm_coord[1] for utm_coord in UTM]
                 UTM_ZONE = [utm_coord[2] for utm_coord in UTM]
                 UTM_LET = [utm_coord[3] for utm_coord in UTM]
+                crs = CRS.from_dict({'proj': 'utm', 'zone': UTM_ZONE[0], 'south': False})
+                epsg = crs.to_authority()
+                self.epsg_code = f'{epsg[0]}:{epsg[1]}'
+
 
         if self.channel == 0:
             EAST_OUTER = np.array(
@@ -295,8 +304,8 @@ class SidescanGeoreferencer:
         """
         ch_split = np.array_split(ch_stack, self.chunk_indices, axis=1)
 
-        for chunk_num, (ch_chunk, gcp_chunk) in enumerate(
-            zip(ch_split, self.GCP_SPLIT)
+        for chunk_num, (ch_chunk, gcp_chunk, points_chunk) in enumerate(
+            zip(ch_split, self.GCP_SPLIT, self.POINTS_SPLIT)
         ):
             if chunk_num < len(ch_split) - 1:
 
@@ -370,7 +379,7 @@ class SidescanGeoreferencer:
                             "-co",
                             "COMPRESS=DEFLATE",
                             "-t_srs",
-                            "EPSG:32632",
+                            self.epsg_code,
                             str(chunk_path),
                             str(warp_path),
                         ]
@@ -511,7 +520,7 @@ class SidescanGeoreferencer:
         except Exception as e:
             print(f"An error occurred: {str(e)}")
 
-        #self.cleanup()
+        self.cleanup()
 
     def cleanup(self):
         print(f"Cleaning ...")

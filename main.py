@@ -806,6 +806,9 @@ class SidescanToolsMain(QWidget):
             preproc.slant_corrected_mat = slant_data["slant_corr"]
 
         else:
+            # TODO: HACK pie slice filter and simple amp correction
+            preproc.apply_pie_slice_filter()
+            preproc.apply_starfish_amp_fix()
             preproc.slant_range_correction(
                 active_interpolation=True,
                 nadir_angle=int(self.nadir_angle_edit.line_edit.text()),

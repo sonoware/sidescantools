@@ -993,6 +993,7 @@ class SidescanToolsMain(QWidget):
             load_slant_data = False
             load_egn_data = False
             # check wheter preproc data is present and load or process file
+            filepath = pathlib.Path(filepath)
             if (work_dir / (filepath.stem + "_slant_corrected.npz")).exists():
                 load_slant_data = True
             if (work_dir / (filepath.stem + "_egn_corrected.npz")).exists():

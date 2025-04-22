@@ -192,6 +192,7 @@ class SidescanToolsMain(QWidget):
         "Btm def thresh": 0.6,
         "Btm downsampling": 1,
         "Active convert dB": False,
+        "Active pie slice filter": True,
         "Slant Vertical beam angle": 60,
         "Slant nadir angle": 0,
         "Slant use intern depth": False,
@@ -327,19 +328,25 @@ class SidescanToolsMain(QWidget):
             QtGui.QIntValidator(100, 5000, self),
             self.settings_dict["Btm chunk size"],
         )
-        self.btm_chunk_size_edit.label.setToolTip("Number of pings in one chunk for bottom detection.")
+        self.btm_chunk_size_edit.label.setToolTip(
+            "Number of pings in one chunk for bottom detection."
+        )
         self.btm_default_thresh = LabeledLineEdit(
             "Default Threshold [0.0 - 1.0]:",
             QtGui.QDoubleValidator(0.0, 1.0, 2, self),
             self.settings_dict["Btm def thresh"],
         )
-        self.btm_default_thresh.label.setToolTip("Threshold that is applied to normalized data to find edges between water and ground. Needs to be in range[ 0 - 1].")
+        self.btm_default_thresh.label.setToolTip(
+            "Threshold that is applied to normalized data to find edges between water and ground. Needs to be in range[ 0 - 1]."
+        )
         self.btm_downsample_fact = LabeledLineEdit(
             "Downsampling Factor:",
             QtGui.QIntValidator(1, 16, self),
             self.settings_dict["Btm downsampling"],
         )
-        self.btm_downsample_fact.label.setToolTip("Integer decimation factor that is used to downsample each ping.")
+        self.btm_downsample_fact.label.setToolTip(
+            "Integer decimation factor that is used to downsample each ping."
+        )
         self.active_convert_dB_checkbox = QCheckBox("Convert to dB")
         self.active_convert_dB_checkbox.setChecked(
             self.settings_dict["Active convert dB"]
@@ -350,20 +357,30 @@ class SidescanToolsMain(QWidget):
 
         self.slant_and_egn_label = QLabel("Slant Range Correction and EGN")
         self.slant_and_egn_label.setFont(title_font)
+        self.pie_slice_filter_checkbox = QCheckBox("Filter Stripe Noise")
+        self.pie_slice_filter_checkbox.setChecked(
+            self.settings_dict["Active pie slice filter"]
+        )
         self.vertical_beam_angle_edit = LabeledLineEdit(
             "Vertical Beam Angle:",
             QtGui.QIntValidator(0, 90, self),
             self.settings_dict["Slant Vertical beam angle"],
         )
-        self.vertical_beam_angle_edit.label.setToolTip("Only relevant if internal depth is unknown: Horizontal angle by which the instrument is tilted (usually found in the manual).")
+        self.vertical_beam_angle_edit.label.setToolTip(
+            "Only relevant if internal depth is unknown: Horizontal angle by which the instrument is tilted (usually found in the manual)."
+        )
         self.nadir_angle_edit = LabeledLineEdit(
             "Nadir Angle:",
             QtGui.QIntValidator(0, 90, self),
             self.settings_dict["Slant nadir angle"],
         )
-        self.nadir_angle_edit.label.setToolTip("Angle between perpendicular and first bottom return (usually unknown, default is 0°)")
+        self.nadir_angle_edit.label.setToolTip(
+            "Angle between perpendicular and first bottom return (usually unknown, default is 0°)"
+        )
         self.use_intern_depth_checkbox = QCheckBox("Use internal Depth")
-        self.use_intern_depth_checkbox.setToolTip("Use internal depth information for slant range correction. Otherwise depth is estimated from detected bottom line.")
+        self.use_intern_depth_checkbox.setToolTip(
+            "Use internal depth information for slant range correction. Otherwise depth is estimated from detected bottom line."
+        )
         self.use_intern_depth_checkbox.setChecked(
             self.settings_dict["Slant use intern depth"]
         )
@@ -372,11 +389,15 @@ class SidescanToolsMain(QWidget):
             QtGui.QIntValidator(100, 5000, self),
             self.settings_dict["Slant chunk size"],
         )
-        self.slant_chunk_size_edit.label.setToolTip("Number of pings in one chunk for for slant range and EGN correction. Is also used to determine the size of the exported waterfall images.")
+        self.slant_chunk_size_edit.label.setToolTip(
+            "Number of pings in one chunk for for slant range and EGN correction. Is also used to determine the size of the exported waterfall images."
+        )
         self.use_bottom_detection_downsampling_checkbox = QCheckBox(
             "Apply Downsampling"
         )
-        self.use_bottom_detection_downsampling_checkbox.setToolTip("Use downsampling factor from bottom line detection to do processing on downsampled data.")
+        self.use_bottom_detection_downsampling_checkbox.setToolTip(
+            "Use downsampling factor from bottom line detection to do processing on downsampled data."
+        )
         self.use_bottom_detection_downsampling_checkbox.setChecked(
             self.settings_dict["Slant active use downsampling"]
         )
@@ -389,9 +410,13 @@ class SidescanToolsMain(QWidget):
             validator=None,
             start_val=self.settings_dict["EGN table name"],
         )
-        self.egn_table_name_edit.label.setToolTip("Set name of EGN Table that is written as .npz file.")
+        self.egn_table_name_edit.label.setToolTip(
+            "Set name of EGN Table that is written as .npz file."
+        )
         self.active_multiprocessing_checkbox = QCheckBox("Active Multiprocessing")
-        self.active_multiprocessing_checkbox.setToolTip("Use multiprocessing in python to enable faster processing by multithreading.")
+        self.active_multiprocessing_checkbox.setToolTip(
+            "Use multiprocessing in python to enable faster processing by multithreading."
+        )
         self.active_multiprocessing_checkbox.setChecked(
             self.settings_dict["Slant active multiprocessing"]
         )
@@ -403,12 +428,16 @@ class SidescanToolsMain(QWidget):
         self.export_slant_correction_checkbox = QCheckBox(
             "Export Slant Range corrected Data"
         )
-        self.export_slant_correction_checkbox.setToolTip("Export Slant Range corrected data as .npz file. So it doesn't need to be recalculated for export or viewing.")
+        self.export_slant_correction_checkbox.setToolTip(
+            "Export Slant Range corrected data as .npz file. So it doesn't need to be recalculated for export or viewing."
+        )
         self.export_slant_correction_checkbox.setChecked(
             self.settings_dict["Slant active export slant data"]
         )
         self.export_EGN_correction_checkbox = QCheckBox("Export EGN corrected Data")
-        self.export_EGN_correction_checkbox.setToolTip("Export EGN corrected data as .npz file. So it doesn't need to be recalculated for export or viewing.")
+        self.export_EGN_correction_checkbox.setToolTip(
+            "Export EGN corrected data as .npz file. So it doesn't need to be recalculated for export or viewing."
+        )
         self.export_EGN_correction_checkbox.setChecked(
             self.settings_dict["Slant active export EGN data"]
         )
@@ -420,14 +449,18 @@ class SidescanToolsMain(QWidget):
         self.napari_label = QLabel("View Results")
         self.napari_label.setFont(title_font)
         self.active_reprocess_file_checkbox = QCheckBox("Reprocess file")
-        self.active_reprocess_file_checkbox.setToolTip("Do the slant range and EGN correction processing of the selected file before viewing.")
+        self.active_reprocess_file_checkbox.setToolTip(
+            "Do the slant range and EGN correction processing of the selected file before viewing."
+        )
         self.show_proc_file_btn = QPushButton("View Processed Data")
         self.show_proc_file_btn.clicked.connect(self.show_proc_file_in_napari)
 
         self.georef_label = QLabel("Georeferencing and Image Generation")
         self.georef_label.setFont(title_font)
         self.active_use_egn_data_checkbox = QCheckBox("Use EGN corrected Data")
-        self.active_use_egn_data_checkbox.setToolTip("Export pictures using the EGN corrected data. Otherwise raw data is exported.")
+        self.active_use_egn_data_checkbox.setToolTip(
+            "Export pictures using the EGN corrected data. Otherwise raw data is exported."
+        )
         self.active_use_egn_data_checkbox.setChecked(
             self.settings_dict["Georef active EGN"]
         )
@@ -437,7 +470,9 @@ class SidescanToolsMain(QWidget):
             self.settings_dict["Georef active dynamic chunking"]
         )
         self.active_colormap_checkbox = QCheckBox("Apply custom Colormap")
-        self.active_colormap_checkbox.setToolTip("Applies the colormap used in napari to the exported waterfall images. Otherwise grey scale values are used.")
+        self.active_colormap_checkbox.setToolTip(
+            "Applies the colormap used in napari to the exported waterfall images. Otherwise grey scale values are used."
+        )
         self.active_colormap_checkbox.setChecked(True)
         self.generate_single_georef_btn = QPushButton("Selected")
         self.generate_single_georef_btn.clicked.connect(self.run_sidescan_georef)
@@ -483,6 +518,7 @@ class SidescanToolsMain(QWidget):
         self.right_view.addWidget(self.do_btm_detection_btn)
         self.right_view.addWidget(QHLine())
         self.right_view.addWidget(self.slant_and_egn_label)
+        self.right_view.addWidget(self.pie_slice_filter_checkbox)
         self.right_view.addLayout(self.vertical_beam_angle_edit)
         self.right_view.addLayout(self.nadir_angle_edit)
         self.right_view.addWidget(self.use_intern_depth_checkbox)
@@ -806,6 +842,8 @@ class SidescanToolsMain(QWidget):
             preproc.slant_corrected_mat = slant_data["slant_corr"]
 
         else:
+            if self.pie_slice_filter_checkbox.isChecked():
+                preproc.apply_pie_slice_filter()
             preproc.slant_range_correction(
                 active_interpolation=True,
                 nadir_angle=int(self.nadir_angle_edit.line_edit.text()),
@@ -955,6 +993,7 @@ class SidescanToolsMain(QWidget):
             load_slant_data = False
             load_egn_data = False
             # check wheter preproc data is present and load or process file
+            filepath = pathlib.Path(filepath)
             if (work_dir / (filepath.stem + "_slant_corrected.npz")).exists():
                 load_slant_data = True
             if (work_dir / (filepath.stem + "_egn_corrected.npz")).exists():
@@ -1177,6 +1216,9 @@ class SidescanToolsMain(QWidget):
         self.settings_dict["Active convert dB"] = (
             self.active_convert_dB_checkbox.isChecked()
         )
+        self.settings_dict["Acitve pie slice filter"] = (
+            self.pie_slice_filter_checkbox.isChecked()
+        )
         self.settings_dict["Slant Vertical beam angle"] = int(
             self.vertical_beam_angle_edit.line_edit.text()
         )
@@ -1236,6 +1278,9 @@ class SidescanToolsMain(QWidget):
         )
         self.active_convert_dB_checkbox.setChecked(
             self.settings_dict["Active convert dB"]
+        )
+        self.pie_slice_filter_checkbox.setChecked(
+            self.settings_dict["Active pie slice filter"]
         )
         self.vertical_beam_angle_edit.line_edit.setText(
             str(self.settings_dict["Slant Vertical beam angle"])

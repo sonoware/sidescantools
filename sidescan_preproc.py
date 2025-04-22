@@ -39,7 +39,7 @@ class SidescanPreprocessor:
         num_ch=2,
         downsampling_factor=1,
     ):
-        """Main class to apply preprocessing functionalities (reading SidescanFiles, 
+        """Main class to apply preprocessing functionalities (reading SidescanFiles,
         bottom line detection using napari, slant range and EGN correction)
 
         Parameters
@@ -51,14 +51,15 @@ class SidescanPreprocessor:
         chunk_size: int
             Number of pings per single chunk
         num_ch: int
-            Number of channels - defaults to 2. This should be the usual case. 
-            Other cases are only partly integrated right now and it is not clear 
+            Number of channels - defaults to 2. This should be the usual case.
+            Other cases are only partly integrated right now and it is not clear
             if there is a use case for this. This param will probably be deleted in the future.
         downsampling_factor: int
             Factor used for decimation of ping signals
         """
         self.sidescan_file = sidescan_file
         self.sonar_data_proc = copy.deepcopy(self.sidescan_file.data)
+        self.sonar_data_proc = np.array(self.sonar_data_proc).astype(float)
 
         self.chunk_size = chunk_size
         self.ping_len = self.sidescan_file.ping_len
@@ -161,10 +162,7 @@ class SidescanPreprocessor:
             else:
                 initial_guess = False
 
-
-    def init_napari_bottom_detect(
-        self, default_threshold
-    ):
+    def init_napari_bottom_detect(self, default_threshold):
 
         # normalize each ping individually
         portside = np.array(self.sonar_data_proc[0], dtype=float)
@@ -499,6 +497,141 @@ class SidescanPreprocessor:
 
         return np.array(candidates, dtype=int)
 
+    @staticmethod
+    def get_sup_line_lin(sup_fact, width):
+        if width >= 3:
+            rad = int(np.round(width / 2) - 1)
+            sup_fact_lin = np.linspace(0.0, sup_fact, rad)
+            sup_fact_lin = np.hstack([sup_fact_lin, sup_fact, np.flip(sup_fact_lin)])
+        elif width == 1:
+            sup_fact_lin = np.array([0.0])
+        else:
+            sup_fact_lin = np.array([sup_fact])
+
+        sup_fact_lin = 1 / (10 ** (sup_fact_lin / 20))
+        return sup_fact_lin
+
+    @staticmethod
+    def build_pie_H(M, N, width_end=0.1, dist_to_mid=0.0, sup_fact=80, peak_pos=None):
+        """
+        Parameters
+        ----------
+        M: int
+            Size of first image dimension
+        N: int
+            Size of second image dimension
+        width_end: float
+            Width of pie at end
+        dist_to_mid: float
+            Fractional distance to 0,0 where pie starts
+        sup_fact: float
+            Factor of attenuation in middle of pie filter
+        peak_pos: None or np.array
+            Position to rotate pie slice to go through"""
+
+        H = np.ones((M, N))
+        width_end = int(np.round(width_end * N))
+        dist_to_mid = int(np.round(dist_to_mid * M / 2))
+        pie_len = int(M / 2 - dist_to_mid)
+        width_lin = np.linspace(width_end, 1, pie_len)
+        width_lin = np.round(width_lin).astype(int)
+
+        if peak_pos is not None:
+            dist_fact = pie_len / peak_pos[0]
+            max_shift = int(np.round(dist_fact * (peak_pos[1] - N / 2)))
+            shift_vec = np.linspace(0, max_shift, pie_len).astype(int)
+        else:
+            shift_vec = np.linspace(0, 0, pie_len).astype(int)
+
+        for l_idx in range(pie_len):
+            cur_width = width_lin[l_idx]
+            start_idx = int(N / 2 - np.round(cur_width / 2))
+            sup_line = SidescanPreprocessor.get_sup_line_lin(sup_fact, cur_width)
+            H[
+                l_idx,
+                start_idx
+                + shift_vec[l_idx] : start_idx
+                + len(sup_line)
+                + shift_vec[l_idx],
+            ] = sup_line
+
+        H[int(M / 2) :] = np.flipud(H[: int(M / 2)])
+        return H
+
+    # Pie slice filter to remove noisy lines
+    def apply_pie_slice_filter(self):
+        for ch in range(self.num_ch):
+            son_dat = self.sonar_data_proc[ch]
+            for chunk_idx in range(self.num_chunk):
+                # avoid zero padding
+                if chunk_idx == self.num_chunk - 1:
+                    cur_chunk = son_dat[-1 * self.chunk_size :]
+                else:
+                    cur_chunk = son_dat[
+                        chunk_idx * self.chunk_size : (chunk_idx + 1) * self.chunk_size
+                    ]
+
+                # apply filter
+                spec = np.fft.fft2(cur_chunk)
+                spec_r = np.vstack(
+                    [spec[int(self.chunk_size / 2) :], spec[: int(self.chunk_size / 2)]]
+                )
+                spec_r = np.hstack(
+                    [
+                        spec_r[:, int(self.ping_len / 2) :],
+                        spec_r[:, : int(self.ping_len / 2)],
+                    ]
+                )
+
+                # build rotated H
+                spec_max_1 = np.max(20 * np.log10(np.abs(spec_r)), axis=1)
+                search_lim = int(self.chunk_size / 2 * 0.9)
+                peaks, _ = scisig.find_peaks(spec_max_1[:search_lim], prominence=10)
+                # print(scisig.peak_prominences(spec_max_1[:search_lim], peaks))
+                far_peak_pos = None
+                if len(peaks) >= 2:
+                    last_peaks = peaks[-2:]
+                    peak_positions = np.zeros((2, 2))
+                    for ii in range(2):
+                        peak_positions[ii, 0] = last_peaks[ii]
+                        peak_positions[ii, 1] = np.where(
+                            20 * np.log10(np.abs(spec_r[last_peaks[ii]]))
+                            == spec_max_1[last_peaks[ii]]
+                        )[0]
+
+                    # take pos which is furthest away from mid
+                    far_peak_pos = peak_positions[
+                        np.argmax(np.abs(peak_positions[:, 1] - self.ping_len / 2))
+                    ]
+
+                H = SidescanPreprocessor.build_pie_H(
+                    self.chunk_size, self.ping_len, peak_pos=far_peak_pos
+                )
+                spec_filt_r = spec_r * H
+
+                spec_filt = np.vstack(
+                    [
+                        spec_filt_r[int(self.chunk_size / 2) :],
+                        spec_filt_r[: int(self.chunk_size / 2)],
+                    ]
+                )
+                spec_filt = np.hstack(
+                    [
+                        spec_filt[:, int(self.ping_len / 2) :],
+                        spec_filt[:, : int(self.ping_len / 2)],
+                    ]
+                )
+                chunk_filt = np.real(np.fft.ifft2(spec_filt))
+
+                if chunk_idx == self.num_chunk - 1:
+                    son_dat[-1 * self.chunk_size :] = chunk_filt
+                else:
+                    son_dat[
+                        chunk_idx * self.chunk_size : (chunk_idx + 1) * self.chunk_size
+                    ] = chunk_filt
+
+            self.sonar_data_proc[ch] = son_dat
+
     # Slant range correction, partly taken from PINGMapper
     def slant_range_correction(
         self,
@@ -513,7 +646,7 @@ class SidescanPreprocessor:
         to the seafloor, assuming that the seafloor is flat and using the bottom line detection data.
         Therefore a new index for eachsample is calculated to determine its position on the ground range.
         This results in a new matrix ``self.slant_corrected_mat`` containing the ground range intensity
-        values, which might contain gaps. These gaps are interpolated if active_interpolation is 
+        values, which might contain gaps. These gaps are interpolated if active_interpolation is
         set to ``True``, otherwise the matrix contains NANs.
 
         Parameters
@@ -523,7 +656,7 @@ class SidescanPreprocessor:
         save_to: str | os.PathLike | None
             If not ``None`` the resulting slant corrected matrix is saved as ``.npz`` to the provided path
         nadir_angle: int
-            Angle below the sidescan sonar in degree which is invisible because of nadir (per side). 
+            Angle below the sidescan sonar in degree which is invisible because of nadir (per side).
             Use 0 if it is not known.
         use_intern_depth: bool
             If ``True`` internal depth information is used. Otherwise the depth is estimated from the bottom detection data.
@@ -531,7 +664,7 @@ class SidescanPreprocessor:
              If ``True`` the distorted watercolumn data is removed
         active_mult_slant_range_resampling: bool
             If ``True`` pings with different slant ranges are resampled to the longest slant range.
-            This results in a slant corrected matrix where all samples are equidistant. 
+            This results in a slant corrected matrix where all samples are equidistant.
         """
 
         # to make both channels have their wc left
@@ -687,7 +820,7 @@ class SidescanPreprocessor:
 
                 # remove remaining nadir
                 if nadir_angle != 0:
-                    depth_on_ground = int(round(np.sqrt((depth+1)**2 - dd), 0))
+                    depth_on_ground = int(round(np.sqrt((depth + 1) ** 2 - dd), 0))
                     ping_dat[:depth_on_ground] = 0
 
                 if ch == 0:
@@ -699,10 +832,31 @@ class SidescanPreprocessor:
 
         print("Slant range correction completed.")
 
-        # TODO: quick and dirty y-Axis in m build 
+        self.slant_corrected_mat = np.hstack(
+            (self.slant_corrected_dat[0], self.slant_corrected_dat[1])
+        )
+
+        y_axis_m = self.gen_simple_y_axis()
+        # revert flip
+        self.sonar_data_proc[0] = np.fliplr(self.sonar_data_proc[0])
+
+        # save intensity table/histogram for EGN
+        if save_to is not None:
+            save_to = Path(save_to)
+            if save_to.suffix != ".npz":
+                save_to = save_to.with_suffix(".npz")
+            np.savez(
+                save_to,
+                slant_corr=self.slant_corrected_mat,
+                depth_info=self.dep_info,
+                y_axis_m=y_axis_m,
+            )
+
+    def gen_simple_y_axis(self):
+        # TODO: quick and dirty y-Axis in m build
         #       this might be useful later and is therefore kept for now
         stepsize = 1
-        num_step = int(num_ping / stepsize)
+        num_step = int(self.sidescan_file.num_ping / stepsize)
         y_axis_m = np.zeros(num_step)
         old_coord = 0
         new_coord = 0
@@ -726,28 +880,11 @@ class SidescanPreprocessor:
         nans, x = np.isnan(y_axis_m), lambda z: z.nonzero()[0]
         y_axis_m[nans] = np.interp(x(nans), x(~nans), y_axis_m[~nans])
 
-        self.slant_corrected_mat = np.hstack(
-            (self.slant_corrected_dat[0], self.slant_corrected_dat[1])
-        )
-
-        # revert flip
-        self.sonar_data_proc[0] = np.fliplr(self.sonar_data_proc[0])
-
-        # save intensity table/histogram for EGN
-        if save_to is not None:
-            save_to = Path(save_to)
-            if save_to.suffix != ".npz":
-                save_to = save_to.with_suffix(".npz")
-            np.savez(
-                save_to,
-                slant_corr=self.slant_corrected_mat,
-                depth_info=self.dep_info,
-                y_axis_m=y_axis_m,
-            )
+        return y_axis_m
 
     def do_EGN_correction(self, egn_table_path, save_to=None):
         """
-        
+
         Parameters
         ----------
         egn_table_path: str | os.PathLike

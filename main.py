@@ -438,9 +438,9 @@ class SidescanToolsMain(QWidget):
             self.settings_dict["Georef active dynamic chunking"]
         )
 
-        self.active_UTM_checkbox = QCheckBox("UTM")
-        self.active_UTM_checkbox.setToolTip("Coordinates in UTM (default). WGS84 if unchecked.")
-        self.active_UTM_checkbox.setChecked(
+        self.active_utm_checkbox = QCheckBox("UTM")
+        self.active_utm_checkbox.setToolTip("Coordinates in UTM (default). WGS84 if unchecked.")
+        self.active_utm_checkbox.setChecked(
             self.settings_dict["Georef UTM"]
         )
 
@@ -513,7 +513,7 @@ class SidescanToolsMain(QWidget):
         self.right_view.addWidget(self.georef_label)
         self.right_view.addWidget(self.active_use_egn_data_checkbox)
         self.right_view.addWidget(self.active_dynamic_chunking_checkbox)
-        self.right_view.addWidget(self.active_UTM_checkbox)
+        self.right_view.addWidget(self.active_utm_checkbox)
         self.right_view.addWidget(self.active_colormap_checkbox)
 
         self.labeled_georef_buttons = Labeled2Buttons(
@@ -1291,7 +1291,7 @@ class SidescanToolsMain(QWidget):
         self.active_dynamic_chunking_checkbox.setChecked(
             self.settings_dict["Georef active dynamic chunking"]
         )
-        self.active_UTM_checkbox.setChecked(
+        self.active_utm_checkbox.setChecked(
             self.settings_dict["Georef UTM"]
         )
 

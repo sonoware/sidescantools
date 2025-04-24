@@ -767,7 +767,7 @@ class SidescanToolsMain(QWidget):
             work_dir=self.output_picker.cur_dir,
             convert_to_dB=self.active_convert_dB_checkbox.isChecked(),
         )
-        self.check_for_btm_line_data_and_size()
+        self.update_table()
 
     def run_generate_slant_and_egn_files(self):
         # check if EGN file exist
@@ -800,6 +800,7 @@ class SidescanToolsMain(QWidget):
             remove_wc=self.active_remove_watercol_checkbox.isChecked(),
         )
         pool.close()
+        self.update_table()
 
     def do_slant_corr_and_EGN(
         self, filepath, load_slant_data: bool = False, load_egn_data: bool = False
@@ -875,6 +876,7 @@ class SidescanToolsMain(QWidget):
                 save_to=egn_data_path,
             )
 
+        self.update_table()
         return sidescan_file, preproc
 
     def process_all_files(self):

@@ -286,8 +286,7 @@ def run_napari_btm_line(
             bottom_image_layer.data = preproc.bottom_map
 
     # run main loop
-    napari.run(max_loop_level=2)
-
+    viewer.show(block=True)
 
 if __name__ == "__main__":
     chunk_size = 1000

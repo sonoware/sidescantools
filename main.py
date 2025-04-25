@@ -961,6 +961,7 @@ class SidescanToolsMain(QWidget):
 
         work_dir = pathlib.Path(self.settings_dict["Working dir"])
         for filepath in file_list:
+            filepath=pathlib.Path(filepath)
             load_slant_data = False
             load_egn_data = False
             # check wheter preproc data is present and load or process file
@@ -989,7 +990,7 @@ class SidescanToolsMain(QWidget):
                 filepath=filepath,
                 channel=0,
                 dynamic_chunking=self.active_dynamic_chunking_checkbox.isChecked(),
-                UTM=self.active_utm_checkbox.isChecked(),
+                active_utm=self.active_utm_checkbox.isChecked(),
                 output_folder=self.settings_dict["Georef dir"],
                 proc_data=proc_data_0,
                 vertical_beam_angle=int(self.vertical_beam_angle_edit.line_edit.text()),
@@ -999,7 +1000,7 @@ class SidescanToolsMain(QWidget):
                 filepath=filepath,
                 channel=1,
                 dynamic_chunking=self.active_dynamic_chunking_checkbox.isChecked(),
-                UTM=self.active_utm_checkbox.isChecked(),
+                active_utm=self.active_utm_checkbox.isChecked(),
                 output_folder=self.settings_dict["Georef dir"],
                 proc_data=proc_data_1,
                 vertical_beam_angle=int(self.vertical_beam_angle_edit.line_edit.text()),
@@ -1229,7 +1230,7 @@ class SidescanToolsMain(QWidget):
         )
 
         self.settings_dict["Georef UTM"] = (
-            self.active_dynamic_chunking_checkbox.isChecked()
+            self.active_utm_checkbox.isChecked()
         )
 
     def update_ui_from_settings(self):

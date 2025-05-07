@@ -2,8 +2,6 @@ import multiprocessing.dummy
 from qtpy.QtWidgets import (
     QApplication,
     QCheckBox,
-    QFrame,
-    QLineEdit,
     QLabel,
     QTableWidget,
     QTableWidgetItem,
@@ -12,15 +10,15 @@ from qtpy.QtWidgets import (
     QHBoxLayout,
     QFileDialog,
     QWidget,
-    QDialog,
-    QDialogButtonBox,
     QMessageBox,
     QStyle,
     QScrollArea,
     QTextEdit,
+    QTabWidget,
     QSizePolicy,
+    QSpacerItem
 )
-from qtpy.QtGui import QPixmap, QPalette, QColor, QShortcut, QKeySequence
+from qtpy.QtGui import QPalette, QColor, QShortcut, QKeySequence
 import qtpy.QtCore as QtCore
 import qtpy.QtGui as QtGui
 import sys, os, pathlib
@@ -213,12 +211,19 @@ class SidescanToolsMain(QWidget):
         button_box.addWidget(self.project_save_button)
         button_box.addWidget(self.project_load_button)
         self.right_view.addLayout(button_box)
-        self.right_view.addWidget(QHLine())
-        self.right_view.addLayout(self.bottom_line_detection_widget)
-        self.right_view.addWidget(QHLine())
-        self.right_view.addLayout(self.processing_widget)
-        self.right_view.addWidget(QHLine())
-        self.right_view.addLayout(self.view_and_export_widget)
+
+        # Processing steps are ordered in tabs
+        proc_tab = QTabWidget(self)
+        tab_bottom = QWidget(self)
+        tab_bottom.setLayout(self.bottom_line_detection_widget)
+        proc_tab.addTab(tab_bottom, 'Bottom Line Detection')
+        tab_bottom = QWidget(self)
+        tab_bottom.setLayout(self.processing_widget)
+        proc_tab.addTab(tab_bottom, 'Processing')
+        tab_bottom = QWidget(self)
+        tab_bottom.setLayout(self.view_and_export_widget)
+        proc_tab.addTab(tab_bottom, 'View and Export')
+        self.right_view.addWidget(proc_tab)
 
         self.base_layout.addLayout(self.left_view)
         self.right_base_widget = QWidget()
@@ -688,6 +693,8 @@ class BottomLineDetectionWidget(QVBoxLayout):
         self.addLayout(self.btm_downsample_fact)
         self.addWidget(self.active_convert_dB_checkbox)
         self.addWidget(self.do_btm_detection_btn)
+        verticalSpacer = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        self.addItem(verticalSpacer)
 
 
     def run_bottom_line_detection(self):
@@ -817,6 +824,8 @@ class ProcessingWidget(QVBoxLayout):
         self.addWidget(self.export_slant_correction_checkbox)
         self.addWidget(self.generate_egn_table)
         self.addWidget(self.process_all_btn)
+        verticalSpacer = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        self.addItem(verticalSpacer)
 
     def run_generate_slant_and_egn_files(self):
         # check if EGN file exist
@@ -1036,6 +1045,8 @@ class ViewAndExportWidget(QVBoxLayout):
             self.generate_all_simple_img_btn,
         )
         self.addLayout(self.labeled_img_export_buttons)
+        verticalSpacer = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        self.addItem(verticalSpacer)
 
     def show_proc_file_in_napari(self):
 

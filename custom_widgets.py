@@ -36,10 +36,10 @@ class Labeled2Buttons(QHBoxLayout):
         self.button_1 = button_1
         self.button_2 = button_2
         self.button_1.setSizePolicy(
-            QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.MinimumExpanding
+            QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum
         )
         self.button_2.setSizePolicy(
-            QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.MinimumExpanding
+            QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum
         )
 
         self.addWidget(self.label)

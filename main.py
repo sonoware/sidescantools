@@ -16,7 +16,9 @@ from qtpy.QtWidgets import (
     QTextEdit,
     QTabWidget,
     QSizePolicy,
-    QSpacerItem
+    QSpacerItem,
+    QRadioButton,
+    QButtonGroup,
 )
 from qtpy.QtGui import QPalette, QColor, QShortcut, QKeySequence
 import qtpy.QtCore as QtCore
@@ -34,6 +36,9 @@ from sidescan_file import SidescanFile
 import napari
 from napari.utils.colormaps import Colormap
 from custom_widgets import QHLine, Labeled2Buttons, LabeledLineEdit, OverwriteWarnDialog, FilePicker
+from enum import Enum
+
+GAINSTRAT = Enum("GAINSTRAT", [("BAC", 0), ("EGN", 1)])
 
 class SidescanToolsMain(QWidget):
     file_dict = {
@@ -54,15 +59,18 @@ class SidescanToolsMain(QWidget):
         "Btm downsampling": 1,
         "Active convert dB": False,
         "Active pie slice filter": True,
-        "Slant Vertical beam angle": 60,
+        "Active sharpening filter": True,
+        "Active gain norm": True,
+        "Slant gain norm strategy": GAINSTRAT.EGN.value,
+        "Slant vertical beam angle": 60,
         "Slant nadir angle": 0,
-        "Slant use intern depth": False,
+        "Slant active intern depth": False,
         "Slant chunk size": 1000,
         "Slant active use downsampling": True,
         "Slant active remove wc": True,
         "Slant active multiprocessing": True,
         "Slant num worker": 8,
-        "Slant active export EGN data": True,
+        "Slant active export proc data": True,
         "Slant active export slant data": True,
         "View reprocess file": False,
         "Img chunk size": 1000,
@@ -211,6 +219,7 @@ class SidescanToolsMain(QWidget):
         button_box.addWidget(self.project_save_button)
         button_box.addWidget(self.project_load_button)
         self.right_view.addLayout(button_box)
+        self.right_view.addWidget(QHLine())
 
         # Processing steps are ordered in tabs
         proc_tab = QTabWidget(self)
@@ -526,23 +535,29 @@ class SidescanToolsMain(QWidget):
         self.settings_dict["Active convert dB"] = (
             self.bottom_line_detection_widget.active_convert_dB_checkbox.isChecked()
         )
-        self.settings_dict["Acitve pie slice filter"] = (
+        self.settings_dict["Active pie slice filter"] = (
             self.processing_widget.pie_slice_filter_checkbox.isChecked()
         )
-        self.settings_dict["Slant Vertical beam angle"] = int(
+        self.settings_dict["Active sharpening filter"] = (
+            self.processing_widget.sharpening_filter_checkbox.isChecked()
+        )
+        self.settings_dict["Active gain norm"] = (
+            self.processing_widget.active_gain_norm_checkbox.isChecked()
+        )
+        self.settings_dict["Slant vertical beam angle"] = int(
             self.processing_widget.vertical_beam_angle_edit.line_edit.text()
         )
         self.settings_dict["Slant nadir angle"] = int(
             self.processing_widget.nadir_angle_edit.line_edit.text()
         )
-        self.settings_dict["Slant use intern depth"] = (
-            self.processing_widget.use_intern_depth_checkbox.isChecked()
+        self.settings_dict["Slant active intern depth"] = (
+            self.processing_widget.active_intern_depth_checkbox.isChecked()
         )
         self.settings_dict["Slant chunk size"] = int(
             self.processing_widget.slant_chunk_size_edit.line_edit.text()
         )
         self.settings_dict["Slant active use downsampling"] = (
-            self.processing_widget.use_bottom_detection_downsampling_checkbox.isChecked()
+            self.processing_widget.active_bottom_detection_downsampling_checkbox.isChecked()
         )
         self.settings_dict["Slant active remove wc"] = (
             self.processing_widget.active_remove_watercol_checkbox.isChecked()
@@ -553,8 +568,8 @@ class SidescanToolsMain(QWidget):
         self.settings_dict["Slant num worker"] = int(
             self.processing_widget.num_worker_edit.line_edit.text()
         )
-        self.settings_dict["Slant active export EGN data"] = (
-            self.processing_widget.export_EGN_correction_checkbox.isChecked()
+        self.settings_dict["Slant active export proc data"] = (
+            self.processing_widget.export_final_proc_checkbox.isChecked()
         )
         self.settings_dict["Slant active export slant data"] = (
             self.processing_widget.export_slant_correction_checkbox.isChecked()
@@ -598,19 +613,25 @@ class SidescanToolsMain(QWidget):
         self.processing_widget.pie_slice_filter_checkbox.setChecked(
             self.settings_dict["Active pie slice filter"]
         )
+        self.processing_widget.sharpening_filter_checkbox.setChecked(
+            self.settings_dict["Active sharpening filter"]
+        )
+        self.processing_widget.active_gain_norm_checkbox.setChecked(
+            self.settings_dict["Active gain norm"]
+        )
         self.processing_widget.vertical_beam_angle_edit.line_edit.setText(
-            str(self.settings_dict["Slant Vertical beam angle"])
+            str(self.settings_dict["Slant vertical beam angle"])
         )
         self.processing_widget.nadir_angle_edit.line_edit.setText(
             str(self.settings_dict["Slant nadir angle"])
         )
-        self.processing_widget.use_intern_depth_checkbox.setChecked(
-            self.settings_dict["Slant use intern depth"]
+        self.processing_widget.active_intern_depth_checkbox.setChecked(
+            self.settings_dict["Slant active intern depth"]
         )
         self.processing_widget.slant_chunk_size_edit.line_edit.setText(
             str(self.settings_dict["Slant chunk size"])
         )
-        self.processing_widget.use_bottom_detection_downsampling_checkbox.setChecked(
+        self.processing_widget.active_bottom_detection_downsampling_checkbox.setChecked(
             self.settings_dict["Slant active use downsampling"]
         )
         self.processing_widget.active_remove_watercol_checkbox.setChecked(
@@ -622,8 +643,8 @@ class SidescanToolsMain(QWidget):
         self.processing_widget.num_worker_edit.line_edit.setText(
             str(self.settings_dict["Slant num worker"])
         )
-        self.processing_widget.export_EGN_correction_checkbox.setChecked(
-            self.settings_dict["Slant active export EGN data"]
+        self.processing_widget.export_final_proc_checkbox.setChecked(
+            self.settings_dict["Slant active export proc data"]
         )
         self.processing_widget.export_slant_correction_checkbox.setChecked(
             self.settings_dict["Slant active export slant data"]
@@ -643,6 +664,7 @@ class SidescanToolsMain(QWidget):
         self.view_and_export_widget.active_utm_checkbox.setChecked(
             self.settings_dict["Georef UTM"]
         )
+        self.processing_widget.load_proc_strat()
 
 # Bottom line detection widget
 class BottomLineDetectionWidget(QVBoxLayout):
@@ -717,16 +739,32 @@ class ProcessingWidget(QVBoxLayout):
         super().__init__()
 
         self.main_ui = parent
-        self.slant_and_egn_label = QLabel("Slant Range Correction and EGN")
-        self.slant_and_egn_label.setFont(title_font)
+        self.filter_label = QLabel("Noise Reduction and Sharpening Filter")
+        self.filter_label.setFont(title_font)
         self.pie_slice_filter_checkbox = QCheckBox("Filter Stripe Noise")
         self.pie_slice_filter_checkbox.setChecked(
             self.main_ui.settings_dict["Active pie slice filter"]
         )
+        self.sharpening_filter_checkbox = QCheckBox("Apply Sharpening Filter")
+        self.sharpening_filter_checkbox.setChecked(
+            self.main_ui.settings_dict["Active sharpening filter"]
+        )
+        self.slant_and_gain_label = QLabel("Slant Range Correction and Gain Normalization")
+        self.slant_and_gain_label.setFont(title_font)
+        self.active_gain_norm_checkbox = QCheckBox("Apply Gain Normalization")
+        self.active_gain_norm_checkbox.setChecked(self.main_ui.settings_dict["Active gain norm"])
+        self.radio_grp_label = QLabel("Gain Normalization Strategy:")
+        self.gain_norm_radio_group = QButtonGroup()
+        self.beam_ang_corr_radio_btn = QRadioButton("Beam Angle Correction (works on single file)")
+        self.egn_radio_btn = QRadioButton("Empirical Gain Normalization (EGN, needs precalculated table)")
+        self.gain_norm_radio_group.addButton(self.beam_ang_corr_radio_btn)
+        self.gain_norm_radio_group.addButton(self.egn_radio_btn)
+        self.gain_norm_radio_group.buttonClicked.connect(self.proc_strat_changed)
+        self.load_proc_strat()
         self.vertical_beam_angle_edit = LabeledLineEdit(
             "Vertical Beam Angle:",
             QtGui.QIntValidator(0, 90, self),
-            self.main_ui.settings_dict["Slant Vertical beam angle"],
+            self.main_ui.settings_dict["Slant vertical beam angle"],
         )
         self.vertical_beam_angle_edit.label.setToolTip(
             "Only relevant if internal depth is unknown: Horizontal angle by which the instrument is tilted (usually found in the manual)."
@@ -739,12 +777,14 @@ class ProcessingWidget(QVBoxLayout):
         self.nadir_angle_edit.label.setToolTip(
             "Angle between perpendicular and first bottom return (usually unknown, default is 0°)"
         )
-        self.use_intern_depth_checkbox = QCheckBox("Use internal Depth")
-        self.use_intern_depth_checkbox.setToolTip(
+        self.optional_egn_label = QLabel("Optional EGN Parameter")
+        self.optional_egn_label.setFont(title_font)
+        self.active_intern_depth_checkbox = QCheckBox("Use internal Depth")
+        self.active_intern_depth_checkbox.setToolTip(
             "Use internal depth information for slant range correction. Otherwise depth is estimated from detected bottom line."
         )
-        self.use_intern_depth_checkbox.setChecked(
-            self.main_ui.settings_dict["Slant use intern depth"]
+        self.active_intern_depth_checkbox.setChecked(
+            self.main_ui.settings_dict["Slant active intern depth"]
         )
         self.slant_chunk_size_edit = LabeledLineEdit(
             "Chunk Size:",
@@ -754,13 +794,13 @@ class ProcessingWidget(QVBoxLayout):
         self.slant_chunk_size_edit.label.setToolTip(
             "Number of pings in one chunk for for slant range and EGN correction. Is also used to determine the size of the exported waterfall images."
         )
-        self.use_bottom_detection_downsampling_checkbox = QCheckBox(
+        self.active_bottom_detection_downsampling_checkbox = QCheckBox(
             "Apply Downsampling"
         )
-        self.use_bottom_detection_downsampling_checkbox.setToolTip(
+        self.active_bottom_detection_downsampling_checkbox.setToolTip(
             "Use downsampling factor from bottom line detection to do processing on downsampled data."
         )
-        self.use_bottom_detection_downsampling_checkbox.setChecked(
+        self.active_bottom_detection_downsampling_checkbox.setChecked(
             self.main_ui.settings_dict["Slant active use downsampling"]
         )
         self.active_remove_watercol_checkbox = QCheckBox("Remove Watercolumn")
@@ -796,34 +836,53 @@ class ProcessingWidget(QVBoxLayout):
         self.export_slant_correction_checkbox.setChecked(
             self.main_ui.settings_dict["Slant active export slant data"]
         )
-        self.export_EGN_correction_checkbox = QCheckBox("Export EGN corrected Data")
-        self.export_EGN_correction_checkbox.setToolTip(
-            "Export EGN corrected data as .npz file. So it doesn't need to be recalculated for export or viewing."
+        self.export_final_proc_checkbox = QCheckBox("Export fully processed Data")
+        self.export_final_proc_checkbox.setToolTip(
+            "Export fully processed corrected data as .npz file. So it doesn't need to be recalculated for export or viewing."
         )
-        self.export_EGN_correction_checkbox.setChecked(
-            self.main_ui.settings_dict["Slant active export EGN data"]
+        self.export_final_proc_checkbox.setChecked(
+            self.main_ui.settings_dict["Slant active export proc data"]
         )
         self.generate_egn_table = QPushButton("Generate EGN Table")
         self.generate_egn_table.clicked.connect(self.run_generate_slant_and_egn_files)
+        self.process_single_btn = QPushButton("Process selected file")
+        self.process_single_btn.clicked.connect(self.process_single_file)
         self.process_all_btn = QPushButton("Process All Files")
         self.process_all_btn.clicked.connect(self.process_all_files)
 
         # Layout
-        self.addWidget(self.slant_and_egn_label)
+        self.addWidget(self.filter_label)
         self.addWidget(self.pie_slice_filter_checkbox)
+        self.addWidget(self.sharpening_filter_checkbox)
+        self.addWidget(QHLine())
+        self.addWidget(self.slant_and_gain_label)
+        self.addWidget(self.active_bottom_detection_downsampling_checkbox)
+        self.addWidget(self.radio_grp_label)
+        radio_layout = QHBoxLayout()
+        radio_layout_btns = QVBoxLayout()
+        radio_layout_btns.addWidget(self.beam_ang_corr_radio_btn)
+        radio_layout_btns.addWidget(self.egn_radio_btn)
+        radio_layout.addItem(QSpacerItem(20,20,QSizePolicy.Policy.Minimum,QSizePolicy.Policy.Minimum))
+        radio_layout.addLayout(radio_layout_btns)
+        self.addLayout(radio_layout)
+        self.addWidget(self.active_intern_depth_checkbox)
         self.addLayout(self.vertical_beam_angle_edit)
+        self.addWidget(QHLine())
+        self.addWidget(self.optional_egn_label)
         self.addLayout(self.nadir_angle_edit)
-        self.addWidget(self.use_intern_depth_checkbox)
         self.addLayout(self.slant_chunk_size_edit)
-        self.addWidget(self.use_bottom_detection_downsampling_checkbox)
-        self.addLayout(self.egn_table_name_edit)
         self.addWidget(self.active_remove_watercol_checkbox)
         self.addWidget(self.active_multiprocessing_checkbox)
         self.addLayout(self.num_worker_edit)
-        self.addWidget(self.export_EGN_correction_checkbox)
         self.addWidget(self.export_slant_correction_checkbox)
+        self.addWidget(self.export_final_proc_checkbox)
+        self.addWidget(QHLine())
+        self.addLayout(self.egn_table_name_edit)
         self.addWidget(self.generate_egn_table)
-        self.addWidget(self.process_all_btn)
+        proc_btn_layout = QHBoxLayout()
+        proc_btn_layout.addWidget(self.process_single_btn)
+        proc_btn_layout.addWidget(self.process_all_btn)
+        self.addLayout(proc_btn_layout)
         verticalSpacer = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
         self.addItem(verticalSpacer)
 
@@ -848,10 +907,10 @@ class ProcessingWidget(QVBoxLayout):
             sonar_files=sonar_file_path_list,
             out_path=self.main_ui.settings_dict["Working dir"],
             nadir_angle=int(self.nadir_angle_edit.line_edit.text()),
-            use_intern_depth=self.use_intern_depth_checkbox.isChecked(),
+            use_intern_depth=self.active_intern_depth_checkbox.isChecked(),
             chunk_size=int(self.slant_chunk_size_edit.line_edit.text()),
             generate_final_egn_table=True,
-            use_bottom_detection_downsampling=self.use_bottom_detection_downsampling_checkbox.isChecked(),
+            use_bottom_detection_downsampling=self.active_bottom_detection_downsampling_checkbox.isChecked(),
             egn_table_name=self.egn_table_name_edit.line_edit.text(),
             active_multiprocessing=self.active_multiprocessing_checkbox.isChecked(),
             pool=pool,
@@ -956,6 +1015,24 @@ class ProcessingWidget(QVBoxLayout):
             for filepath in path_list:
                 self.do_slant_corr_and_EGN(filepath)
 
+    def process_single_file(self):
+        filepath = pathlib.Path(
+            self.main_ui.file_dict["Path"][self.main_ui.file_table.selectedIndexes()[0].row()]
+        )
+        self.do_slant_corr_and_EGN(filepath)
+
+    def proc_strat_changed(self, btn_object):
+        if self.beam_ang_corr_radio_btn.isChecked():
+            self.main_ui.settings_dict["Slant gain norm strategy"] = GAINSTRAT.BAC.value
+        elif self.egn_radio_btn.isChecked():
+            self.main_ui.settings_dict["Slant gain norm strategy"] = GAINSTRAT.EGN.value
+
+    def load_proc_strat(self):
+        if self.main_ui.settings_dict["Slant gain norm strategy"] == GAINSTRAT.BAC.value:
+            self.beam_ang_corr_radio_btn.setChecked(True)
+        elif self.main_ui.settings_dict["Slant gain norm strategy"] == GAINSTRAT.EGN.value:
+            self.egn_radio_btn.setChecked(True)
+
 # View and export
 class ViewAndExportWidget(QVBoxLayout):
     data_changed = QtCore.Signal()
@@ -1051,7 +1128,7 @@ class ViewAndExportWidget(QVBoxLayout):
     def show_proc_file_in_napari(self):
 
         filepath = pathlib.Path(
-            self.main_ui.file_dict["Path"][self.file_table.selectedIndexes()[0].row()]
+            self.main_ui.file_dict["Path"][self.main_ui.file_table.selectedIndexes()[0].row()]
         )
         load_slant = (
             self.main_ui.file_dict["Slant corrected"][

@@ -19,6 +19,8 @@ from qtpy.QtWidgets import (
     QSpacerItem,
     QRadioButton,
     QButtonGroup,
+    QProgressBar,
+    QErrorMessage,
 )
 from qtpy.QtGui import QPalette, QColor, QShortcut, QKeySequence
 import qtpy.QtCore as QtCore
@@ -35,17 +37,25 @@ from sidescan_preproc import SidescanPreprocessor
 from sidescan_file import SidescanFile
 import napari
 from napari.utils.colormaps import Colormap
-from custom_widgets import QHLine, Labeled2Buttons, LabeledLineEdit, OverwriteWarnDialog, FilePicker
+from custom_widgets import (
+    QHLine,
+    Labeled2Buttons,
+    LabeledLineEdit,
+    OverwriteWarnDialog,
+    ErrorWarnDialog,
+    FilePicker,
+)
 from enum import Enum
 
 GAINSTRAT = Enum("GAINSTRAT", [("BAC", 0), ("EGN", 1)])
+
 
 class SidescanToolsMain(QWidget):
     file_dict = {
         "Path": [],
         "Bottom line": [],
         "Slant corrected": [],
-        "EGN corrected": [],
+        "Gain corrected": [],
         "File size": [],
     }
     settings_dict = {
@@ -57,7 +67,7 @@ class SidescanToolsMain(QWidget):
         "Btm chunk size": 1000,
         "Btm def thresh": 0.6,
         "Btm downsampling": 1,
-        "Active convert dB": False,
+        "Active convert dB": True,
         "Active pie slice filter": True,
         "Active sharpening filter": True,
         "Active gain norm": True,
@@ -78,6 +88,7 @@ class SidescanToolsMain(QWidget):
         "Georef active dynamic chunking": False,
         "Georef UTM": True,
         "Path": [],
+        "Meta info": dict(),
     }
     # TODO: is this a desired cmap or change that?
     sonar_dat_cmap = {
@@ -176,14 +187,6 @@ class SidescanToolsMain(QWidget):
         # self.title_label = QLabel()
         # self.title_label.setPixmap(self.title_img)
         # File Info
-        self.file_info_checkbox = QCheckBox(
-            "Enable meta info by loading file at click (slows down UI)"
-        )
-        self.file_info_checkbox.setFont(title_font)
-        self.file_info_checkbox.setChecked(True)
-        self.file_info_checkbox.setToolTip(
-            "Currently needs to load the complete file to display the information. This needs too much time and is work in progress."
-        )
         self.file_info_text_box = QTextEdit()
         self.dir_and_path_label = QLabel("Working directory and paths setup")
         self.dir_and_path_label.setFont(title_font)
@@ -208,7 +211,6 @@ class SidescanToolsMain(QWidget):
         # TODO: Remove preliminary logo until we got a final one
         # self.right_view.addWidget(self.title_label)
         # self.right_view.addWidget(QHLine())
-        self.right_view.addWidget(self.file_info_checkbox)
         self.right_view.addWidget(self.file_info_text_box)
         self.right_view.addWidget(QHLine())
         self.right_view.addWidget(self.dir_and_path_label)
@@ -225,13 +227,13 @@ class SidescanToolsMain(QWidget):
         proc_tab = QTabWidget(self)
         tab_bottom = QWidget(self)
         tab_bottom.setLayout(self.bottom_line_detection_widget)
-        proc_tab.addTab(tab_bottom, 'Bottom Line Detection')
+        proc_tab.addTab(tab_bottom, "Bottom Line Detection")
         tab_bottom = QWidget(self)
         tab_bottom.setLayout(self.processing_widget)
-        proc_tab.addTab(tab_bottom, 'Processing')
+        proc_tab.addTab(tab_bottom, "Processing")
         tab_bottom = QWidget(self)
         tab_bottom.setLayout(self.view_and_export_widget)
-        proc_tab.addTab(tab_bottom, 'View and Export')
+        proc_tab.addTab(tab_bottom, "View and Export")
         self.right_view.addWidget(proc_tab)
 
         self.base_layout.addLayout(self.left_view)
@@ -286,16 +288,11 @@ class SidescanToolsMain(QWidget):
         if file_picker.exec_():
             filenames = file_picker.selectedFiles()
 
-            # set dB conversion when the first file of all time is picked
-            # TODO: Load first file and decide on the acutal data what to do here
-            if self.file_dict["Path"] == []:
-                if filenames[0].endswith(".xtf"):
-                    self.settings_dict["Active convert dB"] = False
-                else:
-                    self.settings_dict["Active convert dB"] = True
-                self.bottom_line_detection_widget.active_convert_dB_checkbox.setChecked(
-                    self.settings_dict["Active convert dB"]
-                )
+            import_bar = ImportProgressBar()
+            meta_info_list = import_bar.start_import(filenames)
+            # append meta data to settings dict for saving/loading capabilities
+            for new_info in meta_info_list:
+                self.settings_dict["Meta info"].update(new_info)
 
             # check for duplicates and sort full list
             full_list = self.file_dict["Path"]
@@ -308,7 +305,7 @@ class SidescanToolsMain(QWidget):
             self.file_dict["Bottom line"] = ["N"] * num_files
             self.file_dict["File size"] = ["0"] * num_files
             self.file_dict["Slant corrected"] = ["N"] * num_files
-            self.file_dict["EGN corrected"] = ["N"] * num_files
+            self.file_dict["Gain corrected"] = ["N"] * num_files
 
             self.update_table()
             self.update_right_view_size()
@@ -319,7 +316,7 @@ class SidescanToolsMain(QWidget):
         self.file_dict["Bottom line"].pop(idx_del)
         self.file_dict["File size"].pop(idx_del)
         self.file_dict["Slant corrected"].pop(idx_del)
-        self.file_dict["EGN corrected"].pop(idx_del)
+        self.file_dict["Gain corrected"].pop(idx_del)
 
         self.update_table()
         self.update_right_view_size()
@@ -360,7 +357,7 @@ class SidescanToolsMain(QWidget):
             new_item.setTextAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
             self.file_table.setItem(idx, 2, new_item)
 
-            if self.file_dict["EGN corrected"][idx] == "Y":
+            if self.file_dict["Gain corrected"][idx] == "Y":
                 new_item = QTableWidgetItem(yes_icon, "")
             else:
                 new_item = QTableWidgetItem(no_icon, "")
@@ -402,35 +399,19 @@ class SidescanToolsMain(QWidget):
                     self.file_dict["Slant corrected"][idx] = "N"
 
                 if (work_dir / (filepath.stem + "_egn_corrected.npz")).exists():
-                    self.file_dict["EGN corrected"][idx] = "Y"
+                    self.file_dict["Gain corrected"][idx] = "Y"
                 else:
-                    self.file_dict["EGN corrected"][idx] = "N"
+                    self.file_dict["Gain corrected"][idx] = "N"
             else:
                 self.file_dict["File size"][idx] = "Couldn't read"
 
     def update_meta_info(self):
         self.check_for_btm_line_data_and_size()
-        if self.file_info_checkbox.isChecked():
-            file_path = self.file_dict["Path"][
-                self.file_table.selectedIndexes()[0].row()
-            ]
-            sidescan_file = SidescanFile(file_path)
-            self.file_info_text_box.clear()
-            self.file_info_text_box.insertHtml(
-                "<b>Date          :</b> " + str(sidescan_file.timestamp[0]) + "<br />"
-            )
-            self.file_info_text_box.insertHtml(
-                f"<b>Channels        :</b> {sidescan_file.num_ch}<br />"
-            )
-            self.file_info_text_box.insertHtml(
-                f"<b>Number of pings :</b> {sidescan_file.num_ping}<br />"
-            )
-            self.file_info_text_box.insertHtml(
-                f"<b>Samples per ping:</b> {sidescan_file.ping_len}<br />"
-            )
-            self.file_info_text_box.insertHtml(
-                f"<b>Slant ranges    :</b> {np.min(sidescan_file.slant_range)} - {np.max(sidescan_file.slant_range)} m<br />"
-            )
+        file_path = self.file_dict["Path"][
+            self.file_table.selectedIndexes()[0].row()
+        ]
+        self.file_info_text_box.clear()
+        self.file_info_text_box.insertHtml(self.settings_dict["Meta info"][file_path])
 
     def always_select_row(self):
         self.file_table.selectRow(self.file_table.selectedIndexes()[0].row())
@@ -493,13 +474,19 @@ class SidescanToolsMain(QWidget):
                 except:
                     print(f"Couldn't load setting with key: {key}")
 
+            # Check whether the dict contains the latest info
+            if not "Meta info" in loaded_dict.keys():
+                dlg = ErrorWarnDialog(self, title=f"Error while loading settings", message=f"Sorry! The project settings have been written using an old Version of SidescanTools and can't be used anymore. You need to import your files again and save the new settings.")
+                dlg.exec()
+                return
+            
             full_list = loaded_dict["Path"]  # downward compatibility
             full_list.sort()
             num_files = len(full_list)
             self.file_dict["Path"] = full_list
             self.file_dict["Bottom line"] = ["N"] * num_files
             self.file_dict["Slant corrected"] = ["N"] * num_files
-            self.file_dict["EGN corrected"] = ["N"] * num_files
+            self.file_dict["Gain corrected"] = ["N"] * num_files
             self.file_dict["File size"] = ["0"] * num_files
             self.update_table()
             self.update_ui_from_settings()
@@ -597,7 +584,9 @@ class SidescanToolsMain(QWidget):
             self.egn_table_picker.update_dir(self.settings_dict["EGN table path"])
         except:
             pass
-        self.processing_widget.egn_table_name_edit.line_edit.setText(self.settings_dict["EGN table name"])
+        self.processing_widget.egn_table_name_edit.line_edit.setText(
+            self.settings_dict["EGN table name"]
+        )
         self.bottom_line_detection_widget.btm_chunk_size_edit.line_edit.setText(
             str(self.settings_dict["Btm chunk size"])
         )
@@ -666,6 +655,7 @@ class SidescanToolsMain(QWidget):
         )
         self.processing_widget.load_proc_strat()
 
+
 # Bottom line detection widget
 class BottomLineDetectionWidget(QVBoxLayout):
     data_changed = QtCore.Signal()
@@ -718,10 +708,11 @@ class BottomLineDetectionWidget(QVBoxLayout):
         verticalSpacer = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
         self.addItem(verticalSpacer)
 
-
     def run_bottom_line_detection(self):
         run_napari_btm_line(
-            self.main_ui.file_dict["Path"][self.main_ui.file_table.selectedIndexes()[0].row()],
+            self.main_ui.file_dict["Path"][
+                self.main_ui.file_table.selectedIndexes()[0].row()
+            ],
             chunk_size=int(self.btm_chunk_size_edit.line_edit.text()),
             default_threshold=float(self.btm_default_thresh.line_edit.text()),
             downsampling_factor=int(self.btm_downsample_fact.line_edit.text()),
@@ -729,6 +720,7 @@ class BottomLineDetectionWidget(QVBoxLayout):
             convert_to_dB=self.active_convert_dB_checkbox.isChecked(),
         )
         self.data_changed.emit()
+
 
 # Processing of data widget
 class ProcessingWidget(QVBoxLayout):
@@ -749,14 +741,22 @@ class ProcessingWidget(QVBoxLayout):
         self.sharpening_filter_checkbox.setChecked(
             self.main_ui.settings_dict["Active sharpening filter"]
         )
-        self.slant_and_gain_label = QLabel("Slant Range Correction and Gain Normalization")
+        self.slant_and_gain_label = QLabel(
+            "Slant Range Correction and Gain Normalization"
+        )
         self.slant_and_gain_label.setFont(title_font)
         self.active_gain_norm_checkbox = QCheckBox("Apply Gain Normalization")
-        self.active_gain_norm_checkbox.setChecked(self.main_ui.settings_dict["Active gain norm"])
+        self.active_gain_norm_checkbox.setChecked(
+            self.main_ui.settings_dict["Active gain norm"]
+        )
         self.radio_grp_label = QLabel("Gain Normalization Strategy:")
         self.gain_norm_radio_group = QButtonGroup()
-        self.beam_ang_corr_radio_btn = QRadioButton("Beam Angle Correction (works on single file)")
-        self.egn_radio_btn = QRadioButton("Empirical Gain Normalization (EGN, needs precalculated table)")
+        self.beam_ang_corr_radio_btn = QRadioButton(
+            "Beam Angle Correction (BAC, works on single file)"
+        )
+        self.egn_radio_btn = QRadioButton(
+            "Empirical Gain Normalization (EGN, needs precalculated table)"
+        )
         self.gain_norm_radio_group.addButton(self.beam_ang_corr_radio_btn)
         self.gain_norm_radio_group.addButton(self.egn_radio_btn)
         self.gain_norm_radio_group.buttonClicked.connect(self.proc_strat_changed)
@@ -777,7 +777,7 @@ class ProcessingWidget(QVBoxLayout):
         self.nadir_angle_edit.label.setToolTip(
             "Angle between perpendicular and first bottom return (usually unknown, default is 0°)"
         )
-        self.optional_egn_label = QLabel("Optional EGN Parameter")
+        self.optional_egn_label = QLabel("Advanced Gain Normalization Parameter")
         self.optional_egn_label.setFont(title_font)
         self.active_intern_depth_checkbox = QCheckBox("Use internal Depth")
         self.active_intern_depth_checkbox.setToolTip(
@@ -862,7 +862,9 @@ class ProcessingWidget(QVBoxLayout):
         radio_layout_btns = QVBoxLayout()
         radio_layout_btns.addWidget(self.beam_ang_corr_radio_btn)
         radio_layout_btns.addWidget(self.egn_radio_btn)
-        radio_layout.addItem(QSpacerItem(20,20,QSizePolicy.Policy.Minimum,QSizePolicy.Policy.Minimum))
+        radio_layout.addItem(
+            QSpacerItem(20, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+        )
         radio_layout.addLayout(radio_layout_btns)
         self.addLayout(radio_layout)
         self.addWidget(self.active_intern_depth_checkbox)
@@ -949,9 +951,9 @@ class ProcessingWidget(QVBoxLayout):
 
         # slant range correction and EGN data
         if self.export_slant_correction_checkbox.isChecked():
-            slant_data_path = pathlib.Path(self.main_ui.settings_dict["Working dir"]) / (
-                filepath.stem + "_slant_corrected.npz"
-            )
+            slant_data_path = pathlib.Path(
+                self.main_ui.settings_dict["Working dir"]
+            ) / (filepath.stem + "_slant_corrected.npz")
         else:
             slant_data_path = None
 
@@ -1017,7 +1019,9 @@ class ProcessingWidget(QVBoxLayout):
 
     def process_single_file(self):
         filepath = pathlib.Path(
-            self.main_ui.file_dict["Path"][self.main_ui.file_table.selectedIndexes()[0].row()]
+            self.main_ui.file_dict["Path"][
+                self.main_ui.file_table.selectedIndexes()[0].row()
+            ]
         )
         self.do_slant_corr_and_EGN(filepath)
 
@@ -1028,10 +1032,17 @@ class ProcessingWidget(QVBoxLayout):
             self.main_ui.settings_dict["Slant gain norm strategy"] = GAINSTRAT.EGN.value
 
     def load_proc_strat(self):
-        if self.main_ui.settings_dict["Slant gain norm strategy"] == GAINSTRAT.BAC.value:
+        if (
+            self.main_ui.settings_dict["Slant gain norm strategy"]
+            == GAINSTRAT.BAC.value
+        ):
             self.beam_ang_corr_radio_btn.setChecked(True)
-        elif self.main_ui.settings_dict["Slant gain norm strategy"] == GAINSTRAT.EGN.value:
+        elif (
+            self.main_ui.settings_dict["Slant gain norm strategy"]
+            == GAINSTRAT.EGN.value
+        ):
             self.egn_radio_btn.setChecked(True)
+
 
 # View and export
 class ViewAndExportWidget(QVBoxLayout):
@@ -1062,9 +1073,9 @@ class ViewAndExportWidget(QVBoxLayout):
 
         self.georef_label = QLabel("Georeferencing and Image Generation")
         self.georef_label.setFont(title_font)
-        self.active_use_egn_data_checkbox = QCheckBox("Use EGN corrected Data")
+        self.active_use_egn_data_checkbox = QCheckBox("Use gain corrected Data")
         self.active_use_egn_data_checkbox.setToolTip(
-            "Export pictures using the EGN corrected data. Otherwise raw data is exported."
+            "Export pictures using the gain corrected data. Otherwise raw data is exported."
         )
         self.active_use_egn_data_checkbox.setChecked(
             self.main_ui.settings_dict["Georef active EGN"]
@@ -1076,10 +1087,10 @@ class ViewAndExportWidget(QVBoxLayout):
         )
 
         self.active_utm_checkbox = QCheckBox("UTM")
-        self.active_utm_checkbox.setToolTip("Coordinates in UTM (default). WGS84 if unchecked.")
-        self.active_utm_checkbox.setChecked(
-            self.main_ui.settings_dict["Georef UTM"]
+        self.active_utm_checkbox.setToolTip(
+            "Coordinates in UTM (default). WGS84 if unchecked."
         )
+        self.active_utm_checkbox.setChecked(self.main_ui.settings_dict["Georef UTM"])
 
         self.active_colormap_checkbox = QCheckBox("Apply custom Colormap")
         self.active_colormap_checkbox.setToolTip(
@@ -1128,7 +1139,9 @@ class ViewAndExportWidget(QVBoxLayout):
     def show_proc_file_in_napari(self):
 
         filepath = pathlib.Path(
-            self.main_ui.file_dict["Path"][self.main_ui.file_table.selectedIndexes()[0].row()]
+            self.main_ui.file_dict["Path"][
+                self.main_ui.file_table.selectedIndexes()[0].row()
+            ]
         )
         load_slant = (
             self.main_ui.file_dict["Slant corrected"][
@@ -1137,7 +1150,9 @@ class ViewAndExportWidget(QVBoxLayout):
             == "Y"
         )
         load_egn = (
-            self.main_ui.file_dict["EGN corrected"][self.main_ui.file_table.selectedIndexes()[0].row()]
+            self.main_ui.file_dict["Gain corrected"][
+                self.main_ui.file_table.selectedIndexes()[0].row()
+            ]
             == "Y"
         )
         if self.active_reprocess_file_checkbox.isChecked():
@@ -1147,10 +1162,17 @@ class ViewAndExportWidget(QVBoxLayout):
             filepath, load_slant_data=load_slant, load_egn_data=load_egn
         )
 
-        if self.main_ui.bottom_line_detection_widget.active_convert_dB_checkbox.isChecked():
+        if (
+            self.main_ui.bottom_line_detection_widget.active_convert_dB_checkbox.isChecked()
+        ):
             raw_image = np.hstack((sidescan_file.data[0], sidescan_file.data[1]))
         else:
-            raw_image = np.hstack((20*np.log10(sidescan_file.data[0]), 20*np.log10(sidescan_file.data[1])))
+            raw_image = np.hstack(
+                (
+                    20 * np.log10(sidescan_file.data[0]),
+                    20 * np.log10(sidescan_file.data[1]),
+                )
+            )
 
         colors = [[1, 1, 1, 0], [1, 0, 0, 1]]  # r,g,b,alpha
         bottom_colormap = {
@@ -1211,13 +1233,15 @@ class ViewAndExportWidget(QVBoxLayout):
         else:
             file_list = [
                 pathlib.Path(
-                    self.main_ui.file_dict["Path"][self.main_ui.file_table.selectedIndexes()[0].row()]
+                    self.main_ui.file_dict["Path"][
+                        self.main_ui.file_table.selectedIndexes()[0].row()
+                    ]
                 )
             ]
 
         work_dir = pathlib.Path(self.main_ui.settings_dict["Working dir"])
         for filepath in file_list:
-            filepath=pathlib.Path(filepath)
+            filepath = pathlib.Path(filepath)
             load_slant_data = False
             load_egn_data = False
             # check wheter preproc data is present and load or process file
@@ -1229,8 +1253,12 @@ class ViewAndExportWidget(QVBoxLayout):
 
             sidescan_file = None
             preproc = None
-            sidescan_file, preproc = self.main_ui.processing_widget.do_slant_corr_and_EGN(
-                filepath, load_slant_data=load_slant_data, load_egn_data=load_egn_data
+            sidescan_file, preproc = (
+                self.main_ui.processing_widget.do_slant_corr_and_EGN(
+                    filepath,
+                    load_slant_data=load_slant_data,
+                    load_egn_data=load_egn_data,
+                )
             )
 
             proc_data_0 = None
@@ -1250,7 +1278,9 @@ class ViewAndExportWidget(QVBoxLayout):
                 active_utm=self.active_utm_checkbox.isChecked(),
                 output_folder=self.main_ui.settings_dict["Georef dir"],
                 proc_data=proc_data_0,
-                vertical_beam_angle=int(self.main_ui.processing_widget.vertical_beam_angle_edit.line_edit.text()),
+                vertical_beam_angle=int(
+                    self.main_ui.processing_widget.vertical_beam_angle_edit.line_edit.text()
+                ),
             )
             georeferencer.process()
             georeferencer = SidescanGeoreferencer(
@@ -1260,7 +1290,9 @@ class ViewAndExportWidget(QVBoxLayout):
                 active_utm=self.active_utm_checkbox.isChecked(),
                 output_folder=self.main_ui.settings_dict["Georef dir"],
                 proc_data=proc_data_1,
-                vertical_beam_angle=int(self.main_ui.processing_widget.vertical_beam_angle_edit.line_edit.text()),
+                vertical_beam_angle=int(
+                    self.main_ui.processing_widget.vertical_beam_angle_edit.line_edit.text()
+                ),
             )
             georeferencer.process()
 
@@ -1270,13 +1302,17 @@ class ViewAndExportWidget(QVBoxLayout):
         active_chunkify = True
         active_norm_chunks = False
         filepath = pathlib.Path(
-            self.main_ui.file_dict["Path"][self.main_ui.file_table.selectedIndexes()[0].row()]
+            self.main_ui.file_dict["Path"][
+                self.main_ui.file_table.selectedIndexes()[0].row()
+            ]
         )
         if active_generate_all:
             pathlist = []
             for path_idx in range(len(self.main_ui.file_dict["Path"])):
-                if self.main_ui.file_dict["EGN corrected"][path_idx] == "Y":
-                    pathlist.append(pathlib.Path(self.main_ui.file_dict["Path"][path_idx]))
+                if self.main_ui.file_dict["Gain corrected"][path_idx] == "Y":
+                    pathlist.append(
+                        pathlib.Path(self.main_ui.file_dict["Path"][path_idx])
+                    )
         else:
             pathlist = [filepath]
 
@@ -1293,8 +1329,10 @@ class ViewAndExportWidget(QVBoxLayout):
                 load_egn_data = True
             sidescan_file = None
             preproc = None
-            sidescan_file, preproc = self.main_ui.processing_widget.do_slant_corr_and_EGN(
-                path, load_slant_data=load_slant_data, load_egn_data=load_egn_data
+            sidescan_file, preproc = (
+                self.main_ui.processing_widget.do_slant_corr_and_EGN(
+                    path, load_slant_data=load_slant_data, load_egn_data=load_egn_data
+                )
             )
 
             data = preproc.egn_corrected_mat
@@ -1346,10 +1384,69 @@ class ViewAndExportWidget(QVBoxLayout):
                 SidescanGeoreferencer.write_img(im_name, data)
                 print(f"{im_name} written.")
 
+
+# class ImportWorker(QtCore.QObject):
+#     import_finished = QtCore.Signal()
+#     file_idx_finished = QtCore.Signal()
+
+#     @QtCore.Slot()
+#     def import_counter(self):
+
+class ImportProgressBar(QWidget):
+
+    def __init__(self):
+        super().__init__()
+
+        self.pbar = QProgressBar(self)
+        self.pbar.setGeometry(30, 40, 500, 75)
+        self.pbar.setTextVisible(False)
+        self.title_label = QLabel()
+        self.title_label.setText(" Importing Files ...")
+        label_font = QtGui.QFont()
+        label_font.setBold(True)
+        label_font.setPixelSize(32)
+        self.title_label.setFont(label_font)
+        self.box_layout = QVBoxLayout()
+        self.box_layout.addWidget(self.title_label)
+        self.box_layout.addWidget(self.pbar)
+        self.setLayout(self.box_layout)
+        self.setGeometry(300, 300, 550, 100)
+        self.setWindowTitle("File Import Checking")
+        self.setStyleSheet("background-color:black;border-color:darkgrey;border-style:solid;border-width:4px;")
+        self.show()
+    
+    def start_import(self, filenames) -> list:
+        """Returns meta info for all files as dict or None if an error occured"""
+
+        meta_list_html = []
+        num_files = len(filenames)
+        self.pbar.setRange(0, num_files)
+        for idx, filename in enumerate(filenames):
+            self.pbar.setValue(idx)
+            try:
+                sidescan_file = SidescanFile(filename)
+            except Exception as err:
+                print(f"Error while reading file: {err}")
+                error_msg = QErrorMessage()
+                error_msg.showMessage(f"Error while importing {filename}: \n {err}")
+                return None
+
+            meta_info = (
+                f"<b>Date          :</b> " + str(sidescan_file.timestamp[0]) + "<br />"
+            )
+            meta_info += f"<b>Channels        :</b> {sidescan_file.num_ch}<br />"
+            meta_info += f"<b>Number of pings :</b> {sidescan_file.num_ping}<br />"
+            meta_info += f"<b>Samples per ping:</b> {sidescan_file.ping_len}<br />"
+            meta_info += f"<b>Slant ranges    :</b> {np.min(sidescan_file.slant_range)} - {np.max(sidescan_file.slant_range)} m<br />"
+
+            meta_list_html.append({filename: meta_info})
+
+        return meta_list_html
+
+
 def main():
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
-
     # Styling by custom palette
     palette = QPalette()
     white = QtCore.Qt.white
@@ -1367,14 +1464,12 @@ def main():
     palette.setColor(QPalette.Link, link)
     palette.setColor(QPalette.Highlight, link)
     palette.setColor(QPalette.HighlightedText, white)
-
     # Apply the palette to the application
     app.setPalette(palette)
     app_icon = QtGui.QIcon("./res/icon.ico")
     app.setWindowIcon(app_icon)
     window = SidescanToolsMain()
     window.show()
-    window.showMaximized()
     sys.exit(app.exec())
 
 

@@ -84,6 +84,23 @@ class OverwriteWarnDialog(QDialog):
         layout.addWidget(self.buttonBox)
         self.setLayout(layout)
 
+class ErrorWarnDialog(QDialog):
+    def __init__(self, parent=None, title: str ="Error", message: str = ""):
+        """Warning dialog if a file is overwritten"""
+        super().__init__(parent)
+
+        self.setWindowTitle(title)
+
+        QBtn = QDialogButtonBox.Ok
+
+        self.buttonBox = QDialogButtonBox(QBtn)
+        self.buttonBox.accepted.connect(self.accept)
+
+        layout = QVBoxLayout()
+        message = QLabel(message)
+        layout.addWidget(message)
+        layout.addWidget(self.buttonBox)
+        self.setLayout(layout)
 
 class FilePicker(QHBoxLayout):
     main_parent = None

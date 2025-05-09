@@ -287,28 +287,37 @@ class SidescanToolsMain(QWidget):
 
         if file_picker.exec_():
             filenames = file_picker.selectedFiles()
+            # The import manager uses a thread to process new files
+            import_manager = FileImportManager()
+            # this signal is emitted containing the new results, when import is finished
+            import_manager.results_ready.connect(lambda meta_info: self.import_new_files_from_manager(filenames, meta_info))
+            # this signal is emitted if the import failes
+            import_manager.aborted_signal.connect(lambda err_msg: self.show_import_error_msg(err_msg))
+            import_manager.start_import(filenames)
+            
+    def import_new_files_from_manager(self, filenames: list, meta_info_list: list):
+        # append meta data to settings dict for saving/loading capabilities
+        for new_info in meta_info_list:
+            self.settings_dict["Meta info"].update(new_info)
+        # check for duplicates and sort full list
+        full_list = self.file_dict["Path"]
+        full_list.extend(filenames)
+        full_list = list(set(full_list))
+        full_list.sort()
+        # fill all the info for the file dict
+        num_files = len(full_list)
+        self.file_dict["Path"] = full_list
+        self.file_dict["Bottom line"] = ["N"] * num_files
+        self.file_dict["File size"] = ["0"] * num_files
+        self.file_dict["Slant corrected"] = ["N"] * num_files
+        self.file_dict["Gain corrected"] = ["N"] * num_files
+        # update UI
+        self.update_table()
+        self.update_right_view_size()
 
-            import_bar = ImportProgressBar()
-            meta_info_list = import_bar.start_import(filenames)
-            # append meta data to settings dict for saving/loading capabilities
-            for new_info in meta_info_list:
-                self.settings_dict["Meta info"].update(new_info)
-
-            # check for duplicates and sort full list
-            full_list = self.file_dict["Path"]
-            full_list.extend(filenames)
-            full_list = list(set(full_list))
-            full_list.sort()
-
-            num_files = len(full_list)
-            self.file_dict["Path"] = full_list
-            self.file_dict["Bottom line"] = ["N"] * num_files
-            self.file_dict["File size"] = ["0"] * num_files
-            self.file_dict["Slant corrected"] = ["N"] * num_files
-            self.file_dict["Gain corrected"] = ["N"] * num_files
-
-            self.update_table()
-            self.update_right_view_size()
+    def show_import_error_msg(self, err_msg: str):
+        dlg = ErrorWarnDialog(title="Error while importing files", message=err_msg)
+        dlg.exec()
 
     def delete_file(self):
         idx_del = self.file_table.selectedIndexes()[0].row()
@@ -1384,16 +1393,51 @@ class ViewAndExportWidget(QVBoxLayout):
                 SidescanGeoreferencer.write_img(im_name, data)
                 print(f"{im_name} written.")
 
+class ImportThread(QtCore.QThread):
+    status_signal = QtCore.Signal(str)
+    progress_signal = QtCore.Signal(int)
+    results_signal = QtCore.Signal(list)
+    aborted_signal = QtCore.Signal(str)
+    filenames = []
 
-# class ImportWorker(QtCore.QObject):
-#     import_finished = QtCore.Signal()
-#     file_idx_finished = QtCore.Signal()
+    def __init__(self, filenames: list, parent = None):
+        super().__init__(parent)
+        self.filenames = filenames
 
-#     @QtCore.Slot()
-#     def import_counter(self):
+    def run(self):
+        self.status_signal.emit("starting import")
+        meta_list_html = []
+        import_success = True
+        err_str = ""
+        for idx, filename in enumerate(self.filenames):
+            self.progress_signal.emit(idx)
+            try:
+                sidescan_file = SidescanFile(filename)
+            except Exception as err:
+                err_str = f"Error while importing {filename}: \n {err}"
+                print(f"Error while importing {filename}: \n {err}")
+                import_success = False
+                break
 
-class ImportProgressBar(QWidget):
+            meta_info = (
+                f"<b>Date          :</b> " + str(sidescan_file.timestamp[0]) + "<br />"
+            )
+            meta_info += f"<b>Channels        :</b> {sidescan_file.num_ch}<br />"
+            meta_info += f"<b>Number of pings :</b> {sidescan_file.num_ping}<br />"
+            meta_info += f"<b>Samples per ping:</b> {sidescan_file.ping_len}<br />"
+            meta_info += f"<b>Slant ranges    :</b> {np.min(sidescan_file.slant_range)} - {np.max(sidescan_file.slant_range)} m<br />"
 
+            meta_list_html.append({filename: meta_info})
+        if import_success:
+            self.status_signal.emit("import finished")
+            self.results_signal.emit(meta_list_html)
+        else:
+            self.status_signal.emit("import failed")
+            self.aborted_signal.emit(err_str)
+
+class FileImportManager(QWidget):
+    results_ready = QtCore.Signal(list)
+    aborted_signal = QtCore.Signal(str)
     def __init__(self):
         super().__init__()
 
@@ -1415,33 +1459,31 @@ class ImportProgressBar(QWidget):
         self.setStyleSheet("background-color:black;border-color:darkgrey;border-style:solid;border-width:4px;")
         self.show()
     
-    def start_import(self, filenames) -> list:
-        """Returns meta info for all files as dict or None if an error occured"""
+    def start_import(self, filenames: list) -> list:
+        """Returns meta info for all files via results_ready signal or an error message via aborted_signal"""
 
-        meta_list_html = []
         num_files = len(filenames)
         self.pbar.setRange(0, num_files)
-        for idx, filename in enumerate(filenames):
-            self.pbar.setValue(idx)
-            try:
-                sidescan_file = SidescanFile(filename)
-            except Exception as err:
-                print(f"Error while reading file: {err}")
-                error_msg = QErrorMessage()
-                error_msg.showMessage(f"Error while importing {filename}: \n {err}")
-                return None
+        # starting import in its own thread
+        self.import_thread = ImportThread(filenames, self)
+        # connecting signals of thread with slots
+        self.import_thread.status_signal.connect(lambda status: print(status))
+        self.import_thread.progress_signal.connect(lambda progress: self.update_pbar(progress))
+        self.import_thread.results_signal.connect(lambda meta_info: self.send_results(meta_info))
+        self.import_thread.aborted_signal.connect(lambda msg_str: self.import_aborted(msg_str))
+        # start thread and return meta information as a list
+        self.import_thread.start()
+    
+    def update_pbar(self, value: int):
+        self.pbar.setValue(value)
 
-            meta_info = (
-                f"<b>Date          :</b> " + str(sidescan_file.timestamp[0]) + "<br />"
-            )
-            meta_info += f"<b>Channels        :</b> {sidescan_file.num_ch}<br />"
-            meta_info += f"<b>Number of pings :</b> {sidescan_file.num_ping}<br />"
-            meta_info += f"<b>Samples per ping:</b> {sidescan_file.ping_len}<br />"
-            meta_info += f"<b>Slant ranges    :</b> {np.min(sidescan_file.slant_range)} - {np.max(sidescan_file.slant_range)} m<br />"
+    def send_results(self, results: list):
+        self.results_ready.emit(results)
+        self.deleteLater()
 
-            meta_list_html.append({filename: meta_info})
-
-        return meta_list_html
+    def import_aborted(self, msg_str: str):
+        self.aborted_signal.emit(msg_str)
+        self.deleteLater()
 
 
 def main():

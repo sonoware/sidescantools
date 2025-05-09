@@ -19,8 +19,6 @@ from qtpy.QtWidgets import (
     QSpacerItem,
     QRadioButton,
     QButtonGroup,
-    QProgressBar,
-    QErrorMessage,
 )
 from qtpy.QtGui import QPalette, QColor, QShortcut, QKeySequence
 import qtpy.QtCore as QtCore
@@ -44,6 +42,7 @@ from custom_widgets import (
     OverwriteWarnDialog,
     ErrorWarnDialog,
     FilePicker,
+    FileImportManager,
 )
 from enum import Enum
 
@@ -87,6 +86,7 @@ class SidescanToolsMain(QWidget):
         "Georef active EGN": True,
         "Georef active dynamic chunking": False,
         "Georef UTM": True,
+        "Georef active custom colormap": False,
         "Path": [],
         "Meta info": dict(),
     }
@@ -196,18 +196,16 @@ class SidescanToolsMain(QWidget):
         # Data processing
         self.processing_widget = ProcessingWidget(self, title_font)
         self.processing_widget.data_changed.connect(self.update_table)
-
         # View and export
         self.view_and_export_widget = ViewAndExportWidget(self, title_font)
-
         ## --- Layouts
         self.left_view = QVBoxLayout()
         self.right_view = QVBoxLayout()
         self.right_view.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop)
-
+        # left side widgets: file picker and table
         self.left_view.addWidget(self.file_pick_btn)
         self.left_view.addWidget(self.file_table)
-
+        # right side widgets: meta info, project settings and all parameter
         # TODO: Remove preliminary logo until we got a final one
         # self.right_view.addWidget(self.title_label)
         # self.right_view.addWidget(QHLine())
@@ -222,7 +220,6 @@ class SidescanToolsMain(QWidget):
         button_box.addWidget(self.project_load_button)
         self.right_view.addLayout(button_box)
         self.right_view.addWidget(QHLine())
-
         # Processing steps are ordered in tabs
         proc_tab = QTabWidget(self)
         tab_bottom = QWidget(self)
@@ -235,8 +232,7 @@ class SidescanToolsMain(QWidget):
         tab_bottom.setLayout(self.view_and_export_widget)
         proc_tab.addTab(tab_bottom, "View and Export")
         self.right_view.addWidget(proc_tab)
-
-        self.base_layout.addLayout(self.left_view)
+        # right base widget
         self.right_base_widget = QWidget()
         self.right_base_widget.setLayout(self.right_view)
         self.right_base_widget.setMaximumSize(self.right_view.minimumSize())
@@ -248,11 +244,14 @@ class SidescanToolsMain(QWidget):
         self.right_scroll_area.setMaximumWidth(
             self.right_view.minimumSize().width() + 10
         )
+        # Base layout
+        self.base_layout.addLayout(self.left_view)
         self.base_layout.addWidget(self.right_scroll_area)
-
         # Shortcuts
         self.shortcut_del = QShortcut(QKeySequence("Del"), self.file_table)
         self.shortcut_del.activated.connect(self.delete_file)
+        # set all std/project dependent parameter
+        self.update_ui_from_settings()
 
     def update_right_view_size(self):
         self.right_base_widget.setMinimumWidth(
@@ -290,11 +289,17 @@ class SidescanToolsMain(QWidget):
             # The import manager uses a thread to process new files
             import_manager = FileImportManager()
             # this signal is emitted containing the new results, when import is finished
-            import_manager.results_ready.connect(lambda meta_info: self.import_new_files_from_manager(filenames, meta_info))
+            import_manager.results_ready.connect(
+                lambda meta_info: self.import_new_files_from_manager(
+                    filenames, meta_info
+                )
+            )
             # this signal is emitted if the import failes
-            import_manager.aborted_signal.connect(lambda err_msg: self.show_import_error_msg(err_msg))
+            import_manager.aborted_signal.connect(
+                lambda err_msg: self.show_import_error_msg(err_msg)
+            )
             import_manager.start_import(filenames)
-            
+
     def import_new_files_from_manager(self, filenames: list, meta_info_list: list):
         # append meta data to settings dict for saving/loading capabilities
         for new_info in meta_info_list:
@@ -416,9 +421,7 @@ class SidescanToolsMain(QWidget):
 
     def update_meta_info(self):
         self.check_for_btm_line_data_and_size()
-        file_path = self.file_dict["Path"][
-            self.file_table.selectedIndexes()[0].row()
-        ]
+        file_path = self.file_dict["Path"][self.file_table.selectedIndexes()[0].row()]
         self.file_info_text_box.clear()
         self.file_info_text_box.insertHtml(self.settings_dict["Meta info"][file_path])
 
@@ -485,10 +488,14 @@ class SidescanToolsMain(QWidget):
 
             # Check whether the dict contains the latest info
             if not "Meta info" in loaded_dict.keys():
-                dlg = ErrorWarnDialog(self, title=f"Error while loading settings", message=f"Sorry! The project settings have been written using an old Version of SidescanTools and can't be used anymore. You need to import your files again and save the new settings.")
+                dlg = ErrorWarnDialog(
+                    self,
+                    title=f"Error while loading settings",
+                    message=f"Sorry! The project settings have been written using an old Version of SidescanTools and can't be used anymore.\n You need to import your files again and save the new settings.",
+                )
                 dlg.exec()
                 return
-            
+
             full_list = loaded_dict["Path"]  # downward compatibility
             full_list.sort()
             num_files = len(full_list)
@@ -585,6 +592,9 @@ class SidescanToolsMain(QWidget):
         self.settings_dict["Georef UTM"] = (
             self.view_and_export_widget.active_utm_checkbox.isChecked()
         )
+        self.settings_dict["Georef active custom colormap"] = (
+            self.view_and_export_widget.active_colormap_checkbox.isChecked()
+        )
 
     def update_ui_from_settings(self):
         self.output_picker.update_dir(self.settings_dict["Working dir"])
@@ -662,6 +672,9 @@ class SidescanToolsMain(QWidget):
         self.view_and_export_widget.active_utm_checkbox.setChecked(
             self.settings_dict["Georef UTM"]
         )
+        self.view_and_export_widget.active_colormap_checkbox.setChecked(
+            self.settings_dict["Georef active custom colormap"]
+        )
         self.processing_widget.load_proc_strat()
 
 
@@ -672,8 +685,8 @@ class BottomLineDetectionWidget(QVBoxLayout):
 
     def __init__(self, parent: SidescanToolsMain, title_font: QtGui.QFont):
         super().__init__()
-
         self.main_ui = parent
+        # define widgets
         self.btm_label = QLabel("Bottom Line Detection")
         self.btm_label.setFont(title_font)
         self.btm_chunk_size_edit = LabeledLineEdit(
@@ -701,13 +714,10 @@ class BottomLineDetectionWidget(QVBoxLayout):
             "Integer decimation factor that is used to downsample each ping."
         )
         self.active_convert_dB_checkbox = QCheckBox("Convert to dB")
-        self.active_convert_dB_checkbox.setChecked(
-            self.main_ui.settings_dict["Active convert dB"]
-        )
         self.do_btm_detection_btn = QPushButton("Bottom Line Detection")
         self.do_btm_detection_btn.setToolTip("Start Bottom Line Detection")
         self.do_btm_detection_btn.clicked.connect(self.run_bottom_line_detection)
-
+        # add widgets to layout
         self.addWidget(self.btm_label)
         self.addLayout(self.btm_chunk_size_edit)
         self.addLayout(self.btm_default_thresh)
@@ -731,33 +741,24 @@ class BottomLineDetectionWidget(QVBoxLayout):
         self.data_changed.emit()
 
 
-# Processing of data widget
+# Processing widget
 class ProcessingWidget(QVBoxLayout):
     data_changed = QtCore.Signal()
     """Signal to show that there might be new preprocessed data present"""
 
     def __init__(self, parent: SidescanToolsMain, title_font: QtGui.QFont):
         super().__init__()
-
         self.main_ui = parent
+        # define widgets
         self.filter_label = QLabel("Noise Reduction and Sharpening Filter")
         self.filter_label.setFont(title_font)
         self.pie_slice_filter_checkbox = QCheckBox("Filter Stripe Noise")
-        self.pie_slice_filter_checkbox.setChecked(
-            self.main_ui.settings_dict["Active pie slice filter"]
-        )
         self.sharpening_filter_checkbox = QCheckBox("Apply Sharpening Filter")
-        self.sharpening_filter_checkbox.setChecked(
-            self.main_ui.settings_dict["Active sharpening filter"]
-        )
         self.slant_and_gain_label = QLabel(
             "Slant Range Correction and Gain Normalization"
         )
         self.slant_and_gain_label.setFont(title_font)
         self.active_gain_norm_checkbox = QCheckBox("Apply Gain Normalization")
-        self.active_gain_norm_checkbox.setChecked(
-            self.main_ui.settings_dict["Active gain norm"]
-        )
         self.radio_grp_label = QLabel("Gain Normalization Strategy:")
         self.gain_norm_radio_group = QButtonGroup()
         self.beam_ang_corr_radio_btn = QRadioButton(
@@ -813,9 +814,6 @@ class ProcessingWidget(QVBoxLayout):
             self.main_ui.settings_dict["Slant active use downsampling"]
         )
         self.active_remove_watercol_checkbox = QCheckBox("Remove Watercolumn")
-        self.active_remove_watercol_checkbox.setChecked(
-            self.main_ui.settings_dict["Slant active remove wc"]
-        )
         self.egn_table_name_edit = LabeledLineEdit(
             "EGN Table Name:",
             validator=None,
@@ -828,9 +826,6 @@ class ProcessingWidget(QVBoxLayout):
         self.active_multiprocessing_checkbox.setToolTip(
             "Use multiprocessing in python to enable faster processing by multithreading."
         )
-        self.active_multiprocessing_checkbox.setChecked(
-            self.main_ui.settings_dict["Slant active multiprocessing"]
-        )
         self.num_worker_edit = LabeledLineEdit(
             "Number of Workers:",
             QtGui.QIntValidator(0, 32, self),
@@ -842,15 +837,9 @@ class ProcessingWidget(QVBoxLayout):
         self.export_slant_correction_checkbox.setToolTip(
             "Export Slant Range corrected data as .npz file. So it doesn't need to be recalculated for export or viewing."
         )
-        self.export_slant_correction_checkbox.setChecked(
-            self.main_ui.settings_dict["Slant active export slant data"]
-        )
         self.export_final_proc_checkbox = QCheckBox("Export fully processed Data")
         self.export_final_proc_checkbox.setToolTip(
             "Export fully processed corrected data as .npz file. So it doesn't need to be recalculated for export or viewing."
-        )
-        self.export_final_proc_checkbox.setChecked(
-            self.main_ui.settings_dict["Slant active export proc data"]
         )
         self.generate_egn_table = QPushButton("Generate EGN Table")
         self.generate_egn_table.clicked.connect(self.run_generate_slant_and_egn_files)
@@ -858,7 +847,6 @@ class ProcessingWidget(QVBoxLayout):
         self.process_single_btn.clicked.connect(self.process_single_file)
         self.process_all_btn = QPushButton("Process All Files")
         self.process_all_btn.clicked.connect(self.process_all_files)
-
         # Layout
         self.addWidget(self.filter_label)
         self.addWidget(self.pie_slice_filter_checkbox)
@@ -1060,8 +1048,8 @@ class ViewAndExportWidget(QVBoxLayout):
 
     def __init__(self, parent: SidescanToolsMain, title_font: QtGui.QFont):
         super().__init__()
-
         self.main_ui = parent
+        # define widgets
         self.napari_label = QLabel("View Results")
         self.napari_label.setFont(title_font)
         self.active_reprocess_file_checkbox = QCheckBox("Reprocess file")
@@ -1086,26 +1074,16 @@ class ViewAndExportWidget(QVBoxLayout):
         self.active_use_egn_data_checkbox.setToolTip(
             "Export pictures using the gain corrected data. Otherwise raw data is exported."
         )
-        self.active_use_egn_data_checkbox.setChecked(
-            self.main_ui.settings_dict["Georef active EGN"]
-        )
         self.active_dynamic_chunking_checkbox = QCheckBox("Dynamic Chunking")
         self.active_dynamic_chunking_checkbox.setToolTip("Experimental")
-        self.active_dynamic_chunking_checkbox.setChecked(
-            self.main_ui.settings_dict["Georef active dynamic chunking"]
-        )
-
         self.active_utm_checkbox = QCheckBox("UTM")
         self.active_utm_checkbox.setToolTip(
             "Coordinates in UTM (default). WGS84 if unchecked."
         )
-        self.active_utm_checkbox.setChecked(self.main_ui.settings_dict["Georef UTM"])
-
         self.active_colormap_checkbox = QCheckBox("Apply custom Colormap")
         self.active_colormap_checkbox.setToolTip(
             "Applies the colormap used in napari to the exported waterfall images. Otherwise grey scale values are used."
         )
-        self.active_colormap_checkbox.setChecked(True)
         self.generate_single_georef_btn = QPushButton("Selected")
         self.generate_single_georef_btn.clicked.connect(self.run_sidescan_georef)
         self.generate_all_georef_btn = QPushButton("All")
@@ -1120,6 +1098,7 @@ class ViewAndExportWidget(QVBoxLayout):
         self.generate_all_simple_img_btn.clicked.connect(
             lambda: self.generate_wc_img(True)
         )
+        # layout
         self.addWidget(self.napari_label)
         self.addWidget(self.active_reprocess_file_checkbox)
         self.addWidget(self.show_proc_file_btn)
@@ -1135,7 +1114,6 @@ class ViewAndExportWidget(QVBoxLayout):
             self.generate_all_georef_btn,
         )
         self.addLayout(self.labeled_georef_buttons)
-
         self.labeled_img_export_buttons = Labeled2Buttons(
             "Generate Waterfall Image:",
             self.generate_simple_img_btn,
@@ -1392,98 +1370,6 @@ class ViewAndExportWidget(QVBoxLayout):
                     data_out *= 255
                 SidescanGeoreferencer.write_img(im_name, data)
                 print(f"{im_name} written.")
-
-class ImportThread(QtCore.QThread):
-    status_signal = QtCore.Signal(str)
-    progress_signal = QtCore.Signal(int)
-    results_signal = QtCore.Signal(list)
-    aborted_signal = QtCore.Signal(str)
-    filenames = []
-
-    def __init__(self, filenames: list, parent = None):
-        super().__init__(parent)
-        self.filenames = filenames
-
-    def run(self):
-        self.status_signal.emit("starting import")
-        meta_list_html = []
-        import_success = True
-        err_str = ""
-        for idx, filename in enumerate(self.filenames):
-            self.progress_signal.emit(idx)
-            try:
-                sidescan_file = SidescanFile(filename)
-            except Exception as err:
-                err_str = f"Error while importing {filename}: \n {err}"
-                print(f"Error while importing {filename}: \n {err}")
-                import_success = False
-                break
-
-            meta_info = (
-                f"<b>Date          :</b> " + str(sidescan_file.timestamp[0]) + "<br />"
-            )
-            meta_info += f"<b>Channels        :</b> {sidescan_file.num_ch}<br />"
-            meta_info += f"<b>Number of pings :</b> {sidescan_file.num_ping}<br />"
-            meta_info += f"<b>Samples per ping:</b> {sidescan_file.ping_len}<br />"
-            meta_info += f"<b>Slant ranges    :</b> {np.min(sidescan_file.slant_range)} - {np.max(sidescan_file.slant_range)} m<br />"
-
-            meta_list_html.append({filename: meta_info})
-        if import_success:
-            self.status_signal.emit("import finished")
-            self.results_signal.emit(meta_list_html)
-        else:
-            self.status_signal.emit("import failed")
-            self.aborted_signal.emit(err_str)
-
-class FileImportManager(QWidget):
-    results_ready = QtCore.Signal(list)
-    aborted_signal = QtCore.Signal(str)
-    def __init__(self):
-        super().__init__()
-
-        self.pbar = QProgressBar(self)
-        self.pbar.setGeometry(30, 40, 500, 75)
-        self.pbar.setTextVisible(False)
-        self.title_label = QLabel()
-        self.title_label.setText(" Importing Files ...")
-        label_font = QtGui.QFont()
-        label_font.setBold(True)
-        label_font.setPixelSize(32)
-        self.title_label.setFont(label_font)
-        self.box_layout = QVBoxLayout()
-        self.box_layout.addWidget(self.title_label)
-        self.box_layout.addWidget(self.pbar)
-        self.setLayout(self.box_layout)
-        self.setGeometry(300, 300, 550, 100)
-        self.setWindowTitle("File Import Checking")
-        self.setStyleSheet("background-color:black;border-color:darkgrey;border-style:solid;border-width:4px;")
-        self.show()
-    
-    def start_import(self, filenames: list) -> list:
-        """Returns meta info for all files via results_ready signal or an error message via aborted_signal"""
-
-        num_files = len(filenames)
-        self.pbar.setRange(0, num_files)
-        # starting import in its own thread
-        self.import_thread = ImportThread(filenames, self)
-        # connecting signals of thread with slots
-        self.import_thread.status_signal.connect(lambda status: print(status))
-        self.import_thread.progress_signal.connect(lambda progress: self.update_pbar(progress))
-        self.import_thread.results_signal.connect(lambda meta_info: self.send_results(meta_info))
-        self.import_thread.aborted_signal.connect(lambda msg_str: self.import_aborted(msg_str))
-        # start thread and return meta information as a list
-        self.import_thread.start()
-    
-    def update_pbar(self, value: int):
-        self.pbar.setValue(value)
-
-    def send_results(self, results: list):
-        self.results_ready.emit(results)
-        self.deleteLater()
-
-    def import_aborted(self, msg_str: str):
-        self.aborted_signal.emit(msg_str)
-        self.deleteLater()
 
 
 def main():

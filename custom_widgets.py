@@ -9,14 +9,20 @@ from qtpy.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QSizePolicy,
+    QProgressBar,
+    QWidget,
 )
 import qtpy.QtCore as QtCore
 import qtpy.QtGui as QtGui
 import pathlib
+from sidescan_file import SidescanFile
+import numpy as np
+
 
 class QHLine(QFrame):
+    """Helper class for a horizontal line"""
+
     def __init__(self):
-        """Helper class for a horizontal line"""
         super(QHLine, self).__init__()
         self.setFrameShape(QFrame.HLine)
         self.setFrameShadow(QFrame.Sunken)
@@ -84,8 +90,9 @@ class OverwriteWarnDialog(QDialog):
         layout.addWidget(self.buttonBox)
         self.setLayout(layout)
 
+
 class ErrorWarnDialog(QDialog):
-    def __init__(self, parent=None, title: str ="Error", message: str = ""):
+    def __init__(self, parent=None, title: str = "Error", message: str = ""):
         """Warning dialog if a file is overwritten"""
         super().__init__(parent)
 
@@ -101,6 +108,7 @@ class ErrorWarnDialog(QDialog):
         layout.addWidget(message)
         layout.addWidget(self.buttonBox)
         self.setLayout(layout)
+
 
 class FilePicker(QHBoxLayout):
     main_parent = None
@@ -165,3 +173,106 @@ class FilePicker(QHBoxLayout):
     def update_dir(self, dir: str):
         self.cur_dir = dir
         self.label.setText(dir)
+
+
+class ImportThread(QtCore.QThread):
+    status_signal = QtCore.Signal(str)
+    progress_signal = QtCore.Signal(int)
+    results_signal = QtCore.Signal(list)
+    aborted_signal = QtCore.Signal(str)
+    filenames = []
+
+    def __init__(self, filenames: list, parent=None):
+        super().__init__(parent)
+        self.filenames = filenames
+
+    def run(self):
+        self.status_signal.emit("starting import")
+        meta_list_html = []
+        import_success = True
+        err_str = ""
+        for idx, filename in enumerate(self.filenames):
+            self.progress_signal.emit(idx)
+            try:
+                sidescan_file = SidescanFile(filename)
+            except Exception as err:
+                err_str = f"Error while importing {filename}: \n {err}"
+                print(f"Error while importing {filename}: \n {err}")
+                import_success = False
+                break
+
+            meta_info = (
+                f"<b>Date          :</b> " + str(sidescan_file.timestamp[0]) + "<br />"
+            )
+            meta_info += f"<b>Channels        :</b> {sidescan_file.num_ch}<br />"
+            meta_info += f"<b>Number of pings :</b> {sidescan_file.num_ping}<br />"
+            meta_info += f"<b>Samples per ping:</b> {sidescan_file.ping_len}<br />"
+            meta_info += f"<b>Slant ranges    :</b> {np.min(sidescan_file.slant_range)} - {np.max(sidescan_file.slant_range)} m<br />"
+
+            meta_list_html.append({filename: meta_info})
+        if import_success:
+            self.status_signal.emit("import finished")
+            self.results_signal.emit(meta_list_html)
+        else:
+            self.status_signal.emit("import failed")
+            self.aborted_signal.emit(err_str)
+
+
+class FileImportManager(QWidget):
+    results_ready = QtCore.Signal(list)
+    aborted_signal = QtCore.Signal(str)
+
+    def __init__(self):
+        super().__init__()
+
+        self.pbar = QProgressBar(self)
+        self.pbar.setGeometry(30, 40, 500, 50)
+        self.pbar.setTextVisible(False)
+        self.title_label = QLabel()
+        self.title_label.setText(" Importing Files ...")
+        label_font = QtGui.QFont()
+        label_font.setBold(True)
+        label_font.setPixelSize(20)
+        self.title_label.setFont(label_font)
+        self.box_layout = QVBoxLayout()
+        self.box_layout.addWidget(self.title_label)
+        self.box_layout.addWidget(self.pbar)
+        self.setLayout(self.box_layout)
+        self.setGeometry(300, 300, 550, 50)
+        self.setWindowTitle("File Import Checking")
+        self.setStyleSheet(
+            "background-color:black;border-color:darkgrey;border-style:solid;border-width:4px;"
+        )
+        self.show()
+
+    def start_import(self, filenames: list) -> list:
+        """Returns meta info for all files via results_ready signal or an error message via aborted_signal"""
+
+        num_files = len(filenames)
+        self.pbar.setRange(0, num_files)
+        # starting import in its own thread
+        self.import_thread = ImportThread(filenames, self)
+        # connecting signals of thread with slots
+        self.import_thread.status_signal.connect(lambda status: print(status))
+        self.import_thread.progress_signal.connect(
+            lambda progress: self.update_pbar(progress)
+        )
+        self.import_thread.results_signal.connect(
+            lambda meta_info: self.send_results(meta_info)
+        )
+        self.import_thread.aborted_signal.connect(
+            lambda msg_str: self.import_aborted(msg_str)
+        )
+        # start thread and return meta information as a list
+        self.import_thread.start()
+
+    def update_pbar(self, value: int):
+        self.pbar.setValue(value)
+
+    def send_results(self, results: list):
+        self.results_ready.emit(results)
+        self.deleteLater()
+
+    def import_aborted(self, msg_str: str):
+        self.aborted_signal.emit(msg_str)
+        self.deleteLater()

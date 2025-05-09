@@ -714,6 +714,9 @@ class BottomLineDetectionWidget(QVBoxLayout):
             "Integer decimation factor that is used to downsample each ping."
         )
         self.active_convert_dB_checkbox = QCheckBox("Convert to dB")
+        self.active_convert_dB_checkbox.setToolTip(
+            "Convert data to decibel for display (this is usually a good practice)."
+        )
         self.do_btm_detection_btn = QPushButton("Bottom Line Detection")
         self.do_btm_detection_btn.setToolTip("Start Bottom Line Detection")
         self.do_btm_detection_btn.clicked.connect(self.run_bottom_line_detection)
@@ -753,19 +756,40 @@ class ProcessingWidget(QVBoxLayout):
         self.filter_label = QLabel("Noise Reduction and Sharpening Filter")
         self.filter_label.setFont(title_font)
         self.pie_slice_filter_checkbox = QCheckBox("Filter Stripe Noise")
+        self.pie_slice_filter_checkbox.setToolTip(
+            "Use 2D FFT Pie Slice Filter to remove stripe noise from data."
+        )
         self.sharpening_filter_checkbox = QCheckBox("Apply Sharpening Filter")
+        self.sharpening_filter_checkbox.setToolTip(
+            "Use homomorphic filter to sharpen the resulting images."
+        )
         self.slant_and_gain_label = QLabel(
             "Slant Range Correction and Gain Normalization"
         )
         self.slant_and_gain_label.setFont(title_font)
         self.active_gain_norm_checkbox = QCheckBox("Apply Gain Normalization")
         self.radio_grp_label = QLabel("Gain Normalization Strategy:")
+        self.radio_grp_label.setToolTip(
+            "Decide which Gain Normalization Strategy shall be used: \n" \
+            "  - Beam Angle Correction: Estimates Beam Pattern from current file and applies normalization. Works with single files.\n" \
+            "  - Empirical Gain Normalization: Estimates a more precise Beam Pattern using all files of the current which is saved as EGN table. Does only work, when enough data is present."
+        )
         self.gain_norm_radio_group = QButtonGroup()
         self.beam_ang_corr_radio_btn = QRadioButton(
             "Beam Angle Correction (BAC, works on single file)"
         )
+        self.beam_ang_corr_radio_btn.setToolTip(
+            "Decide which Gain Normalization Strategy shall be used: \n" \
+            "  - Beam Angle Correction: Estimates Beam Pattern from current file and applies normalization. Works with single files.\n" \
+            "  - Empirical Gain Normalization: Estimates a more precise Beam Pattern using all files of the current which is saved as EGN table. Does only work, when enough data is present."
+        )
         self.egn_radio_btn = QRadioButton(
             "Empirical Gain Normalization (EGN, needs precalculated table)"
+        )
+        self.egn_radio_btn.setToolTip(
+            "Decide which Gain Normalization Strategy shall be used: \n" \
+            "  - Beam Angle Correction: Estimates Beam Pattern from current file and applies normalization. Works with single files.\n" \
+            "  - Empirical Gain Normalization: Estimates a more precise Beam Pattern using all files of the current which is saved as EGN table. Does only work, when enough data is present."
         )
         self.gain_norm_radio_group.addButton(self.beam_ang_corr_radio_btn)
         self.gain_norm_radio_group.addButton(self.egn_radio_btn)

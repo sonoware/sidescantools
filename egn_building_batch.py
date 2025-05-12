@@ -15,7 +15,6 @@ def calc_slant_correction_and_egn(
     use_intern_depth: bool,
     use_bottom_detection_downsampling=False,
     remove_wc=False,
-    convert_to_dB=False,
 ):
     """ Calculate slant range correction and EGN Table
 
@@ -37,8 +36,6 @@ def calc_slant_correction_and_egn(
         If ``True`` the data is downsampled by decimation using the same factor that has been used for the bottom detection.
     remove_wc: bool
         If ``True`` the distorted watercolumn data is removed (set to 0/transparent when exported)
-    convert_to_dB: bool
-        If ``True`` data will be converted to dB
     
     Returns
     -------
@@ -104,14 +101,12 @@ def calc_slant_correction_and_egn(
             sidescan_file=sidescan_file,
             chunk_size=chunk_size,
             downsampling_factor=downsampling_factor,
-            convert_to_dB=convert_to_dB,
         )
     else:
         preproc = SidescanPreprocessor(
             sidescan_file=sidescan_file,
             chunk_size=chunk_size,
             downsampling_factor=1,
-            convert_to_dB=convert_to_dB,
         )
         # rescale bottom info
         portside_bottom_dist = portside_bottom_dist * downsampling_factor

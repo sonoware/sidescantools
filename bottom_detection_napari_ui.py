@@ -7,7 +7,7 @@ from sidescan_file import SidescanFile
 import os
 
 def run_napari_btm_line(
-    filepath: str | os.PathLike, chunk_size=1000, default_threshold=0.7, downsampling_factor=1, work_dir=None, convert_to_dB = False,
+    filepath: str | os.PathLike, chunk_size=1000, default_threshold=0.7, downsampling_factor=1, work_dir=None, active_dB=False
 ):
     """Run bottom line detection in napari on a given file
 
@@ -23,7 +23,7 @@ def run_napari_btm_line(
         Factor used for decimation of ping signals
     work_dir: str | os.PathLike
         Path to desired directory that is used as default directory for saving/loading of results to ``.npz`` files
-    convert_to_dB: bool
+    active_dB: bool
         If ``True`` data will be converted to dB for display in napari
     """
     filepath = Path(filepath)
@@ -33,13 +33,13 @@ def run_napari_btm_line(
     preproc = SidescanPreprocessor(
         sidescan_file=sidescan_file,
         chunk_size=chunk_size,
-        convert_to_dB=convert_to_dB,
         downsampling_factor=downsampling_factor,
     )
     
     # Init bottom detection by doing an initial guess
     preproc.init_napari_bottom_detect(
-        default_threshold, #adjust_starfish_amp_fit=adjust_starfish_amp_fit
+        default_threshold,
+        active_dB=active_dB,
     )
 
     # build napari GUI
@@ -294,8 +294,8 @@ if __name__ == "__main__":
         0.07  # [0.0, 1.0] -> threshold to make sonar img binary for edge detection
     )
     downsampling_factor = 1 
-    convert_to_dB = False
+    active_dB = False
 
     filepath = Path("add_path_to_file_here")
     work_dir = "./sidescan_out"
-    run_napari_btm_line(filepath, chunk_size, default_threshold, downsampling_factor, work_dir=work_dir, convert_to_dB=convert_to_dB)
+    run_napari_btm_line(filepath, chunk_size, default_threshold, downsampling_factor, work_dir=work_dir, active_dB=active_dB)

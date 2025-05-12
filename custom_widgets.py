@@ -18,6 +18,11 @@ import pathlib
 from sidescan_file import SidescanFile
 import numpy as np
 
+def convert_to_dB(array: np.array):
+    if np.nanmin(array) <= 0:
+        array = np.clip(array, a_min=1e-3, a_max=None)
+    array = 20*np.log10(array)
+    return array
 
 class QHLine(QFrame):
     """Helper class for a horizontal line"""

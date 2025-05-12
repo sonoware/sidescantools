@@ -7,7 +7,7 @@ import skimage
 from skimage import feature
 from pathlib import Path
 import geopy.distance as geo_dist
-
+from custom_widgets import convert_to_dB
 
 class SidescanPreprocessor:
     """Main class to apply preprocessing functionalities to sidescan sonar data:
@@ -28,13 +28,11 @@ class SidescanPreprocessor:
         "Only use starboard",
     ]
     """["Each side individually", "Combine both sides", "Only use portside", "Only use starboard"]"""
-    convert_to_dB: bool
     downsampling_factor: int
 
     def __init__(
         self,
         sidescan_file: SidescanFile,
-        convert_to_dB=False,
         chunk_size=500,
         num_ch=2,
         downsampling_factor=1,
@@ -46,8 +44,6 @@ class SidescanPreprocessor:
         ----------
         sidescan_file: SidescanFile
             Reference to SidescanFile class that holds a loaded sidescan data file (XTF/JSF)
-        convert_to_dB: bool
-            If ``True`` data will be converted to dB
         chunk_size: int
             Number of pings per single chunk
         num_ch: int
@@ -64,7 +60,6 @@ class SidescanPreprocessor:
         self.chunk_size = chunk_size
         self.ping_len = self.sidescan_file.ping_len
         self.num_ch = num_ch
-        self.convert_to_dB = convert_to_dB
         self.downsampling_factor = downsampling_factor
 
         if downsampling_factor != 1:
@@ -72,10 +67,6 @@ class SidescanPreprocessor:
                 self.sonar_data_proc, downsampling_factor, axis=2
             )
             self.ping_len = int(np.ceil(self.ping_len / self.downsampling_factor))
-        # TODO: This conversion has to be redone. Here the incoming data has to be analyzed to find a suitable conversion to a log scale.
-        if convert_to_dB:
-            self.convert_to_dB = convert_to_dB
-            self.sonar_data_proc = 20 * np.log10(np.abs(self.sonar_data_proc) + 0.1)
 
         ## Print spatial information estimation
         start_idx = 0
@@ -162,7 +153,7 @@ class SidescanPreprocessor:
             else:
                 initial_guess = False
 
-    def init_napari_bottom_detect(self, default_threshold):
+    def init_napari_bottom_detect(self, default_threshold, active_dB=False):
 
         # normalize each ping individually
         portside = np.array(self.sonar_data_proc[0], dtype=float)
@@ -171,6 +162,9 @@ class SidescanPreprocessor:
         starboard = np.array(self.sonar_data_proc[1], dtype=float)
         indv_max_starboard = np.max(starboard, 1)
         starboard = starboard / indv_max_starboard[:, None]
+        if active_dB:
+            portside = convert_to_dB(portside)
+            starboard = convert_to_dB(starboard)
 
         # do initial bottom line detection for start values
         self.detect_bottom_line_t(
@@ -857,22 +851,6 @@ class SidescanPreprocessor:
                             0  # remove all interpolated values after last known val
                         )
 
-                # TODO: revise this part
-                # if ch == 0:
-                #     depth_on_ground = int(
-                #         np.round(
-                #             np.sin(np.deg2rad(90 - nadir_angle))
-                #             * starboard_bottom_dist_conv[ping_idx]
-                #         )
-                #     )  # (self.ping_len - portside_bottom_dist_conv[ping_idx])))
-                # else:
-                #     depth_on_ground = int(
-                #         np.round(
-                #             np.sin(np.deg2rad(90 - nadir_angle))
-                #             * starboard_bottom_dist_conv[ping_idx]
-                #         )
-                #     )
-
                 # remove remaining nadir
                 if nadir_angle != 0:
                     depth_on_ground = int(round(np.sqrt((depth + 1) ** 2 - dd), 0))
@@ -988,7 +966,7 @@ class SidescanPreprocessor:
                 ):
                     self.egn_corrected_mat[vector_idx, ping_idx] = (
                         self.slant_corrected_mat[vector_idx, ping_idx]
-                        / egn_table[r_idx[ping_idx], alpha_idx[ping_idx]]
+                        / (egn_table[r_idx[ping_idx], alpha_idx[ping_idx]] + EPS)
                     )
 
         if save_to is not None:

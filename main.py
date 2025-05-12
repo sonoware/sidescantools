@@ -27,7 +27,7 @@ import sys, os, pathlib
 from bottom_detection_napari_ui import run_napari_btm_line
 from egn_building_batch import generate_slant_and_egn_files
 from sidescan_georeferencer import SidescanGeoreferencer
-import yaml
+import yaml, copy
 from math import log
 import multiprocessing
 import numpy as np
@@ -43,6 +43,7 @@ from custom_widgets import (
     ErrorWarnDialog,
     FilePicker,
     FileImportManager,
+    convert_to_dB,
 )
 from enum import Enum
 
@@ -83,25 +84,12 @@ class SidescanToolsMain(QWidget):
         "Slant active export slant data": True,
         "View reprocess file": False,
         "Img chunk size": 1000,
-        "Georef active EGN": True,
+        "Georef active proc data": True,
         "Georef active dynamic chunking": False,
         "Georef UTM": True,
         "Georef active custom colormap": False,
         "Path": [],
         "Meta info": dict(),
-    }
-    # TODO: is this a desired cmap or change that?
-    sonar_dat_cmap = {
-        "colors": [
-            [0, 0, 0, 1],
-            [0.43, 0.19, 0.17, 1],
-            [0.65, 0.31, 0.15, 1],
-            [0.9, 0.8, 0.25, 1],
-            [0.95, 0.93, 0.33, 1],
-        ],
-        "name": "sonar_dat",
-        "interpolation": "linear",
-        "controls": [0, 0.2, 0.5, 0.9, 1],
     }
 
     def __init__(self):
@@ -583,8 +571,8 @@ class SidescanToolsMain(QWidget):
         self.settings_dict["Img chunk size"] = (
             self.view_and_export_widget.img_chunk_size_edit.line_edit.text()
         )
-        self.settings_dict["Georef active EGN"] = (
-            self.view_and_export_widget.active_use_egn_data_checkbox.isChecked()
+        self.settings_dict["Georef active proc data"] = (
+            self.view_and_export_widget.active_use_proc_data_checkbox.isChecked()
         )
         self.settings_dict["Georef active dynamic chunking"] = (
             self.view_and_export_widget.active_dynamic_chunking_checkbox.isChecked()
@@ -663,8 +651,8 @@ class SidescanToolsMain(QWidget):
         self.view_and_export_widget.img_chunk_size_edit.line_edit.setText(
             str(self.settings_dict["Img chunk size"])
         )
-        self.view_and_export_widget.active_use_egn_data_checkbox.setChecked(
-            self.settings_dict["Georef active EGN"]
+        self.view_and_export_widget.active_use_proc_data_checkbox.setChecked(
+            self.settings_dict["Georef active proc data"]
         )
         self.view_and_export_widget.active_dynamic_chunking_checkbox.setChecked(
             self.settings_dict["Georef active dynamic chunking"]
@@ -739,7 +727,7 @@ class BottomLineDetectionWidget(QVBoxLayout):
             default_threshold=float(self.btm_default_thresh.line_edit.text()),
             downsampling_factor=int(self.btm_downsample_fact.line_edit.text()),
             work_dir=self.main_ui.output_picker.cur_dir,
-            convert_to_dB=self.active_convert_dB_checkbox.isChecked(),
+            active_dB=self.active_convert_dB_checkbox.isChecked(),
         )
         self.data_changed.emit()
 
@@ -917,7 +905,7 @@ class ProcessingWidget(QVBoxLayout):
             + self.egn_table_name_edit.line_edit.text()
         )
         if egn_path.exists():
-            dlg = OverwriteWarnDialog(self, str(egn_path))
+            dlg = OverwriteWarnDialog(None, str(egn_path))
             if not dlg.exec():
                 return
 
@@ -960,7 +948,6 @@ class ProcessingWidget(QVBoxLayout):
         preproc = SidescanPreprocessor(
             sidescan_file=sidescan_file,
             chunk_size=int(self.slant_chunk_size_edit.line_edit.text()),
-            convert_to_dB=self.main_ui.bottom_line_detection_widget.active_convert_dB_checkbox.isChecked(),
             downsampling_factor=downsampling_factor,
         )
 
@@ -1069,6 +1056,19 @@ class ProcessingWidget(QVBoxLayout):
 class ViewAndExportWidget(QVBoxLayout):
     data_changed = QtCore.Signal()
     """Signal to show that there might be new preprocessed data present"""
+    # TODO: is this a desired cmap or change that?
+    sonar_dat_cmap = {
+        "colors": [
+            [0, 0, 0, 1],
+            [0.43, 0.19, 0.17, 1],
+            [0.65, 0.31, 0.15, 1],
+            [0.9, 0.8, 0.25, 1],
+            [0.95, 0.93, 0.33, 1],
+        ],
+        "name": "sonar_dat",
+        "interpolation": "linear",
+        "controls": [0, 0.2, 0.5, 0.9, 1],
+    }
 
     def __init__(self, parent: SidescanToolsMain, title_font: QtGui.QFont):
         super().__init__()
@@ -1094,9 +1094,9 @@ class ViewAndExportWidget(QVBoxLayout):
 
         self.georef_label = QLabel("Georeferencing and Image Generation")
         self.georef_label.setFont(title_font)
-        self.active_use_egn_data_checkbox = QCheckBox("Use gain corrected Data")
-        self.active_use_egn_data_checkbox.setToolTip(
-            "Export pictures using the gain corrected data. Otherwise raw data is exported."
+        self.active_use_proc_data_checkbox = QCheckBox("Use processed Data")
+        self.active_use_proc_data_checkbox.setToolTip(
+            "Export pictures using the processed (filtered and corrected) data. Otherwise raw data is exported."
         )
         self.active_dynamic_chunking_checkbox = QCheckBox("Dynamic Chunking")
         self.active_dynamic_chunking_checkbox.setToolTip("Experimental")
@@ -1128,7 +1128,7 @@ class ViewAndExportWidget(QVBoxLayout):
         self.addWidget(self.show_proc_file_btn)
         self.addWidget(QHLine())
         self.addWidget(self.georef_label)
-        self.addWidget(self.active_use_egn_data_checkbox)
+        self.addWidget(self.active_use_proc_data_checkbox)
         self.addWidget(self.active_dynamic_chunking_checkbox)
         self.addWidget(self.active_utm_checkbox)
         self.addWidget(self.active_colormap_checkbox)
@@ -1172,19 +1172,7 @@ class ViewAndExportWidget(QVBoxLayout):
         sidescan_file, preproc = self.main_ui.processing_widget.do_slant_corr_and_EGN(
             filepath, load_slant_data=load_slant, load_egn_data=load_egn
         )
-
-        if (
-            self.main_ui.bottom_line_detection_widget.active_convert_dB_checkbox.isChecked()
-        ):
-            raw_image = np.hstack((sidescan_file.data[0], sidescan_file.data[1]))
-        else:
-            raw_image = np.hstack(
-                (
-                    20 * np.log10(sidescan_file.data[0]),
-                    20 * np.log10(sidescan_file.data[1]),
-                )
-            )
-
+        raw_image = np.hstack((sidescan_file.data[0], sidescan_file.data[1]))
         colors = [[1, 1, 1, 0], [1, 0, 0, 1]]  # r,g,b,alpha
         bottom_colormap = {
             "colors": colors,
@@ -1228,13 +1216,24 @@ class ViewAndExportWidget(QVBoxLayout):
                     * preproc.chunk_size
                 ]
             )
-
-        viewer, image_layer_1 = napari.imshow(
-            raw_image_chunk, colormap=self.sonar_dat_cmap
-        )
-        image_layer_2 = viewer.add_image(preproc.bottom_map, colormap=bottom_colormap)
-        image_layer_3 = viewer.add_image(slant_corr_chunk, colormap=self.sonar_dat_cmap)
-        image_layer_4 = viewer.add_image(egn_corr_chunk, colormap=self.sonar_dat_cmap)
+        
+        # calculate in dB TODO: this is currently taken from the Bottom line detection, make own checkbox here?
+        if (
+            self.main_ui.bottom_line_detection_widget.active_convert_dB_checkbox.isChecked()
+        ):
+            viewer, image_layer_1 = napari.imshow(
+                convert_to_dB(raw_image_chunk), colormap=self.sonar_dat_cmap, name='Raw image (dB)'
+            )
+            image_layer_2 = viewer.add_image(preproc.bottom_map, colormap=bottom_colormap)
+            image_layer_3 = viewer.add_image(convert_to_dB(slant_corr_chunk), colormap=self.sonar_dat_cmap, name='Slant corrected image (dB)')
+            image_layer_4 = viewer.add_image(convert_to_dB(egn_corr_chunk), colormap=self.sonar_dat_cmap, name='Gain corrected image (dB)')
+        else:
+            viewer, image_layer_1 = napari.imshow(
+                raw_image_chunk, colormap=self.sonar_dat_cmap, name='Raw image'
+            )
+            image_layer_2 = viewer.add_image(preproc.bottom_map, colormap=bottom_colormap)
+            image_layer_3 = viewer.add_image(slant_corr_chunk, colormap=self.sonar_dat_cmap, name='Slant corrected image')
+            image_layer_4 = viewer.add_image(egn_corr_chunk, colormap=self.sonar_dat_cmap, name='Gain corrected image')
         napari.run(max_loop_level=2)
 
     def run_sidescan_georef(self, active_all_files=False):
@@ -1274,7 +1273,7 @@ class ViewAndExportWidget(QVBoxLayout):
 
             proc_data_0 = None
             proc_data_1 = None
-            if self.active_use_egn_data_checkbox.isChecked():
+            if self.active_use_proc_data_checkbox.isChecked():
                 proc_data_0 = preproc.egn_corrected_mat[:, 0 : sidescan_file.ping_len]
                 proc_data_0 = np.nan_to_num(
                     proc_data_0
@@ -1282,13 +1281,22 @@ class ViewAndExportWidget(QVBoxLayout):
                 proc_data_1 = preproc.egn_corrected_mat[:, sidescan_file.ping_len :]
                 proc_data_1 = np.nan_to_num(proc_data_1)
 
+            # TODO: Same question as above regarding dB conversion
+            if self.main_ui.bottom_line_detection_widget.active_convert_dB_checkbox.isChecked():
+                proc_data_out_0 = convert_to_dB(proc_data_0)
+                proc_data_out_1 = convert_to_dB(proc_data_1)
+            else:
+                proc_data_out_0 = proc_data_0
+                proc_data_out_1 = proc_data_1
+
+            # start georeferencing
             georeferencer = SidescanGeoreferencer(
                 filepath=filepath,
                 channel=0,
                 dynamic_chunking=self.active_dynamic_chunking_checkbox.isChecked(),
                 active_utm=self.active_utm_checkbox.isChecked(),
                 output_folder=self.main_ui.settings_dict["Georef dir"],
-                proc_data=proc_data_0,
+                proc_data=proc_data_out_0,
                 vertical_beam_angle=int(
                     self.main_ui.processing_widget.vertical_beam_angle_edit.line_edit.text()
                 ),
@@ -1300,7 +1308,7 @@ class ViewAndExportWidget(QVBoxLayout):
                 dynamic_chunking=self.active_dynamic_chunking_checkbox.isChecked(),
                 active_utm=self.active_utm_checkbox.isChecked(),
                 output_folder=self.main_ui.settings_dict["Georef dir"],
-                proc_data=proc_data_1,
+                proc_data=proc_data_out_1,
                 vertical_beam_angle=int(
                     self.main_ui.processing_widget.vertical_beam_angle_edit.line_edit.text()
                 ),
@@ -1346,7 +1354,10 @@ class ViewAndExportWidget(QVBoxLayout):
                 )
             )
 
-            data = preproc.egn_corrected_mat
+            data = copy.copy(preproc.egn_corrected_mat)
+            # TODO: checkbox?
+            if self.main_ui.bottom_line_detection_widget.active_convert_dB_checkbox.isChecked():
+                data = convert_to_dB(data)
             np.nan_to_num(data, copy=False)
             data /= np.nanmax(np.abs(data)) / 255
             data = np.array(data, dtype=np.uint8)

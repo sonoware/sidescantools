@@ -77,7 +77,6 @@ class SidescanToolsMain(QWidget):
         "Slant active intern depth": False,
         "Slant chunk size": 1000,
         "Slant active use downsampling": True,
-        "Slant active remove wc": True,
         "Slant active multiprocessing": True,
         "Slant num worker": 8,
         "Slant active export proc data": True,
@@ -550,9 +549,6 @@ class SidescanToolsMain(QWidget):
         self.settings_dict["Slant active use downsampling"] = (
             self.processing_widget.active_bottom_detection_downsampling_checkbox.isChecked()
         )
-        self.settings_dict["Slant active remove wc"] = (
-            self.processing_widget.active_remove_watercol_checkbox.isChecked()
-        )
         self.settings_dict["Slant active multiprocessing"] = (
             self.processing_widget.active_multiprocessing_checkbox.isChecked()
         )
@@ -629,9 +625,6 @@ class SidescanToolsMain(QWidget):
         )
         self.processing_widget.active_bottom_detection_downsampling_checkbox.setChecked(
             self.settings_dict["Slant active use downsampling"]
-        )
-        self.processing_widget.active_remove_watercol_checkbox.setChecked(
-            self.settings_dict["Slant active remove wc"]
         )
         self.processing_widget.active_multiprocessing_checkbox.setChecked(
             self.settings_dict["Slant active multiprocessing"]
@@ -825,7 +818,6 @@ class ProcessingWidget(QVBoxLayout):
         self.active_bottom_detection_downsampling_checkbox.setChecked(
             self.main_ui.settings_dict["Slant active use downsampling"]
         )
-        self.active_remove_watercol_checkbox = QCheckBox("Remove Watercolumn")
         self.egn_table_name_edit = LabeledLineEdit(
             "EGN Table Name:",
             validator=None,
@@ -883,7 +875,6 @@ class ProcessingWidget(QVBoxLayout):
         self.addWidget(self.optional_egn_label)
         self.addLayout(self.nadir_angle_edit)
         self.addLayout(self.slant_chunk_size_edit)
-        self.addWidget(self.active_remove_watercol_checkbox)
         self.addWidget(self.active_multiprocessing_checkbox)
         self.addLayout(self.num_worker_edit)
         self.addWidget(self.export_slant_correction_checkbox)
@@ -926,7 +917,6 @@ class ProcessingWidget(QVBoxLayout):
             egn_table_name=self.egn_table_name_edit.line_edit.text(),
             active_multiprocessing=self.active_multiprocessing_checkbox.isChecked(),
             pool=pool,
-            remove_wc=self.active_remove_watercol_checkbox.isChecked(),
         )
         pool.close()
         self.data_changed.emit()
@@ -977,7 +967,6 @@ class ProcessingWidget(QVBoxLayout):
                 active_interpolation=True,
                 nadir_angle=int(self.nadir_angle_edit.line_edit.text()),
                 save_to=slant_data_path,
-                remove_wc=self.active_remove_watercol_checkbox.isChecked(),
                 active_mult_slant_range_resampling=True,
             )
             if self.sharpening_filter_checkbox.isChecked():
@@ -1423,7 +1412,7 @@ class ViewAndExportWidget(QVBoxLayout):
                     dtype=float,
                 )
                 if (
-                self.main_ui.bottom_line_detection_widget.active_convert_dB_checkbox.isChecked()
+                    self.main_ui.bottom_line_detection_widget.active_convert_dB_checkbox.isChecked()
                 ):
                     raw_data = convert_to_dB(raw_data)
                 raw_data /= np.nanmax(np.abs(raw_data)) / 255

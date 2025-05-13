@@ -737,7 +737,6 @@ class SidescanPreprocessor:
         save_to=None,
         nadir_angle=0,
         use_intern_depth=False,
-        remove_wc=False,
         active_mult_slant_range_resampling=False,
     ):
         """Correct slant range for current data. The current sidescan data is projected
@@ -758,8 +757,6 @@ class SidescanPreprocessor:
             Use 0 if it is not known.
         use_intern_depth: bool
             If ``True`` internal depth information is used. Otherwise the depth is estimated from the bottom detection data.
-        remove_wc: bool
-             If ``True`` the distorted watercolumn data is removed
         active_mult_slant_range_resampling: bool
             If ``True`` pings with different slant ranges are resampled to the longest slant range.
             This results in a slant corrected matrix where all samples are equidistant.
@@ -866,10 +863,6 @@ class SidescanPreprocessor:
                     )
 
                 depth = int(self.dep_info[ch][ping_idx])  # in px
-                # Remove water column
-                if remove_wc:
-                    son_data[ping_idx, : depth + 1] = 0
-
                 dd = depth**2
                 # vector to store reloacted pixels
                 ping_dat = (

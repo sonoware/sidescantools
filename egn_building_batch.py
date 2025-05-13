@@ -14,7 +14,6 @@ def calc_slant_correction_and_egn(
     nadir_angle: int,
     use_intern_depth: bool,
     use_bottom_detection_downsampling=False,
-    remove_wc=False,
 ):
     """ Calculate slant range correction and EGN Table
 
@@ -34,9 +33,7 @@ def calc_slant_correction_and_egn(
         If ``True`` internal depth information is used. Otherwise the depth is estimated from the bottom detection data.
     use_bottom_detection_downsampling: bool
         If ``True`` the data is downsampled by decimation using the same factor that has been used for the bottom detection.
-    remove_wc: bool
-        If ``True`` the distorted watercolumn data is removed (set to 0/transparent when exported)
-    
+
     Returns
     -------
     Returns ``True`` on success.
@@ -120,7 +117,6 @@ def calc_slant_correction_and_egn(
         active_interpolation=True,
         nadir_angle=nadir_angle,
         use_intern_depth=use_intern_depth,
-        remove_wc=remove_wc,
     )
 
     # compute egn info #TODO: check if this params shall be made adjustable
@@ -203,7 +199,6 @@ def generate_slant_and_egn_files(
     egn_table_name,
     active_multiprocessing,
     pool,
-    remove_wc,
 ):
     """ Helper function to enable slant range correction and EGN table generation using multiprocessing"""
     res_sonar_path_list = []
@@ -237,7 +232,6 @@ def generate_slant_and_egn_files(
                     repeat(nadir_angle),
                     repeat(use_intern_depth),
                     repeat(use_bottom_detection_downsampling),
-                    repeat(remove_wc),
                 ),
             )
             print(res)
@@ -253,7 +247,6 @@ def generate_slant_and_egn_files(
                     nadir_angle,
                     use_intern_depth,
                     use_bottom_detection_downsampling,
-                    remove_wc=remove_wc,
                 )
 
     if generate_final_egn_table:
@@ -338,5 +331,4 @@ if __name__ == "__main__":
         egn_table_name,
         active_multiprocessing,
         pool,
-        remove_wc=True,
     )

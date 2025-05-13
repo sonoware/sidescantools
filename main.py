@@ -758,8 +758,8 @@ class ProcessingWidget(QVBoxLayout):
         self.active_gain_norm_checkbox = QCheckBox("Apply Gain Normalization")
         self.radio_grp_label = QLabel("Gain Normalization Strategy:")
         self.radio_grp_label.setToolTip(
-            "Decide which Gain Normalization Strategy shall be used: \n" \
-            "  - Beam Angle Correction: Estimates Beam Pattern from current file and applies normalization. Works with single files.\n" \
+            "Decide which Gain Normalization Strategy shall be used: \n"
+            "  - Beam Angle Correction: Estimates Beam Pattern from current file and applies normalization. Works with single files.\n"
             "  - Empirical Gain Normalization: Estimates a more precise Beam Pattern using all files of the current which is saved as EGN table. Does only work, when enough data is present."
         )
         self.gain_norm_radio_group = QButtonGroup()
@@ -767,16 +767,16 @@ class ProcessingWidget(QVBoxLayout):
             "Beam Angle Correction (BAC, works on single file)"
         )
         self.beam_ang_corr_radio_btn.setToolTip(
-            "Decide which Gain Normalization Strategy shall be used: \n" \
-            "  - Beam Angle Correction: Estimates Beam Pattern from current file and applies normalization. Works with single files.\n" \
+            "Decide which Gain Normalization Strategy shall be used: \n"
+            "  - Beam Angle Correction: Estimates Beam Pattern from current file and applies normalization. Works with single files.\n"
             "  - Empirical Gain Normalization: Estimates a more precise Beam Pattern using all files of the current which is saved as EGN table. Does only work, when enough data is present."
         )
         self.egn_radio_btn = QRadioButton(
             "Empirical Gain Normalization (EGN, needs precalculated table)"
         )
         self.egn_radio_btn.setToolTip(
-            "Decide which Gain Normalization Strategy shall be used: \n" \
-            "  - Beam Angle Correction: Estimates Beam Pattern from current file and applies normalization. Works with single files.\n" \
+            "Decide which Gain Normalization Strategy shall be used: \n"
+            "  - Beam Angle Correction: Estimates Beam Pattern from current file and applies normalization. Works with single files.\n"
             "  - Empirical Gain Normalization: Estimates a more precise Beam Pattern using all files of the current which is saved as EGN table. Does only work, when enough data is present."
         )
         self.gain_norm_radio_group.addButton(self.beam_ang_corr_radio_btn)
@@ -866,6 +866,7 @@ class ProcessingWidget(QVBoxLayout):
         self.addWidget(QHLine())
         self.addWidget(self.slant_and_gain_label)
         self.addWidget(self.active_bottom_detection_downsampling_checkbox)
+        self.addWidget(self.active_gain_norm_checkbox)
         self.addWidget(self.radio_grp_label)
         radio_layout = QHBoxLayout()
         radio_layout_btns = QVBoxLayout()
@@ -930,10 +931,9 @@ class ProcessingWidget(QVBoxLayout):
         pool.close()
         self.data_changed.emit()
 
-    def do_slant_corr_and_EGN(
+    def do_slant_corr_and_processing(
         self, filepath, load_slant_data: bool = False, load_egn_data: bool = False
     ):
-
         sidescan_file = SidescanFile(filepath=filepath)
         bottom_info = np.load(
             pathlib.Path(self.main_ui.settings_dict["Working dir"])
@@ -971,6 +971,7 @@ class ProcessingWidget(QVBoxLayout):
 
         else:
             if self.pie_slice_filter_checkbox.isChecked():
+                print(f"Pie slice to: {filepath}")
                 preproc.apply_pie_slice_filter()
             preproc.slant_range_correction(
                 active_interpolation=True,
@@ -979,29 +980,56 @@ class ProcessingWidget(QVBoxLayout):
                 remove_wc=self.active_remove_watercol_checkbox.isChecked(),
                 active_mult_slant_range_resampling=True,
             )
+            if self.sharpening_filter_checkbox.isChecked():
+                preproc.apply_sharpening_filter()
+        if self.active_gain_norm_checkbox.isChecked():
+            if self.egn_radio_btn.isChecked():
+                egn_table_path = self.main_ui.egn_table_picker.cur_dir
+                if not pathlib.Path(egn_table_path).exists():
+                    dlg = QMessageBox(self)
+                    dlg.setWindowTitle("EGN table not found")
+                    dlg.setText(
+                        f"The specified EGN table {egn_table_path} doesn't exist."
+                    )
+                    dlg.exec()
 
-        egn_table_path = self.main_ui.egn_table_picker.cur_dir
-        if not pathlib.Path(egn_table_path).exists():
-            dlg = QMessageBox(self)
-            dlg.setWindowTitle("EGN table not found")
-            dlg.setText(f"The specified EGN table {egn_table_path} doesn't exist.")
-            dlg.exec()
+                if self.export_slant_correction_checkbox.isChecked():
+                    gain_corrected_path = pathlib.Path(
+                        self.main_ui.settings_dict["Working dir"]
+                    ) / (filepath.stem + "_egn_corrected.npz")
+                else:
+                    gain_corrected_path = None
 
-        if self.export_slant_correction_checkbox.isChecked():
-            egn_data_path = pathlib.Path(self.main_ui.settings_dict["Working dir"]) / (
-                filepath.stem + "_egn_corrected.npz"
-            )
-        else:
-            egn_data_path = None
-
-        if load_egn_data:
-            egn_data = np.load(egn_data_path)
-            preproc.egn_corrected_mat = egn_data["egn_corrected_mat"]
-        else:
-            preproc.do_EGN_correction(
-                egn_table_path,
-                save_to=egn_data_path,
-            )
+                if load_egn_data:
+                    egn_data = np.load(gain_corrected_path)
+                    preproc.egn_corrected_mat = egn_data["egn_corrected_mat"]
+                else:
+                    preproc.do_EGN_correction(
+                        egn_table_path,
+                        save_to=gain_corrected_path,
+                    )
+            elif self.beam_ang_corr_radio_btn.isChecked():
+                gain_corrected_path = pathlib.Path(
+                    self.main_ui.settings_dict["Working dir"]
+                ) / (filepath.stem + "_egn_corrected.npz")
+                if load_egn_data:
+                    egn_data = np.load(gain_corrected_path)
+                    preproc.egn_corrected_mat = egn_data["egn_corrected_mat"]
+                else:
+                    preproc.apply_beam_pattern_correction()
+                    # TODO: remove need for this HACK
+                    preproc.egn_corrected_mat = np.hstack(
+                        (
+                            np.fliplr(preproc.sonar_data_proc[0]),
+                            preproc.sonar_data_proc[1],
+                        )
+                    )
+                    if self.export_slant_correction_checkbox.isChecked():
+                        np.savez(
+                            gain_corrected_path,
+                            egn_table_path="TODO",
+                            egn_corrected_mat=preproc.egn_corrected_mat,
+                        )
 
         self.data_changed.emit()
         return sidescan_file, preproc
@@ -1016,14 +1044,14 @@ class ProcessingWidget(QVBoxLayout):
             num_worker = int(self.num_worker_edit.line_edit.text())
             pool = multiprocessing.dummy.Pool(num_worker)
             res = pool.map(
-                self.do_slant_corr_and_EGN,
+                self.do_slant_corr_and_processing,
                 path_list,
             )
             print(res)
             pool.close()
         else:
             for filepath in path_list:
-                self.do_slant_corr_and_EGN(filepath)
+                self.do_slant_corr_and_processing(filepath)
 
     def process_single_file(self):
         filepath = pathlib.Path(
@@ -1031,7 +1059,7 @@ class ProcessingWidget(QVBoxLayout):
                 self.main_ui.file_table.selectedIndexes()[0].row()
             ]
         )
-        self.do_slant_corr_and_EGN(filepath)
+        self.do_slant_corr_and_processing(filepath)
 
     def proc_strat_changed(self, btn_object):
         if self.beam_ang_corr_radio_btn.isChecked():
@@ -1169,8 +1197,10 @@ class ViewAndExportWidget(QVBoxLayout):
         if self.active_reprocess_file_checkbox.isChecked():
             load_egn = False
             load_slant = False
-        sidescan_file, preproc = self.main_ui.processing_widget.do_slant_corr_and_EGN(
-            filepath, load_slant_data=load_slant, load_egn_data=load_egn
+        sidescan_file, preproc = (
+            self.main_ui.processing_widget.do_slant_corr_and_processing(
+                filepath, load_slant_data=load_slant, load_egn_data=load_egn
+            )
         )
         raw_image = np.hstack((sidescan_file.data[0], sidescan_file.data[1]))
         colors = [[1, 1, 1, 0], [1, 0, 0, 1]]  # r,g,b,alpha
@@ -1216,24 +1246,46 @@ class ViewAndExportWidget(QVBoxLayout):
                     * preproc.chunk_size
                 ]
             )
-        
+
         # calculate in dB TODO: this is currently taken from the Bottom line detection, make own checkbox here?
         if (
             self.main_ui.bottom_line_detection_widget.active_convert_dB_checkbox.isChecked()
         ):
             viewer, image_layer_1 = napari.imshow(
-                convert_to_dB(raw_image_chunk), colormap=self.sonar_dat_cmap, name='Raw image (dB)'
+                convert_to_dB(raw_image_chunk),
+                colormap=self.sonar_dat_cmap,
+                name="Raw image (dB)",
             )
-            image_layer_2 = viewer.add_image(preproc.bottom_map, colormap=bottom_colormap)
-            image_layer_3 = viewer.add_image(convert_to_dB(slant_corr_chunk), colormap=self.sonar_dat_cmap, name='Slant corrected image (dB)')
-            image_layer_4 = viewer.add_image(convert_to_dB(egn_corr_chunk), colormap=self.sonar_dat_cmap, name='Gain corrected image (dB)')
+            image_layer_2 = viewer.add_image(
+                preproc.bottom_map, colormap=bottom_colormap
+            )
+            image_layer_3 = viewer.add_image(
+                convert_to_dB(slant_corr_chunk),
+                colormap=self.sonar_dat_cmap,
+                name="Slant corrected image (dB)",
+            )
+            image_layer_4 = viewer.add_image(
+                convert_to_dB(egn_corr_chunk),
+                colormap=self.sonar_dat_cmap,
+                name="Gain corrected image (dB)",
+            )
         else:
             viewer, image_layer_1 = napari.imshow(
-                raw_image_chunk, colormap=self.sonar_dat_cmap, name='Raw image'
+                raw_image_chunk, colormap=self.sonar_dat_cmap, name="Raw image"
             )
-            image_layer_2 = viewer.add_image(preproc.bottom_map, colormap=bottom_colormap)
-            image_layer_3 = viewer.add_image(slant_corr_chunk, colormap=self.sonar_dat_cmap, name='Slant corrected image')
-            image_layer_4 = viewer.add_image(egn_corr_chunk, colormap=self.sonar_dat_cmap, name='Gain corrected image')
+            image_layer_2 = viewer.add_image(
+                preproc.bottom_map, colormap=bottom_colormap
+            )
+            image_layer_3 = viewer.add_image(
+                slant_corr_chunk,
+                colormap=self.sonar_dat_cmap,
+                name="Slant corrected image",
+            )
+            image_layer_4 = viewer.add_image(
+                egn_corr_chunk,
+                colormap=self.sonar_dat_cmap,
+                name="Gain corrected image",
+            )
         napari.run(max_loop_level=2)
 
     def run_sidescan_georef(self, active_all_files=False):
@@ -1264,7 +1316,7 @@ class ViewAndExportWidget(QVBoxLayout):
             sidescan_file = None
             preproc = None
             sidescan_file, preproc = (
-                self.main_ui.processing_widget.do_slant_corr_and_EGN(
+                self.main_ui.processing_widget.do_slant_corr_and_processing(
                     filepath,
                     load_slant_data=load_slant_data,
                     load_egn_data=load_egn_data,
@@ -1282,7 +1334,9 @@ class ViewAndExportWidget(QVBoxLayout):
                 proc_data_1 = np.nan_to_num(proc_data_1)
 
             # TODO: Same question as above regarding dB conversion
-            if self.main_ui.bottom_line_detection_widget.active_convert_dB_checkbox.isChecked():
+            if (
+                self.main_ui.bottom_line_detection_widget.active_convert_dB_checkbox.isChecked()
+            ):
                 proc_data_out_0 = convert_to_dB(proc_data_0)
                 proc_data_out_1 = convert_to_dB(proc_data_1)
             else:
@@ -1349,14 +1403,16 @@ class ViewAndExportWidget(QVBoxLayout):
             sidescan_file = None
             preproc = None
             sidescan_file, preproc = (
-                self.main_ui.processing_widget.do_slant_corr_and_EGN(
+                self.main_ui.processing_widget.do_slant_corr_and_processing(
                     path, load_slant_data=load_slant_data, load_egn_data=load_egn_data
                 )
             )
 
             data = copy.copy(preproc.egn_corrected_mat)
             # TODO: checkbox?
-            if self.main_ui.bottom_line_detection_widget.active_convert_dB_checkbox.isChecked():
+            if (
+                self.main_ui.bottom_line_detection_widget.active_convert_dB_checkbox.isChecked()
+            ):
                 data = convert_to_dB(data)
             np.nan_to_num(data, copy=False)
             data /= np.nanmax(np.abs(data)) / 255
@@ -1366,6 +1422,10 @@ class ViewAndExportWidget(QVBoxLayout):
                     np.hstack((sidescan_file.data[0], sidescan_file.data[1])),
                     dtype=float,
                 )
+                if (
+                self.main_ui.bottom_line_detection_widget.active_convert_dB_checkbox.isChecked()
+                ):
+                    raw_data = convert_to_dB(raw_data)
                 raw_data /= np.nanmax(np.abs(raw_data)) / 255
                 raw_data = np.array(raw_data, dtype=np.uint8)
                 data = np.hstack((raw_data, data))
@@ -1390,7 +1450,7 @@ class ViewAndExportWidget(QVBoxLayout):
 
                     # Apply colormap
                     if self.active_colormap_checkbox.isChecked():
-                        cmap = Colormap(self.main_ui.sonar_dat_cmap["colors"])
+                        cmap = Colormap(self.sonar_dat_cmap["colors"])
                         data_out = data_out.astype(float) / 255
                         data_out = cmap.map(data_out)
                         data_out *= 255
@@ -1399,7 +1459,7 @@ class ViewAndExportWidget(QVBoxLayout):
             else:
                 im_name = str(work_dir / (path.stem + ".png"))
                 if self.active_colormap_checkbox.isChecked():
-                    cmap = Colormap(self.main_ui.sonar_dat_cmap["colors"])
+                    cmap = Colormap(self.sonar_dat_cmap["colors"])
                     data_out = data_out.astype(float) / 255
                     data_out = cmap.map(data_out)
                     data_out *= 255

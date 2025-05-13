@@ -682,6 +682,54 @@ class SidescanPreprocessor:
 
             self.sonar_data_proc[ch] = son_dat
 
+    @staticmethod
+    def comp_D(u,v,M_2,N_2):
+        return np.sqrt((u-M_2)**2 + (v-N_2)**2)
+
+    def apply_sharpening_filter(self):
+        """TODO"""
+        for ch in range(self.num_ch):
+            son_dat = self.sonar_data_proc[ch]
+            for chunk_idx in range(self.num_chunk):
+                # avoid zero padding
+                if chunk_idx == self.num_chunk - 1:
+                    cur_chunk = son_dat[-1 * self.chunk_size :]
+                else:
+                    cur_chunk = son_dat[
+                        chunk_idx * self.chunk_size : (chunk_idx + 1) * self.chunk_size
+                    ]
+
+                if np.nanmin(cur_chunk) <= 0:
+                    cur_chunk = np.clip(cur_chunk, a_min=1e-3, a_max=None)
+                img_proc = np.log(cur_chunk + np.finfo(float).eps)
+                img_spec = np.fft.fft2(img_proc)
+
+                gamma_H = 3.0
+                gamma_L = 0.3
+                M_2 = self.chunk_size / 2
+                N_2 = self.ping_len / 2
+                const_c = 2
+                D_0 = self.comp_D(0, 0, M_2, N_2)
+                H = np.zeros((self.chunk_size, self.ping_len))
+                for u in range(self.chunk_size):
+                    for v in range(self.ping_len):
+                        H[u,v] = (gamma_H-gamma_L)*(1-np.exp(-1*const_c*((self.comp_D(u, v, M_2, N_2)**2)/(D_0**2)))) + gamma_L
+                
+                img_filtered = img_spec * H
+    
+                img_r = np.real(np.fft.ifft2(img_filtered))
+                chunk_filt = np.exp(img_r)
+
+                if chunk_idx == self.num_chunk - 1:
+                    son_dat[-1 * self.chunk_size :] = chunk_filt
+                else:
+                    son_dat[
+                        chunk_idx * self.chunk_size : (chunk_idx + 1) * self.chunk_size
+                    ] = chunk_filt
+
+            self.sonar_data_proc[ch] = son_dat
+
+
     # Slant range correction, partly taken from PINGMapper
     def slant_range_correction(
         self,
@@ -937,7 +985,7 @@ class SidescanPreprocessor:
         r_reduc_factor = egn_info["r_reduc_factor"]
 
         # do EGN
-        self.egn_corrected_mat = np.zeros(np.shape(self.slant_corrected_mat)) #TODO Reworkt to sono data proc
+        self.egn_corrected_mat = np.zeros(np.shape(self.slant_corrected_mat)) #TODO Rework to sono data proc
         num_ping = np.shape(self.slant_corrected_mat)[0]
         mean_depth = np.array(np.round(np.mean(self.dep_info, 0)), dtype=int)
 

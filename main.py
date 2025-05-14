@@ -969,8 +969,7 @@ class ProcessingWidget(QVBoxLayout):
                 save_to=slant_data_path,
                 active_mult_slant_range_resampling=True,
             )
-            if self.sharpening_filter_checkbox.isChecked():
-                preproc.apply_sharpening_filter()
+            
         if self.active_gain_norm_checkbox.isChecked():
             if self.egn_radio_btn.isChecked():
                 egn_table_path = self.main_ui.egn_table_picker.cur_dir
@@ -1006,6 +1005,7 @@ class ProcessingWidget(QVBoxLayout):
                     preproc.egn_corrected_mat = egn_data["egn_corrected_mat"]
                 else:
                     preproc.apply_beam_pattern_correction()
+                    preproc.apply_energy_normalization()
                     # TODO: remove need for this HACK
                     preproc.egn_corrected_mat = np.hstack(
                         (
@@ -1019,7 +1019,9 @@ class ProcessingWidget(QVBoxLayout):
                             egn_table_path="TODO",
                             egn_corrected_mat=preproc.egn_corrected_mat,
                         )
-
+        # TODO: make this work by eliminating need for the other mats
+        if self.sharpening_filter_checkbox.isChecked():
+            preproc.apply_sharpening_filter()
         self.data_changed.emit()
         return sidescan_file, preproc
 

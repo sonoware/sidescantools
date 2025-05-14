@@ -18,9 +18,14 @@ import pathlib
 from sidescan_file import SidescanFile
 import numpy as np
 
+# TODO: are there typical strategies for this problem?
 def convert_to_dB(array: np.array):
+    # find a positive min number to replace zeros
+    abs_min = np.abs(np.min(array[np.where(array>0)]))
+    array[np.where(array==0)] = abs_min
+    # clip values to that minimum
     if np.nanmin(array) <= 0:
-        array = np.clip(array, a_min=1e-3, a_max=None)
+        array = np.clip(array, a_min=abs_min, a_max=None)
     array = 20*np.log10(array)
     return array
 

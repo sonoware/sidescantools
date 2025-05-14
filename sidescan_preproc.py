@@ -563,9 +563,8 @@ class SidescanPreprocessor:
         angle_hits = np.zeros(angle_num)
         EPS = np.finfo(float).eps
 
-        
         print("Estimating beam pattern...")
-        son_dat = np.hstack((np.fliplr(self.sonar_data_proc[0]), self.sonar_data_proc[0]))
+        son_dat = np.hstack((np.fliplr(self.sonar_data_proc[0]), self.sonar_data_proc[1]))
         mean_depth = np.array(np.round(np.mean(self.dep_info, 0)), dtype=int)
         dd = mean_depth**2
         alpha_idx = np.zeros((num_ping, 2*self.ping_len), dtype=int)
@@ -591,6 +590,9 @@ class SidescanPreprocessor:
         for vector_idx in range(num_ping):
             for ping_idx in range(self.ping_len):
                 son_dat[vector_idx, ping_idx] /= angle_sum[alpha_idx[vector_idx, ping_idx]]
+        
+        self.sonar_data_proc[0] = np.fliplr(son_dat[:, :self.ping_len])
+        self.sonar_data_proc[1] = son_dat[:, self.ping_len:]
 
     # Pie slice filter to remove noisy lines
     def apply_energy_normalization(self):
@@ -887,15 +889,16 @@ class SidescanPreprocessor:
                         ping_dat = np.zeros_like(ping_dat)
                     else:
                         ping_dat[nans] = np.interp(x(nans), x(~nans), ping_dat[~nans])
-                    if len(last_val) > 0:
-                        ping_dat[last_val[-1] + 1 :] = (
-                            0  # remove all interpolated values after last known val
-                        )
+                    # TODO: probably no way to implement this with all other filtering steps?
+                    # if len(last_val) > 0:
+                    #     # remove all interpolated values after last known val
+                    #     ping_dat[last_val[-1] + 1 :] = np.nan
 
                 # remove remaining nadir
-                if nadir_angle != 0:
-                    depth_on_ground = int(round(np.sqrt((depth + 1) ** 2 - dd), 0))
-                    ping_dat[:depth_on_ground] = 0
+                # TODO: see above
+                # if nadir_angle != 0:
+                #     depth_on_ground = int(round(np.sqrt((depth + 1) ** 2 - dd), 0))
+                #     ping_dat[:depth_on_ground] = np.nan
 
                 if ch == 0:
                     ping_dat = np.flip(ping_dat)

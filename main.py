@@ -703,6 +703,7 @@ class BottomLineDetectionWidget(QVBoxLayout):
         self.active_convert_dB_checkbox.setToolTip(
             "Convert data to decibel for display (this is usually a good practice)."
         )
+        self.active_convert_dB_checkbox.stateChanged.connect(self.db_checkbox_changed)
         self.do_btm_detection_btn = QPushButton("Bottom Line Detection")
         self.do_btm_detection_btn.setToolTip("Start Bottom Line Detection")
         self.do_btm_detection_btn.clicked.connect(self.run_bottom_line_detection)
@@ -715,6 +716,10 @@ class BottomLineDetectionWidget(QVBoxLayout):
         self.addWidget(self.do_btm_detection_btn)
         verticalSpacer = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
         self.addItem(verticalSpacer)
+
+    def db_checkbox_changed(self):
+        # also update bottom line checkbox
+        self.main_ui.view_and_export_widget.active_convert_dB_checkbox.setChecked(self.active_convert_dB_checkbox.isChecked())
 
     def run_bottom_line_detection(self):
         run_napari_btm_line(
@@ -741,11 +746,11 @@ class ProcessingWidget(QVBoxLayout):
         # define widgets
         self.filter_label = QLabel("Noise Reduction and Sharpening Filter")
         self.filter_label.setFont(title_font)
-        self.pie_slice_filter_checkbox = QCheckBox("Filter Stripe Noise")
+        self.pie_slice_filter_checkbox = QCheckBox("Filter Stripe Noise (experimental)")
         self.pie_slice_filter_checkbox.setToolTip(
             "Use 2D FFT Pie Slice Filter to remove stripe noise from data."
         )
-        self.sharpening_filter_checkbox = QCheckBox("Apply Sharpening Filter")
+        self.sharpening_filter_checkbox = QCheckBox("Apply Sharpening Filter (experimental)")
         self.sharpening_filter_checkbox.setToolTip(
             "Use homomorphic filter to sharpen the resulting images."
         )
@@ -1104,6 +1109,11 @@ class ViewAndExportWidget(QVBoxLayout):
         self.active_reprocess_file_checkbox.setToolTip(
             "Do the slant range and EGN correction processing of the selected file before viewing."
         )
+        self.active_convert_dB_checkbox = QCheckBox("Convert to dB")
+        self.active_convert_dB_checkbox.setToolTip(
+            "Convert data to decibel for display (this is usually a good practice)."
+        )
+        self.active_convert_dB_checkbox.stateChanged.connect(self.db_checkbox_changed)
         self.show_proc_file_btn = QPushButton("View Processed Data")
         self.show_proc_file_btn.clicked.connect(self.show_proc_file_in_napari)
 
@@ -1149,6 +1159,7 @@ class ViewAndExportWidget(QVBoxLayout):
         # layout
         self.addWidget(self.napari_label)
         self.addWidget(self.active_reprocess_file_checkbox)
+        self.addWidget(self.active_convert_dB_checkbox)
         self.addWidget(self.show_proc_file_btn)
         self.addWidget(QHLine())
         self.addWidget(self.georef_label)
@@ -1171,6 +1182,10 @@ class ViewAndExportWidget(QVBoxLayout):
         verticalSpacer = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
         self.addItem(verticalSpacer)
 
+    def db_checkbox_changed(self):
+        # also update bottom line checkbox
+        self.main_ui.bottom_line_detection_widget.active_convert_dB_checkbox.setChecked(self.active_convert_dB_checkbox.isChecked())
+    
     def show_proc_file_in_napari(self):
 
         filepath = pathlib.Path(

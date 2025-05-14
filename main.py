@@ -327,6 +327,9 @@ class SidescanToolsMain(QWidget):
         self.check_for_btm_line_data_and_size()
 
         # Build table
+        selected_idx = -1
+        if len(self.file_table.selectedIndexes()) > 0:
+            selected_idx = self.file_table.selectedIndexes()[0].row()
         num_files = len(self.file_dict["Path"])
         self.file_table.clearContents()
         self.file_table.setRowCount(num_files)
@@ -370,8 +373,10 @@ class SidescanToolsMain(QWidget):
             self.file_table.setItem(idx, 4, new_item)
 
         # check whether a file is selected, if there is none, select index 0
-        if self.file_table.selectedIndexes() == []:
-            self.file_table.selectRow(0)
+        if len(self.file_table.selectedIndexes()) <= 0:
+            if selected_idx == -1:
+                selected_idx = 0
+            self.file_table.selectRow(selected_idx)
 
     # taken from: https://stackoverflow.com/questions/1094841/get-a-human-readable-version-of-a-file-size
     def prettier_size(

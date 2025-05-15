@@ -168,7 +168,9 @@ def run_napari_btm_line(
 
         if (
             manual_annotation_widget.activate_manual_annotation.value
-            and event.button == 1
+            and event.button == 1 
+            and 0 <= event.position[1] < layer.data.shape[1]
+            and 0 <= event.position[2] < layer.data.shape[2]
         ):
 
             # print('mouse down')

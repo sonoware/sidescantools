@@ -109,14 +109,14 @@ class SidescanGeoreferencer:
             except:
                 ValueError("Values or lon and/or lat must not be 0")
 
-            if self.active_utm:
-                NORTH = [utm_coord[0] for utm_coord in UTM]
-                EAST = [utm_coord[1] for utm_coord in UTM]
-                UTM_ZONE = [utm_coord[2] for utm_coord in UTM]
-                UTM_LET = [utm_coord[3] for utm_coord in UTM]
-                crs = CRS.from_dict({'proj': 'utm', 'zone': UTM_ZONE[0], 'south': False})
-                epsg = crs.to_authority()
-                self.epsg_code = f'{epsg[0]}:{epsg[1]}'
+            #if self.active_utm:
+            NORTH = [utm_coord[0] for utm_coord in UTM]
+            EAST = [utm_coord[1] for utm_coord in UTM]
+            UTM_ZONE = [utm_coord[2] for utm_coord in UTM]
+            UTM_LET = [utm_coord[3] for utm_coord in UTM]
+            crs = CRS.from_dict({'proj': 'utm', 'zone': UTM_ZONE[0], 'south': False})
+            epsg = crs.to_authority()
+            self.epsg_code = f'{epsg[0]}:{epsg[1]}'
 
 
         if self.channel == 0:
@@ -374,8 +374,9 @@ class SidescanGeoreferencer:
                         gdal_warp = [
                             "gdalwarp",
                             "-r",
-                            "cubicspline",
-                            "-tps",
+                            "bilinear",
+                            "-order",
+                            "1",
                             "-co",
                             "COMPRESS=DEFLATE",
                             "-t_srs",
@@ -387,8 +388,9 @@ class SidescanGeoreferencer:
                         gdal_warp = [
                             "gdalwarp",
                             "-r",
-                            "cubicspline",
-                            "-tps",
+                            "bilinear",
+                            "-order",
+                            "1",
                             "-co",
                             "COMPRESS=DEFLATE",
                             "-t_srs",
@@ -408,8 +410,9 @@ class SidescanGeoreferencer:
                         gdal_warp = [
                             "gdalwarp",
                             "-r",
-                            "cubicspline",
-                            "-tps",
+                            "bilinear",
+                            "-order",
+                            "1",
                             "-co",
                             "COMPRESS=DEFLATE",
                             "-t_srs",
@@ -421,8 +424,9 @@ class SidescanGeoreferencer:
                         gdal_warp = [
                             "gdalwarp",
                             "-r",
-                            "cubicspline",
-                            "-tps",
+                            "bilinear",
+                            "-order",
+                            "1",
                             "-co",
                             "COMPRESS=DEFLATE",
                             "-t_srs",

@@ -157,14 +157,14 @@ class SidescanPreprocessor:
 
         # normalize each ping individually
         portside = np.array(self.sonar_data_proc[0], dtype=float)
-        indv_max_portside = np.max(portside, 1)
-        portside = portside / indv_max_portside[:, None]
         starboard = np.array(self.sonar_data_proc[1], dtype=float)
-        indv_max_starboard = np.max(starboard, 1)
-        starboard = starboard / indv_max_starboard[:, None]
         if active_dB:
             portside = convert_to_dB(portside)
             starboard = convert_to_dB(starboard)
+        indv_max_portside = np.max(portside, 1)
+        portside = portside / indv_max_portside[:, None]
+        indv_max_starboard = np.max(starboard, 1)
+        starboard = starboard / indv_max_starboard[:, None]
 
         # do initial bottom line detection for start values
         self.detect_bottom_line_t(

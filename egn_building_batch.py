@@ -313,7 +313,7 @@ if __name__ == "__main__":
 
     generate_final_egn_table = True
     use_bottom_detection_downsampling = False
-    out_path = ".\sidescan_out\\"
+    out_path = ".\\sidescan_out\\"
     egn_table_name = "EGN_table.npz"
 
     # multiprocessing

@@ -41,10 +41,10 @@ from custom_widgets import (
     LabeledLineEdit,
     OverwriteWarnDialog,
     ErrorWarnDialog,
-    FilePicker,
-    FileImportManager,
     convert_to_dB,
+    FilePicker,
 )
+from custom_threading import FileImportManager, EGNTableBuilder
 from enum import Enum
 
 GAINSTRAT = Enum("GAINSTRAT", [("BAC", 0), ("EGN", 1)])
@@ -69,9 +69,9 @@ class SidescanToolsMain(QWidget):
         "Btm downsampling": 1,
         "Active convert dB": True,
         "Active pie slice filter": True,
-        "Active sharpening filter": True,
+        "Active sharpening filter": False,
         "Active gain norm": True,
-        "Slant gain norm strategy": GAINSTRAT.EGN.value,
+        "Slant gain norm strategy": GAINSTRAT.BAC.value,
         "Slant vertical beam angle": 60,
         "Slant nadir angle": 0,
         "Slant active intern depth": False,
@@ -719,7 +719,9 @@ class BottomLineDetectionWidget(QVBoxLayout):
 
     def db_checkbox_changed(self):
         # also update bottom line checkbox
-        self.main_ui.view_and_export_widget.active_convert_dB_checkbox.setChecked(self.active_convert_dB_checkbox.isChecked())
+        self.main_ui.view_and_export_widget.active_convert_dB_checkbox.setChecked(
+            self.active_convert_dB_checkbox.isChecked()
+        )
 
     def run_bottom_line_detection(self):
         run_napari_btm_line(
@@ -750,7 +752,9 @@ class ProcessingWidget(QVBoxLayout):
         self.pie_slice_filter_checkbox.setToolTip(
             "Use 2D FFT Pie Slice Filter to remove stripe noise from data."
         )
-        self.sharpening_filter_checkbox = QCheckBox("Apply Sharpening Filter (experimental)")
+        self.sharpening_filter_checkbox = QCheckBox(
+            "Apply Sharpening Filter (experimental)"
+        )
         self.sharpening_filter_checkbox.setToolTip(
             "Use homomorphic filter to sharpen the resulting images."
         )
@@ -914,22 +918,40 @@ class ProcessingWidget(QVBoxLayout):
         sonar_file_path_list = []
         for sonar_file in self.main_ui.file_dict["Path"]:
             sonar_file_path_list.append(pathlib.Path(sonar_file))
-        num_worker = int(self.num_worker_edit.line_edit.text())
-        pool = multiprocessing.Pool(num_worker)
-        generate_slant_and_egn_files(
-            sonar_files=sonar_file_path_list,
-            out_path=self.main_ui.settings_dict["Working dir"],
-            nadir_angle=int(self.nadir_angle_edit.line_edit.text()),
-            use_intern_depth=self.active_intern_depth_checkbox.isChecked(),
-            chunk_size=int(self.slant_chunk_size_edit.line_edit.text()),
-            generate_final_egn_table=True,
-            use_bottom_detection_downsampling=self.active_bottom_detection_downsampling_checkbox.isChecked(),
-            egn_table_name=self.egn_table_name_edit.line_edit.text(),
-            active_multiprocessing=self.active_multiprocessing_checkbox.isChecked(),
-            pool=pool,
+        # num_worker = int(self.num_worker_edit.line_edit.text())
+        # pool = multiprocessing.Pool(num_worker)
+        # generate_slant_and_egn_files(
+        #     sonar_files=sonar_file_path_list,
+        #     out_path=self.main_ui.settings_dict["Working dir"],
+        #     nadir_angle=int(self.nadir_angle_edit.line_edit.text()),
+        #     use_intern_depth=self.active_intern_depth_checkbox.isChecked(),
+        #     chunk_size=int(self.slant_chunk_size_edit.line_edit.text()),
+        #     generate_final_egn_table=True,
+        #     use_bottom_detection_downsampling=self.active_bottom_detection_downsampling_checkbox.isChecked(),
+        #     egn_table_name=self.egn_table_name_edit.line_edit.text(),
+        #     active_multiprocessing=self.active_multiprocessing_checkbox.isChecked(),
+        #     pool=pool,
+        # )
+        # pool.close()
+        egn_table_builder = EGNTableBuilder(egn_path)
+        egn_table_builder.table_finished.connect(
+            lambda: self.data_changed.emit()
         )
-        pool.close()
-        self.data_changed.emit()
+        egn_table_builder.aborted_signal.connect(
+            lambda err_msg: self.show_error_msg(err_msg)
+        )
+        egn_table_builder.build_egn_table(
+            sonar_file_path_list,
+            self.main_ui.settings_dict["Working dir"],
+            int(self.nadir_angle_edit.line_edit.text()),
+            self.active_intern_depth_checkbox.isChecked(),
+            int(self.slant_chunk_size_edit.line_edit.text()),
+            self.active_bottom_detection_downsampling_checkbox.isChecked(),
+        )
+
+    def show_error_msg(self, msg):
+        dlg = ErrorWarnDialog(title="Error while importing files", message=msg)
+        dlg.exec()
 
     def do_slant_corr_and_processing(
         self, filepath, load_slant_data: bool = False, load_egn_data: bool = False
@@ -979,7 +1001,7 @@ class ProcessingWidget(QVBoxLayout):
                 save_to=slant_data_path,
                 active_mult_slant_range_resampling=True,
             )
-            
+
         if self.active_gain_norm_checkbox.isChecked():
             if self.egn_radio_btn.isChecked():
                 egn_table_path = self.main_ui.egn_table_picker.cur_dir
@@ -1184,8 +1206,10 @@ class ViewAndExportWidget(QVBoxLayout):
 
     def db_checkbox_changed(self):
         # also update bottom line checkbox
-        self.main_ui.bottom_line_detection_widget.active_convert_dB_checkbox.setChecked(self.active_convert_dB_checkbox.isChecked())
-    
+        self.main_ui.bottom_line_detection_widget.active_convert_dB_checkbox.setChecked(
+            self.active_convert_dB_checkbox.isChecked()
+        )
+
     def show_proc_file_in_napari(self):
 
         filepath = pathlib.Path(

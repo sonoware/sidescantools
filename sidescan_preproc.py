@@ -740,6 +740,7 @@ class SidescanPreprocessor:
         nadir_angle=0,
         use_intern_depth=False,
         active_mult_slant_range_resampling=False,
+        progress_signal=None,
     ):
         """Correct slant range for current data. The current sidescan data is projected
         to the seafloor, assuming that the seafloor is flat and using the bottom line detection data.
@@ -859,10 +860,12 @@ class SidescanPreprocessor:
 
             num_ping = np.shape(slant_cor_mat)[0]
             for ping_idx in range(num_ping):
-                if ping_idx % 1000 == 0:
+                if ping_idx % 1000 == 0 and ping_idx != 0:
                     print(
                         f"\rSlant range correction progress: {ping_idx/num_ping*100:.2f}%"
                     )
+                    if progress_signal is not None:
+                        progress_signal.emit((1000/num_ping)*0.25)
 
                 depth = int(self.dep_info[ch][ping_idx])  # in px
                 dd = depth**2

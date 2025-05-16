@@ -25,7 +25,6 @@ import qtpy.QtCore as QtCore
 import qtpy.QtGui as QtGui
 import sys, os, pathlib
 from bottom_detection_napari_ui import run_napari_btm_line
-from egn_building_batch import generate_slant_and_egn_files
 from sidescan_georeferencer import SidescanGeoreferencer
 import yaml, copy
 from math import log

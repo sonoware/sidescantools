@@ -98,7 +98,7 @@ class SidescanPreprocessor:
         print(
             f"Resolution in tow/heading direction: {geo_dist.geodesic(end_coord, start_coord).m / self.sidescan_file.num_ping} m"
         )
-        print("(Estimated from start and end GPS position")
+        print("(Estimated from start and end GPS position)")
         print("------------------------------------------------------------")
 
     def detect_bottom_line_t(

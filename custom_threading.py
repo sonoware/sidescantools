@@ -123,8 +123,6 @@ class EGNTableProcessingWorkerSignals(QtCore.QObject):
     error_signal = QtCore.Signal(Exception)
 
 class EGNTableProcessingWorker(QtCore.QRunnable):
-    # finished = QtCore.Signal()
-    # error_signal = QtCore.Signal(Exception)
 
     def __init__(
         self,
@@ -345,7 +343,7 @@ class EGNTableBuilder(QWidget):
         self.pbar.setGeometry(30, 40, 500, 50)
         self.pbar.setTextVisible(False)
         self.title_label = QLabel()
-        self.title_label.setText(" Building EGN Table")
+        self.title_label.setText(" Generating EGN Table")
         label_font = QtGui.QFont()
         label_font.setBold(True)
         label_font.setPixelSize(20)
@@ -441,7 +439,6 @@ class EGNTableBuilder(QWidget):
                     print(f"EGN Parameter mismatch! Skipping file: {egn_file}")
 
         # build final egn table
-        # egn_table = full_mat / full_hit_cnt
         egn_table = np.divide(full_mat, full_hit_cnt, out=np.zeros_like(full_mat), where=full_hit_cnt!=0)
         egn_table[np.where(full_hit_cnt==0)] = np.nan
         print("Saving " + str(self.egn_table_path))
@@ -461,7 +458,6 @@ class EGNTableBuilder(QWidget):
     def update_pbar(self, progress: float):
         self.pbar_val += progress
         disp_var = self.pbar_val / self.num_files
-        print(disp_var)
         self.pbar.setValue(int(100*disp_var))
         
     def files_finished_counter(self):

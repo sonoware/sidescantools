@@ -379,13 +379,15 @@ class SidescanGeoreferencer:
                             "reproject",
                             "-r",
                             "bilinear",
-                            "-wo",
+                            "--wo",
                             "SRC_METHOD=GCP_HOMOGRAPHY",
-                            "-co",
+                            "--co",
                             "COMPRESS=DEFLATE",
-                            "-t_srs",
+                            "-d",
                             self.epsg_code,
+                            "-i",
                             str(chunk_path),
+                            "-o",
                             str(warp_path)
                         ]
                     else:    
@@ -395,13 +397,15 @@ class SidescanGeoreferencer:
                             "reproject",
                             "-r",
                             "bilinear",
-                            "-wo",
+                            "--wo",
                             "SRC_METHOD=GCP_HOMOGRAPHY",
-                            "-co",
+                            "--co",
                             "COMPRESS=DEFLATE",
-                            "-t_srs",
+                            "-d",
                             "EPSG:4326",
+                            "-i",
                             str(chunk_path),
+                            "-o",
                             str(warp_path)
                         ]
 
@@ -420,13 +424,15 @@ class SidescanGeoreferencer:
                             "reproject",
                             "-r",
                             "bilinear",
-                            "-wo",
+                            "--wo",
                             "SRC_METHOD=GCP_HOMOGRAPHY",
-                            "-co",
+                            "--co",
                             "COMPRESS=DEFLATE",
-                            "-t_srs",
+                            "-d",
                             self.epsg_code,
+                            "-i",
                             str(chunk_path),
+                            "-o",
                             str(warp_path)
                         ]
                     else:    
@@ -436,13 +442,15 @@ class SidescanGeoreferencer:
                             "reproject",
                             "-r",
                             "bilinear",
-                            "-wo",
+                            "--wo",
                             "SRC_METHOD=GCP_HOMOGRAPHY",
-                            "-co",
+                            "--co",
                             "COMPRESS=DEFLATE",
-                            "-t_srs",
+                            "-d",
                             "EPSG:4326",
+                            "-i",
                             str(chunk_path),
+                            "-o",
                             str(warp_path)
                         ]
 

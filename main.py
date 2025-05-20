@@ -41,6 +41,7 @@ from custom_widgets import (
     OverwriteWarnDialog,
     ErrorWarnDialog,
     convert_to_dB,
+    hist_equalization,
     FilePicker,
 )
 from custom_threading import FileImportManager, EGNTableBuilder, PreProcManager
@@ -616,6 +617,9 @@ class SidescanToolsMain(QWidget):
         self.processing_widget.sharpening_filter_checkbox.setChecked(
             self.settings_dict["Active sharpening filter"]
         )
+        self.processing_widget.active_gain_norm_checkbox.setChecked(
+            self.settings_dict["Active gain norm"]
+        )
         self.processing_widget.vertical_beam_angle_edit.line_edit.setText(
             str(self.settings_dict["Slant vertical beam angle"])
         )
@@ -648,9 +652,6 @@ class SidescanToolsMain(QWidget):
         )
         self.view_and_export_widget.hist_equal_checkbox.setChecked(
             self.settings_dict["Active hist equal"]
-        )
-        self.view_and_export_widget.active_gain_norm_checkbox.setChecked(
-            self.settings_dict["Active gain norm"]
         )
         self.view_and_export_widget.img_chunk_size_edit.line_edit.setText(
             str(self.settings_dict["Img chunk size"])
@@ -730,10 +731,11 @@ class BottomLineDetectionWidget(QVBoxLayout):
         )
 
     def run_bottom_line_detection(self):
+        file_idx = 0
+        if len(self.main_ui.file_table.selectedIndexes()) > 0:
+            file_idx = self.main_ui.file_table.selectedIndexes()[0].row()
         run_napari_btm_line(
-            self.main_ui.file_dict["Path"][
-                self.main_ui.file_table.selectedIndexes()[0].row()
-            ],
+            self.main_ui.file_dict["Path"][file_idx],
             chunk_size=int(self.btm_chunk_size_edit.line_edit.text()),
             default_threshold=float(self.btm_default_thresh.line_edit.text()),
             downsampling_factor=int(self.btm_downsample_fact.line_edit.text()),
@@ -1070,11 +1072,15 @@ class ProcessingWidget(QVBoxLayout):
         #         self.do_slant_corr_and_processing(filepath)
 
     def process_single_file(self):
-        filepath = pathlib.Path(
-            self.main_ui.file_dict["Path"][
-                self.main_ui.file_table.selectedIndexes()[0].row()
-            ]
-        )
+        if len(self.main_ui.file_table.selectedIndexes()) > 0:
+            filepath = pathlib.Path(
+                self.main_ui.file_dict["Path"][
+                    self.main_ui.file_table.selectedIndexes()[0].row()
+                ]
+            )
+        else:
+            filepath = pathlib.Path(self.main_ui.file_dict["Path"][0])
+
         # self.do_slant_corr_and_processing(filepath)
         # self.data_changed.emit()
         self.start_intern_processing_manager([filepath])
@@ -1239,24 +1245,12 @@ class ViewAndExportWidget(QVBoxLayout):
         )
 
     def show_proc_file_in_napari(self):
-
-        filepath = pathlib.Path(
-            self.main_ui.file_dict["Path"][
-                self.main_ui.file_table.selectedIndexes()[0].row()
-            ]
-        )
-        load_slant = (
-            self.main_ui.file_dict["Slant corrected"][
-                self.main_ui.file_table.selectedIndexes()[0].row()
-            ]
-            == "Y"
-        )
-        load_egn = (
-            self.main_ui.file_dict["Gain corrected"][
-                self.main_ui.file_table.selectedIndexes()[0].row()
-            ]
-            == "Y"
-        )
+        file_idx = 0
+        if len(self.main_ui.file_table.selectedIndexes()) > 0:
+            file_idx = self.main_ui.file_table.selectedIndexes()[0].row()
+        filepath = pathlib.Path(self.main_ui.file_dict["Path"][file_idx])
+        load_slant = self.main_ui.file_dict["Slant corrected"][file_idx] == "Y"
+        load_egn = self.main_ui.file_dict["Gain corrected"][file_idx] == "Y"
         if self.active_reprocess_file_checkbox.isChecked():
             load_egn = False
             load_slant = False
@@ -1340,45 +1334,54 @@ class ViewAndExportWidget(QVBoxLayout):
                 ]
             )
 
-        # calculate in dB TODO: this is currently taken from the Bottom line detection, make own checkbox here?
+        # calculate in dB and do histogram equalization
+        raw_image_chunk_plot = copy.copy(raw_image_chunk)
+        slant_corr_chunk_plot = copy.copy(slant_corr_chunk)
+        egn_corr_chunk_plot = copy.copy(egn_corr_chunk)
         if (
-            self.main_ui.bottom_line_detection_widget.active_convert_dB_checkbox.isChecked()
+            self.active_convert_dB_checkbox.isChecked()
         ):
-            viewer, image_layer_1 = napari.imshow(
-                convert_to_dB(raw_image_chunk),
-                colormap=self.sonar_dat_cmap,
-                name="Raw image (dB)",
-            )
-            image_layer_2 = viewer.add_image(
-                preproc.bottom_map, colormap=bottom_colormap
-            )
-            image_layer_3 = viewer.add_image(
-                convert_to_dB(slant_corr_chunk),
-                colormap=self.sonar_dat_cmap,
-                name="Slant corrected image (dB)",
-            )
-            image_layer_4 = viewer.add_image(
-                convert_to_dB(egn_corr_chunk),
-                colormap=self.sonar_dat_cmap,
-                name="Gain corrected image (dB)",
-            )
-        else:
-            viewer, image_layer_1 = napari.imshow(
-                raw_image_chunk, colormap=self.sonar_dat_cmap, name="Raw image"
-            )
-            image_layer_2 = viewer.add_image(
-                preproc.bottom_map, colormap=bottom_colormap
-            )
-            image_layer_3 = viewer.add_image(
-                slant_corr_chunk,
-                colormap=self.sonar_dat_cmap,
-                name="Slant corrected image",
-            )
-            image_layer_4 = viewer.add_image(
-                egn_corr_chunk,
-                colormap=self.sonar_dat_cmap,
-                name="Gain corrected image",
-            )
+            raw_image_chunk_plot = convert_to_dB(raw_image_chunk_plot)
+            slant_corr_chunk_plot = convert_to_dB(slant_corr_chunk_plot)
+            egn_corr_chunk_plot = convert_to_dB(egn_corr_chunk_plot)
+        if self.hist_equal_checkbox.isChecked():
+            egn_corr_chunk_plot = hist_equalization(egn_corr_chunk_plot)
+            # raw_image_chunk = copy.copy(raw_image_chunk)
+            # viewer, image_layer_1 = napari.imshow(
+            #     convert_to_dB(raw_image_chunk),
+            #     colormap=self.sonar_dat_cmap,
+            #     name="Raw image (dB)",
+            # )
+            # image_layer_2 = viewer.add_image(
+            #     preproc.bottom_map, colormap=bottom_colormap
+            # )
+            # image_layer_3 = viewer.add_image(
+            #     convert_to_dB(slant_corr_chunk),
+            #     colormap=self.sonar_dat_cmap,
+            #     name="Slant corrected image (dB)",
+            # )
+            # image_layer_4 = viewer.add_image(
+            #     convert_to_dB(egn_corr_chunk),
+            #     colormap=self.sonar_dat_cmap,
+            #     name="Gain corrected image (dB)",
+            # )
+        # else:
+        viewer, image_layer_1 = napari.imshow(
+            raw_image_chunk_plot, colormap=self.sonar_dat_cmap, name="Raw image"
+        )
+        image_layer_2 = viewer.add_image(
+            preproc.bottom_map, colormap=bottom_colormap
+        )
+        image_layer_3 = viewer.add_image(
+            slant_corr_chunk_plot,
+            colormap=self.sonar_dat_cmap,
+            name="Slant corrected image",
+        )
+        image_layer_4 = viewer.add_image(
+            egn_corr_chunk_plot,
+            colormap=self.sonar_dat_cmap,
+            name="Gain corrected image",
+        )
         napari.run(max_loop_level=2)
 
     def run_sidescan_georef(self, active_all_files=False):
@@ -1386,11 +1389,12 @@ class ViewAndExportWidget(QVBoxLayout):
         if active_all_files:
             file_list = self.main_ui.file_dict["Path"]
         else:
+            file_idx = 0
+            if len(self.main_ui.file_table.selectedIndexes()) > 0:
+                file_idx = self.main_ui.file_table.selectedIndexes()[0].row()
             file_list = [
                 pathlib.Path(
-                    self.main_ui.file_dict["Path"][
-                        self.main_ui.file_table.selectedIndexes()[0].row()
-                    ]
+                    self.main_ui.file_dict["Path"][file_idx]
                 )
             ]
 
@@ -1444,15 +1448,18 @@ class ViewAndExportWidget(QVBoxLayout):
                 proc_data_1 = preproc.egn_corrected_mat[:, sidescan_file.ping_len :]
                 proc_data_1 = np.nan_to_num(proc_data_1)
 
-            # TODO: Same question as above regarding dB conversion
+
+            proc_data_out_0 = copy.copy(proc_data_0)
+            proc_data_out_1 = copy.copy(proc_data_1)
             if (
-                self.main_ui.bottom_line_detection_widget.active_convert_dB_checkbox.isChecked()
+                self.active_convert_dB_checkbox.isChecked()
             ):
-                proc_data_out_0 = convert_to_dB(proc_data_0)
-                proc_data_out_1 = convert_to_dB(proc_data_1)
-            else:
-                proc_data_out_0 = proc_data_0
-                proc_data_out_1 = proc_data_1
+                proc_data_out_0 = convert_to_dB(proc_data_out_0)
+                proc_data_out_1 = convert_to_dB(proc_data_out_1)
+            if self.hist_equal_checkbox.isChecked():
+                proc_data_out_0 = hist_equalization(proc_data_out_0)
+                proc_data_out_1 = hist_equalization(proc_data_out_1)
+                
 
             # start georeferencing
             georeferencer = SidescanGeoreferencer(
@@ -1481,11 +1488,16 @@ class ViewAndExportWidget(QVBoxLayout):
             georeferencer.process()
 
     def generate_wc_img(self, active_generate_all: bool):
-        filepath = pathlib.Path(
-            self.main_ui.file_dict["Path"][
-                self.main_ui.file_table.selectedIndexes()[0].row()
-            ]
-        )
+        if len(self.main_ui.file_table.selectedIndexes()) > 0:
+            filepath = pathlib.Path(
+                self.main_ui.file_dict["Path"][
+                    self.main_ui.file_table.selectedIndexes()[0].row()
+                ]
+            )
+        else:
+            filepath = pathlib.Path(
+                self.main_ui.file_dict["Path"][0]
+            )
         if active_generate_all:
             pathlist = []
             for path_idx in range(len(self.main_ui.file_dict["Path"])):
@@ -1536,9 +1548,11 @@ class ViewAndExportWidget(QVBoxLayout):
         work_dir = pathlib.Path(self.main_ui.settings_dict["Working dir"])
         data = copy.copy(preproc.egn_corrected_mat)
         if (
-            self.main_ui.bottom_line_detection_widget.active_convert_dB_checkbox.isChecked()
+            self.active_convert_dB_checkbox.isChecked()
         ):
             data = convert_to_dB(data)
+        if self.hist_equal_checkbox.isChecked():
+            data = hist_equalization(data)
         np.nan_to_num(data, copy=False)
         data /= np.nanmax(np.abs(data)) / 255
         data = np.array(data, dtype=np.uint8)

@@ -4,7 +4,7 @@ import scipy.signal as scisig
 from sidescan_file import SidescanFile
 from skimage.morphology.misc import remove_small_holes, remove_small_objects
 import skimage
-from skimage import feature, exposure
+from skimage import feature
 from pathlib import Path
 import geopy.distance as geo_dist
 from custom_widgets import convert_to_dB
@@ -731,19 +731,6 @@ class SidescanPreprocessor:
                     ] = chunk_filt
 
             self.sonar_data_proc[ch] = son_dat
-
-    # def apply_hist_equalization(self):
-    #     """TODO"""
-    #     print("Applying histogram equalization")
-    #     for ch in range(self.num_ch):
-    #         son_dat = self.sonar_data_proc[ch]
-    #         # TODO: clip_limit?
-    #         # son_dat_equal = exposure.equalize_adapthist(son_dat)
-    #         # try rescaling
-    #         p2, p98 = np.percentile(son_dat, (2, 98))
-    #         img_rescale = exposure.rescale_intensity(son_dat, in_range=(p2, p98))
-
-    #         self.sonar_data_proc[ch] = img_rescale
 
     # Slant range correction, partly taken from PINGMapper
     def slant_range_correction(

@@ -17,6 +17,7 @@ import qtpy.QtGui as QtGui
 import pathlib
 from sidescan_file import SidescanFile
 import numpy as np
+from skimage import exposure
 
 # TODO: are there typical strategies for this problem?
 def convert_to_dB(array: np.array):
@@ -27,6 +28,14 @@ def convert_to_dB(array: np.array):
     if np.nanmin(array) <= 0:
         array = np.clip(array, a_min=abs_min, a_max=None)
     array = 20*np.log10(array)
+    return array
+
+def hist_equalization(array: np.array):
+    # p2, p98 = np.percentile(array, (2, 98))
+    # array = exposure.rescale_intensity(array, in_range=(p2, p98))
+    #TODO: clip limit?
+    array /= np.max(np.abs(array))
+    array = exposure.equalize_adapthist(array, clip_limit=0.01)
     return array
 
 class QHLine(QFrame):

@@ -115,7 +115,7 @@ class SidescanGeoreferencer:
         LON = savgol_filter(LON_ori, 120, 1)
         plt.title("Navigation")
         plt.plot(LON_ori, LAT_ori, label='Original Navigation')
-        plt.plot(LAT, LAT, label='Smoothed Navigation')
+        plt.plot(LON, LAT, label='Smoothed Navigation')
         plt.legend()
         plt.show()
 
@@ -225,12 +225,15 @@ class SidescanGeoreferencer:
                 la_e_ll = la_chunk_e[0]
                 la_e_lr = la_chunk_e[-1]
 
-                im_x_right_nad = np.shape(lo_chunk_ce)[0] - 2
-                im_x_right_outer = np.shape(lo_chunk_ce)[0] - 2
-                im_x_left_nad = 0
-                im_x_left_outer = 0
-                im_y_nad = 1
-                im_y_outer = -swath_width
+                # add/substract small values to ensure overlap on outer edges (move inwards/outwards at nadir/outer edge)
+                # TODO: make curvature-dependent
+
+                im_x_left_nad = 0   #1
+                im_x_right_nad = np.shape(lo_chunk_ce)[0] -2  #-1
+                im_x_left_outer = -1 #-1
+                im_x_right_outer = np.shape(lo_chunk_ce)[0] -2  #+1
+                im_y_nad = 0    #1
+                im_y_outer = swath_width + 20 #-swath_width
 
                 gcp = np.array(
                     (
@@ -425,7 +428,7 @@ class SidescanGeoreferencer:
                                 "-r",
                                 "bilinear",
                                 "--to",
-                                "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",    # GCP_HOMOGRAPHY
+                                "SRC_METHOD=GCP_HOMOGRAPHY",    # GCP_HOMOGRAPHY   # GCP_POLYNOMIAL, ORDER=1
                                 "--co",
                                 "COMPRESS=DEFLATE",
                                 "-d",
@@ -443,7 +446,7 @@ class SidescanGeoreferencer:
                             "-r",
                             "bilinear",
                             "--to",
-                            "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",    # GCP_HOMOGRAPHY
+                            "SRC_METHOD=GCP_HOMOGRAPHY",    # GCP_HOMOGRAPHY
                             "--co",
                             "COMPRESS=DEFLATE",
                             "-d",
@@ -501,7 +504,7 @@ class SidescanGeoreferencer:
                             "-r",
                             "bilinear",
                             "--to",
-                            "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",    # GCP_HOMOGRAPHY
+                            "SRC_METHOD=GCP_HOMOGRAPHY",    # GCP_HOMOGRAPHY
                             "--co",
                             "COMPRESS=DEFLATE",
                             "-d",
@@ -519,7 +522,7 @@ class SidescanGeoreferencer:
                             "-r",
                             "bilinear",
                             "--to",
-                            "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",    # GCP_HOMOGRAPHY
+                            "SRC_METHOD=GCP_HOMOGRAPHY",    # GCP_HOMOGRAPHY
                             "--co",
                             "COMPRESS=DEFLATE",
                             "-d",
@@ -634,7 +637,7 @@ class SidescanGeoreferencer:
         except Exception as e:
             print(f"An error occurred: {str(e)}")
 
-        self.cleanup()
+        #self.cleanup()
 
     def cleanup(self):
         print(f"Cleaning ...")

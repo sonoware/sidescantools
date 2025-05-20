@@ -103,7 +103,7 @@ class SidescanGeoreferencer:
         SLANT_RANGE = SLANT_RANGE[MASK]
         PING = PING[MASK]
 
-        HEAD = savgol_filter(HEAD_ori, 150, 1)
+        HEAD = savgol_filter(HEAD_ori, 120, 1)
         x = range(len(HEAD))
         plt.title("Heading")
         plt.plot(x, HEAD_ori, label='Original Heading')
@@ -229,11 +229,11 @@ class SidescanGeoreferencer:
                 # TODO: make curvature-dependent
 
                 im_x_left_nad = 0   #1
-                im_x_right_nad = np.shape(lo_chunk_ce)[0] -2  #-1
-                im_x_left_outer = -1 #-1
-                im_x_right_outer = np.shape(lo_chunk_ce)[0] -2  #+1
+                im_x_right_nad = np.shape(lo_chunk_ce)[0] 
+                im_x_left_outer = 1 #-1
+                im_x_right_outer = np.shape(lo_chunk_ce)[0] -1  #+1
                 im_y_nad = 0    #1
-                im_y_outer = swath_width + 20 #-swath_width
+                im_y_outer = swath_width #-swath_width
 
                 gcp = np.array(
                     (
@@ -267,6 +267,7 @@ class SidescanGeoreferencer:
             ch_stack = self.proc_data
         else:
             ch_stack = self.sidescan_file.data[self.channel]
+            ch_stack = 20 * np.log10(np.abs(ch_stack) + 0.1)
 
 
         # Transpose so that the largest axis is horizontal
@@ -420,6 +421,7 @@ class SidescanGeoreferencer:
                              ]
                     
                 # gdal 3.11 syntax
+                #gdal raster reproject -r bilinear --to SRC_METHOD=GCP_HOMOGRAPHY --co COMPRESS=DEFLATE -d=EPSG:4326 -i 2025-03-17_08-30-44_0_ch0_0_chunk_tmp.tif -o 2025-03-17_08-30-44_0_ch0_0_chunk_tmp_WGS84.tif
                     if self.active_utm:
                         gdal_warp = [
                                 "gdal",
@@ -637,7 +639,7 @@ class SidescanGeoreferencer:
         except Exception as e:
             print(f"An error occurred: {str(e)}")
 
-        #self.cleanup()
+        self.cleanup()
 
     def cleanup(self):
         print(f"Cleaning ...")
@@ -669,7 +671,7 @@ class SidescanGeoreferencer:
         image_to_write.save(im_path)
 
 def main():
-    parser = argparse.ArgumentParser(description="Tool to georeference sidescan data")
+    parser = argparse.ArgumentParser(description="Tool to process sidescan sonar data")
     parser.add_argument("xtf", metavar="FILE", help="Path to xtf/jsf file")
     parser.add_argument(
         "channel",
@@ -681,7 +683,7 @@ def main():
         "--dynamic_chunking",
         type=bool,
         default=False,
-        help="Implements chunking based on GPS information density",
+        help="Implements chunking based on GPS information density; only use for bad/scarce GPS data",
     )
     parser.add_argument(
         "--UTM",

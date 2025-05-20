@@ -70,6 +70,7 @@ class SidescanToolsMain(QWidget):
         "Active pie slice filter": True,
         "Active sharpening filter": False,
         "Active gain norm": True,
+        "Active hist equal": True,
         "Slant gain norm strategy": GAINSTRAT.BAC.value,
         "Slant vertical beam angle": 60,
         "Slant nadir angle": 0,
@@ -568,6 +569,9 @@ class SidescanToolsMain(QWidget):
         self.settings_dict["View reprocess file"] = (
             self.view_and_export_widget.active_reprocess_file_checkbox.isChecked()
         )
+        self.settings_dict["Active hist equal"] = (
+            self.view_and_export_widget.hist_equal_checkbox.isChecked()
+        )
         self.settings_dict["Img chunk size"] = (
             self.view_and_export_widget.img_chunk_size_edit.line_edit.text()
         )
@@ -612,9 +616,6 @@ class SidescanToolsMain(QWidget):
         self.processing_widget.sharpening_filter_checkbox.setChecked(
             self.settings_dict["Active sharpening filter"]
         )
-        self.processing_widget.active_gain_norm_checkbox.setChecked(
-            self.settings_dict["Active gain norm"]
-        )
         self.processing_widget.vertical_beam_angle_edit.line_edit.setText(
             str(self.settings_dict["Slant vertical beam angle"])
         )
@@ -644,6 +645,12 @@ class SidescanToolsMain(QWidget):
         )
         self.view_and_export_widget.active_reprocess_file_checkbox.setChecked(
             self.settings_dict["View reprocess file"]
+        )
+        self.view_and_export_widget.hist_equal_checkbox.setChecked(
+            self.settings_dict["Active hist equal"]
+        )
+        self.view_and_export_widget.active_gain_norm_checkbox.setChecked(
+            self.settings_dict["Active gain norm"]
         )
         self.view_and_export_widget.img_chunk_size_edit.line_edit.setText(
             str(self.settings_dict["Img chunk size"])
@@ -1150,6 +1157,12 @@ class ViewAndExportWidget(QVBoxLayout):
             "Convert data to decibel for display (this is usually a good practice)."
         )
         self.active_convert_dB_checkbox.stateChanged.connect(self.db_checkbox_changed)
+        self.hist_equal_checkbox = QCheckBox(
+            "Apply Adaptive Histogram Equalization"
+        )
+        self.hist_equal_checkbox.setToolTip(
+            "Use adaptive histogram equalization to improve contrast of the resulting images."
+        )
         self.show_proc_file_btn = QPushButton("View Processed Data")
         self.show_proc_file_btn.clicked.connect(self.show_proc_file_in_napari)
 
@@ -1196,6 +1209,7 @@ class ViewAndExportWidget(QVBoxLayout):
         self.addWidget(self.napari_label)
         self.addWidget(self.active_reprocess_file_checkbox)
         self.addWidget(self.active_convert_dB_checkbox)
+        self.addWidget(self.hist_equal_checkbox)
         self.addWidget(self.show_proc_file_btn)
         self.addWidget(QHLine())
         self.addWidget(self.georef_label)

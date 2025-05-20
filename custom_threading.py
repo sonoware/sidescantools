@@ -613,9 +613,9 @@ class PreProcWorker(QtCore.QRunnable):
                             preproc.sonar_data_proc[1],
                         )
                     )
-        if self.active_sharpening_filter:
-            preproc.apply_sharpening_filter()
-            # TODO: histogram equalisation
+        if not self.load_gain_data:
+            if self.active_sharpening_filter:
+                preproc.apply_sharpening_filter()
         if self.active_export_gain_corr_mat:
             np.savez(
                 gain_corrected_path,

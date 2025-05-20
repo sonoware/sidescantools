@@ -67,7 +67,8 @@ class FileImportManager(QWidget):
         self.pbar.setGeometry(30, 40, 500, 50)
         self.pbar.setTextVisible(False)
         self.title_label = QLabel()
-        self.title_label.setText(" Importing Files ...")
+        self.title_label.setText("Importing Files ...")
+        self.title_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         label_font = QtGui.QFont()
         label_font.setBold(True)
         label_font.setPixelSize(20)
@@ -81,7 +82,7 @@ class FileImportManager(QWidget):
         self.setWindowFlags(self.windowFlags() | QtCore.Qt.CustomizeWindowHint)
         self.setWindowFlags(self.windowFlags() & ~QtCore.Qt.WindowCloseButtonHint)
         self.setStyleSheet(
-            "background-color:black;border-color:darkgrey;border-style:solid;border-width:4px;"
+            "background-color:black;border-color:darkgrey;border-style:solid;border-width:3px;"
         )
         self.show()
 
@@ -343,7 +344,8 @@ class EGNTableBuilder(QWidget):
         self.pbar.setGeometry(30, 40, 500, 50)
         self.pbar.setTextVisible(False)
         self.title_label = QLabel()
-        self.title_label.setText(" Generating EGN Table")
+        self.title_label.setText("Generating EGN Table")
+        self.title_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         label_font = QtGui.QFont()
         label_font.setBold(True)
         label_font.setPixelSize(20)
@@ -357,7 +359,7 @@ class EGNTableBuilder(QWidget):
         self.setWindowFlags(self.windowFlags() | QtCore.Qt.CustomizeWindowHint)
         self.setWindowFlags(self.windowFlags() & ~QtCore.Qt.WindowCloseButtonHint)
         self.setStyleSheet(
-            "background-color:black;border-color:darkgrey;border-style:solid;border-width:4px;"
+            "background-color:black;border-color:darkgrey;border-style:solid;border-width:3px;"
         )
 
         self.threadpool = QtCore.QThreadPool()
@@ -469,6 +471,266 @@ class EGNTableBuilder(QWidget):
     def send_table_finished(self):
         self.table_finished.emit()
         self.deleteLater()
+
+    def build_aborted(self, err: Exception):
+        msg_str = str(err)
+        self.aborted_signal.emit(msg_str)
+        self.deleteLater()
+
+class PreProcWorkerSignals(QtCore.QObject):
+    finished = QtCore.Signal(list)
+    progress = QtCore.Signal(float)
+    error_signal = QtCore.Signal(Exception)
+
+class PreProcWorker(QtCore.QRunnable):
+
+    def __init__(
+        self,
+        filepath: str,
+        bottom_file: str,
+        work_dir: str,
+        egn_table_path: str,
+        chunk_size: int,
+        nadir_angle: int,
+        active_export_slant_corr_mat: bool,
+        active_export_gain_corr_mat: bool,
+        load_slant_data: bool,
+        load_gain_data: bool,
+        active_pie_slice_filter: bool,
+        active_gain_norm: bool,
+        active_egn: bool,
+        active_bac: bool,
+        active_sharpening_filter: bool,
+    ):
+        super().__init__()
+        self.filepath = pathlib.Path(filepath)
+        self.bottom_file = bottom_file
+        self.work_dir = pathlib.Path(work_dir)
+        self.egn_table_path = egn_table_path
+        self.chunk_size = chunk_size
+        self.nadir_angle = nadir_angle
+        self.active_export_slant_corr_mat = active_export_slant_corr_mat
+        self.active_export_gain_corr_mat = active_export_gain_corr_mat
+        self.load_slant_data = load_slant_data
+        self.load_gain_data = load_gain_data
+        self.signals = PreProcWorkerSignals()
+        self.active_pie_slice_filter = active_pie_slice_filter
+        self.active_gain_norm = active_gain_norm
+        self.active_egn = active_egn
+        self.active_bac = active_bac
+        self.active_sharpening_filter = active_sharpening_filter
+
+    @QtCore.Slot()
+    def run(self):
+        try:
+            self.do_slant_corr_and_processing()
+        except Exception as err:
+            self.signals.error_signal.emit(err)
+
+    def do_slant_corr_and_processing(self):
+        sidescan_file = SidescanFile(filepath=self.filepath)
+        bottom_info = np.load(self.bottom_file)
+        # Check if downsampling was applied
+        try:
+            downsampling_factor = bottom_info["downsampling_factor"]
+        except:
+            downsampling_factor = 1
+
+        preproc = SidescanPreprocessor(
+            sidescan_file=sidescan_file,
+            chunk_size=self.chunk_size,
+            downsampling_factor=downsampling_factor,
+        )
+
+        preproc.portside_bottom_dist = bottom_info["bottom_info_port"].flatten()
+        preproc.starboard_bottom_dist = bottom_info["bottom_info_star"].flatten()
+        preproc.napari_portside_bottom = bottom_info["bottom_info_port"]
+        preproc.napari_starboard_bottom = bottom_info["bottom_info_star"]
+        preproc.num_chunk = np.shape(bottom_info["bottom_info_star"])[0]
+
+        # slant range correction and EGN data
+        if self.active_export_slant_corr_mat:
+            slant_data_path = self.work_dir / (self.filepath.stem + "_slant_corrected.npz")
+        else:
+            slant_data_path = None
+        
+        self.signals.progress.emit(0.1)
+        if self.load_slant_data:
+            slant_data = np.load(slant_data_path)
+            preproc.slant_corrected_mat = slant_data["slant_corr"]
+
+        else:
+            if self.active_pie_slice_filter:
+                print(f"Pie slice filtering {self.filepath}")
+                preproc.apply_pie_slice_filter()
+            preproc.slant_range_correction(
+                active_interpolation=True,
+                nadir_angle=self.nadir_angle,
+                save_to=slant_data_path,
+                active_mult_slant_range_resampling=True,
+            )
+        self.signals.progress.emit(0.4)
+        gain_corrected_path = self.work_dir / (self.filepath.stem + "_egn_corrected.npz")
+        if self.active_gain_norm:
+            if self.active_egn:
+                if not pathlib.Path(self.egn_table_path).exists():
+                    # dlg = QMessageBox(self)
+                    # dlg.setWindowTitle("EGN table not found")
+                    # dlg.setText(
+                    #     f"The specified EGN table {egn_table_path} doesn't exist."
+                    # )
+                    # dlg.exec()
+                    raise FileNotFoundError(f"The specified EGN table {self.egn_table_path} doesn't exist.")
+
+                # if self.active_export_gain_corr_mat:
+                #     gain_corrected_path = self.filepath.parent / (self.filepath.stem + "_egn_corrected.npz")
+                # else:
+                #     gain_corrected_path = None
+
+                if self.load_gain_data:
+                    egn_data = np.load(gain_corrected_path)
+                    preproc.egn_corrected_mat = egn_data["egn_corrected_mat"]
+                else:
+                    preproc.do_EGN_correction(
+                        self.egn_table_path,
+                        save_to=None,
+                    )
+                self.signals.progress.emit(0.4)
+            elif self.active_bac:
+                if self.load_gain_data:
+                    gain_corrected_data = np.load(gain_corrected_path)
+                    preproc.egn_corrected_mat = gain_corrected_data["egn_corrected_mat"]
+                    self.signals.progress.emit(0.4)
+                else:
+                    preproc.apply_beam_pattern_correction()
+                    self.signals.progress.emit(0.3)
+                    preproc.apply_energy_normalization()
+                    self.signals.progress.emit(0.1)
+                    # TODO: remove need for this HACK
+                    preproc.egn_corrected_mat = np.hstack(
+                        (
+                            np.fliplr(preproc.sonar_data_proc[0]),
+                            preproc.sonar_data_proc[1],
+                        )
+                    )
+        if self.active_sharpening_filter:
+            preproc.apply_sharpening_filter()
+            # TODO: histogram equalisation
+        if self.active_export_gain_corr_mat:
+            np.savez(
+                gain_corrected_path,
+                egn_table_path=self.egn_table_path,
+                egn_corrected_mat=preproc.egn_corrected_mat,
+            )
+        self.signals.progress.emit(0.1)
+        self.signals.finished.emit([sidescan_file, preproc])
+
+class PreProcManager(QWidget):
+    processing_finished = QtCore.Signal(list)
+    new_res_present = QtCore.Signal(list)
+    aborted_signal = QtCore.Signal(str)
+    pbar_val: float
+    files_finished: int
+    num_files: int
+
+    def __init__(self):
+        super().__init__()
+
+        self.pbar_val = 0
+        self.files_finished = 0
+        self.pbar = QProgressBar(self)
+        self.pbar.setGeometry(30, 40, 500, 50)
+        self.pbar.setTextVisible(False)
+        self.title_label = QLabel()
+        self.title_label.setText("Processing Data")
+        self.title_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        label_font = QtGui.QFont()
+        label_font.setBold(True)
+        label_font.setPixelSize(20)
+        self.title_label.setFont(label_font)
+        self.box_layout = QVBoxLayout()
+        self.box_layout.addWidget(self.title_label)
+        self.box_layout.addWidget(self.pbar)
+        self.setLayout(self.box_layout)
+        self.setGeometry(300, 300, 550, 50)
+        self.setWindowTitle("PreProcManager")
+        self.setWindowFlags(self.windowFlags() | QtCore.Qt.CustomizeWindowHint)
+        self.setWindowFlags(self.windowFlags() & ~QtCore.Qt.WindowCloseButtonHint)
+        self.setStyleSheet(
+            "background-color:black;border-color:darkgrey;border-style:solid;border-width:3px;"
+        )
+
+        self.threadpool = QtCore.QThreadPool()
+        self.show()
+
+    def proc_files(
+        self,
+        files: list,
+        work_dir: os.PathLike,
+        egn_table_path: str,
+        chunk_size: int,
+        nadir_angle: int,
+        active_export_slant_corr_mat: bool,
+        active_export_gain_corr_mat: bool,
+        load_slant_data: bool,
+        load_gain_data: bool,
+        active_pie_slice_filter: bool,
+        active_gain_norm: bool,
+        active_egn: bool,
+        active_bac: bool,
+        active_sharpening_filter: bool,
+    ):
+
+        # change title to reflect actual processing
+        if load_gain_data and load_slant_data:
+            self.title_label.setText("Loading Data")
+
+        # Build list of needed and to be written file names
+        res_sonar_path_list = []
+        res_bottom_path_list = []
+        for sonar_file_path in files:
+            sonar_file_path = pathlib.Path(sonar_file_path)
+            bottom_path = work_dir / (sonar_file_path.stem + "_bottom_info.npz")
+            if bottom_path.exists():
+                res_sonar_path_list.append(sonar_file_path)
+                res_bottom_path_list.append(bottom_path)
+
+        self.num_files = len(files)
+        self.pbar.setMaximum = 100
+        for file_idx in range(self.num_files):
+            new_worker = PreProcWorker(
+                filepath=res_sonar_path_list[file_idx],
+                bottom_file=res_bottom_path_list[file_idx],
+                work_dir=work_dir,
+                egn_table_path=egn_table_path,
+                chunk_size=chunk_size,
+                nadir_angle=nadir_angle,
+                active_export_slant_corr_mat=active_export_slant_corr_mat,
+                active_export_gain_corr_mat=active_export_gain_corr_mat,
+                load_slant_data=load_slant_data,
+                load_gain_data=load_gain_data,
+                active_pie_slice_filter=active_pie_slice_filter,
+                active_gain_norm=active_gain_norm,
+                active_egn=active_egn,
+                active_bac=active_bac,
+                active_sharpening_filter=active_sharpening_filter,
+            )
+            new_worker.signals.error_signal.connect(lambda err: self.build_aborted(err))
+            new_worker.signals.progress.connect(lambda progress: self.update_pbar(progress))
+            new_worker.signals.finished.connect(lambda res_list: self.files_finished_counter(res_list))
+            self.threadpool.start(new_worker)
+
+    def update_pbar(self, progress: float):
+        self.pbar_val += progress
+        disp_var = self.pbar_val / self.num_files
+        self.pbar.setValue(int(100*disp_var))
+        
+    def files_finished_counter(self, res_list):
+        self.files_finished += 1
+        self.new_res_present.emit(res_list)
+        if self.files_finished == self.num_files:
+            self.processing_finished.emit(res_list)
+            self.deleteLater()
 
     def build_aborted(self, err: Exception):
         msg_str = str(err)

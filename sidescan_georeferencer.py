@@ -183,7 +183,7 @@ class SidescanGeoreferencer:
             self.chunk_indices = np.where(np.diff(LAT_ori) != 0)[0] + 2
 
         elif not self.dynamic_chunking:
-            chunksize = 20
+            chunksize = 5
             self.chunk_indices = int(swath_len / chunksize)
             print(f"Fixed chunk size: {20} pings.")
 
@@ -228,10 +228,10 @@ class SidescanGeoreferencer:
                 # add/substract small values to ensure overlap on outer edges (move inwards/outwards at nadir/outer edge)
                 # TODO: make curvature-dependent
 
-                im_x_left_nad = 0   #1
-                im_x_right_nad = np.shape(lo_chunk_ce)[0] 
+                im_x_left_nad = 1   #1
+                im_x_right_nad = np.shape(lo_chunk_ce)[0] -1
                 im_x_left_outer = 1 #-1
-                im_x_right_outer = np.shape(lo_chunk_ce)[0] -1  #+1
+                im_x_right_outer = np.shape(lo_chunk_ce)[0] -1  #-1
                 im_y_nad = 0    #1
                 im_y_outer = swath_width #-swath_width
 
@@ -319,6 +319,9 @@ class SidescanGeoreferencer:
         # LO,LA(0):E                LO,LA(chunk):E
         # X:L; Y:L                  X:R; Y:L
 
+        # new in gdal version 3.11: homography algorithm for warping. Important note: Does not work when gcps are not in right order, i.e. if for example \
+        lower left and lower right image coorainte are switched. this can sometimes happrns when there is noc vessel movement. \
+        Right now, these chunks are ignored (the data look crappy anyway). 
         """
         ch_split = np.array_split(ch_stack, self.chunk_indices, axis=1)
 
@@ -430,7 +433,7 @@ class SidescanGeoreferencer:
                                 "-r",
                                 "bilinear",
                                 "--to",
-                                "SRC_METHOD=GCP_HOMOGRAPHY",    # GCP_HOMOGRAPHY   # GCP_POLYNOMIAL, ORDER=1
+                                "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",    # GCP_HOMOGRAPHY   # GCP_POLYNOMIAL, ORDER=1
                                 "--co",
                                 "COMPRESS=DEFLATE",
                                 "-d",
@@ -448,7 +451,7 @@ class SidescanGeoreferencer:
                             "-r",
                             "bilinear",
                             "--to",
-                            "SRC_METHOD=GCP_HOMOGRAPHY",    # GCP_HOMOGRAPHY
+                            "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",    # GCP_HOMOGRAPHY
                             "--co",
                             "COMPRESS=DEFLATE",
                             "-d",
@@ -506,7 +509,7 @@ class SidescanGeoreferencer:
                             "-r",
                             "bilinear",
                             "--to",
-                            "SRC_METHOD=GCP_HOMOGRAPHY",    # GCP_HOMOGRAPHY
+                            "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",    # GCP_HOMOGRAPHY
                             "--co",
                             "COMPRESS=DEFLATE",
                             "-d",
@@ -524,7 +527,7 @@ class SidescanGeoreferencer:
                             "-r",
                             "bilinear",
                             "--to",
-                            "SRC_METHOD=GCP_HOMOGRAPHY",    # GCP_HOMOGRAPHY
+                            "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",    # GCP_HOMOGRAPHY
                             "--co",
                             "COMPRESS=DEFLATE",
                             "-d",
@@ -639,7 +642,7 @@ class SidescanGeoreferencer:
         except Exception as e:
             print(f"An error occurred: {str(e)}")
 
-        self.cleanup()
+        #self.cleanup()
 
     def cleanup(self):
         print(f"Cleaning ...")

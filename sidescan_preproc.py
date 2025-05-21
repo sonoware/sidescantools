@@ -58,7 +58,7 @@ class SidescanPreprocessor:
         self.sonar_data_proc = copy.deepcopy(self.sidescan_file.data)
         self.sonar_data_proc = np.array(self.sonar_data_proc).astype(float)
 
-        self.chunk_size = chunk_size
+        self.chunk_size = chunk_size            
         self.ping_len = self.sidescan_file.ping_len
         self.num_ch = num_ch
         self.downsampling_factor = downsampling_factor
@@ -630,6 +630,9 @@ class SidescanPreprocessor:
     # Pie slice filter to remove noisy lines
     def apply_pie_slice_filter(self):
         """Apply pie slice filter to remove stripe noise in image"""
+        if self.sidescan_file.num_ping < self.chunk_size:
+            print("Not implemented for Nping < chunk size")
+            return
         for ch in range(self.num_ch):
             son_dat = self.sonar_data_proc[ch]
             for chunk_idx in range(self.num_chunk):
@@ -709,6 +712,9 @@ class SidescanPreprocessor:
     def apply_sharpening_filter(self):
         """Use a homomorphic filter to emphasize higher frequencies for image sharpening"""
         print("Applying sharpening filter")
+        if self.sidescan_file.num_ping < self.chunk_size:
+            print("Not implemented for Nping < chunk size")
+            return
         for ch in range(self.num_ch):
             son_dat = self.sonar_data_proc[ch]
             for chunk_idx in range(self.num_chunk):

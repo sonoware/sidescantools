@@ -28,10 +28,11 @@ The following features are still under development and will be improved in futur
 1. Make sure to have Python 3.11 - 3.13 installed. SidescanTools may or may not work with other versions of Python.
 2. Clone this git repository
 3. Install required packages from `requirements.txt`.
-   Using a virtual environment is recommended.
+   Using a virtual (conda!) environment is recommended.
    Currently packages are listed without minimum version.
-   - If you use Windows and have trouble installing GDAL, check [cgohlke's wheels](https://github.com/cgohlke/geospatial-wheels/releases)
-   - On Linux, you may need to install your system's gdal package (e.g., `apt install libgdal-dev` or `yum install libgdal-dev`)
+   - Recommended: Use anaconda or miniconda and install gdal using: conda install -c confa-forge gdal=3.11
+   - If you do not use conda and are on Windows and have trouble installing GDAL, check [cgohlke's wheels](https://github.com/cgohlke/geospatial-wheels/releases) (not recommended!)
+   - On Linux, if not using conda, you may need to install your system's gdal package (e.g., `apt install libgdal-dev` or `yum install libgdal-dev`)
 4. Start GUI by typing `python main.py`
 
 

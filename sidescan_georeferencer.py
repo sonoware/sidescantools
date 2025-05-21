@@ -105,19 +105,19 @@ class SidescanGeoreferencer:
 
         HEAD = savgol_filter(HEAD_ori, 120, 1)
         x = range(len(HEAD))
-        plt.title("Heading")
-        plt.plot(x, HEAD_ori, label='Original Heading')
-        plt.plot(x, HEAD, label='Smoothed Heading')
-        plt.legend()
-        plt.show()
+        #plt.title("Heading")
+        #plt.plot(x, HEAD_ori, label='Original Heading')
+        #plt.plot(x, HEAD, label='Smoothed Heading')
+        #plt.legend()
+        #plt.show()
 
         LAT = savgol_filter(LAT_ori, 120, 1)
         LON = savgol_filter(LON_ori, 120, 1)
-        plt.title("Navigation")
-        plt.plot(LON_ori, LAT_ori, label='Original Navigation')
-        plt.plot(LON, LAT, label='Smoothed Navigation')
-        plt.legend()
-        plt.show()
+        #plt.title("Navigation")
+        #plt.plot(LON_ori, LAT_ori, label='Original Navigation')
+        #plt.plot(LON, LAT, label='Smoothed Navigation')
+        #plt.legend()
+        #plt.show()
 
         UTM = []
         for la, lo in zip(LAT, LON):
@@ -588,7 +588,7 @@ class SidescanGeoreferencer:
             mosaic_tiff.unlink()
 
     # gdal < 3.11 syntax - still working fine
-        if True:
+        if False:
                 gdal_mosaic = [
                 "gdal_merge",
                 "-o",
@@ -604,12 +604,13 @@ class SidescanGeoreferencer:
             ]
     
     # gdal 3.11 syntax
-        if False:
+        if True:
             gdal_mosaic = [
                 "gdal", "raster", "mosaic",
                 "-i", f"@{txt_path}",
                 "-o", str(mosaic_tiff),
                 "--src-nodata", "0",
+                "--resolution", "highest",
                 "--co", "COMPRESS=DEFLATE",
                 "--co", "TILED=YES"
             ]

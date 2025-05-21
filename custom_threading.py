@@ -699,34 +699,37 @@ class PreProcManager(QWidget):
                 res_sonar_path_list.append(sonar_file_path)
                 res_bottom_path_list.append(bottom_path)
 
-        self.num_files = len(files)
-        self.pbar.setMaximum = 100
-        for file_idx in range(self.num_files):
-            new_worker = PreProcWorker(
-                filepath=res_sonar_path_list[file_idx],
-                bottom_file=res_bottom_path_list[file_idx],
-                work_dir=work_dir,
-                egn_table_path=egn_table_path,
-                chunk_size=chunk_size,
-                nadir_angle=nadir_angle,
-                active_export_slant_corr_mat=active_export_slant_corr_mat,
-                active_export_gain_corr_mat=active_export_gain_corr_mat,
-                load_slant_data=load_slant_data,
-                load_gain_data=load_gain_data,
-                active_pie_slice_filter=active_pie_slice_filter,
-                active_gain_norm=active_gain_norm,
-                active_egn=active_egn,
-                active_bac=active_bac,
-                active_sharpening_filter=active_sharpening_filter,
-            )
-            new_worker.signals.error_signal.connect(lambda err: self.build_aborted(err))
-            new_worker.signals.progress.connect(
-                lambda progress: self.update_pbar(progress)
-            )
-            new_worker.signals.finished.connect(
-                lambda res_list: self.files_finished_counter(res_list)
-            )
-            self.threadpool.start(new_worker)
+        self.num_files = len(res_sonar_path_list)
+        if self.num_files > 0:
+            self.pbar.setMaximum = 100
+            for file_idx in range(self.num_files):
+                new_worker = PreProcWorker(
+                    filepath=res_sonar_path_list[file_idx],
+                    bottom_file=res_bottom_path_list[file_idx],
+                    work_dir=work_dir,
+                    egn_table_path=egn_table_path,
+                    chunk_size=chunk_size,
+                    nadir_angle=nadir_angle,
+                    active_export_slant_corr_mat=active_export_slant_corr_mat,
+                    active_export_gain_corr_mat=active_export_gain_corr_mat,
+                    load_slant_data=load_slant_data,
+                    load_gain_data=load_gain_data,
+                    active_pie_slice_filter=active_pie_slice_filter,
+                    active_gain_norm=active_gain_norm,
+                    active_egn=active_egn,
+                    active_bac=active_bac,
+                    active_sharpening_filter=active_sharpening_filter,
+                )
+                new_worker.signals.error_signal.connect(lambda err: self.build_aborted(err))
+                new_worker.signals.progress.connect(
+                    lambda progress: self.update_pbar(progress)
+                )
+                new_worker.signals.finished.connect(
+                    lambda res_list: self.files_finished_counter(res_list)
+                )
+                self.threadpool.start(new_worker)
+        else:
+            self.deleteLater()
 
     def update_pbar(self, progress: float):
         self.pbar_val += progress

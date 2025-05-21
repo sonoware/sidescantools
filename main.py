@@ -68,7 +68,7 @@ class SidescanToolsMain(QWidget):
         "Active pie slice filter": True,
         "Active sharpening filter": False,
         "Active gain norm": True,
-        "Active hist equal": True,
+        "Active hist equal": False,
         "Slant gain norm strategy": GAINSTRAT.BAC.value,
         "Slant vertical beam angle": 60,
         "Slant nadir angle": 0,
@@ -938,7 +938,7 @@ class ProcessingWidget(QVBoxLayout):
         )
 
     def show_error_msg(self, msg):
-        dlg = ErrorWarnDialog(title="Error while importing files", message=msg)
+        dlg = ErrorWarnDialog(title="Error while processing files", message=msg)
         dlg.exec()
 
     def process_all_files(self):

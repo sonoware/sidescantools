@@ -1161,7 +1161,7 @@ class ViewAndExportWidget(QVBoxLayout):
         )
         self.active_convert_dB_checkbox.stateChanged.connect(self.db_checkbox_changed)
         self.hist_equal_checkbox = QCheckBox(
-            "Apply Adaptive Histogram Equalization"
+            "Apply Adaptive Histogram Equalization (experimental)"
         )
         self.hist_equal_checkbox.setToolTip(
             "Use adaptive histogram equalization to improve contrast of the resulting images."

@@ -6,8 +6,14 @@ import numpy as np
 from sidescan_file import SidescanFile
 import os
 
+
 def run_napari_btm_line(
-    filepath: str | os.PathLike, chunk_size=1000, default_threshold=0.7, downsampling_factor=1, work_dir=None, active_dB=False
+    filepath: str | os.PathLike,
+    chunk_size=1000,
+    default_threshold=0.7,
+    downsampling_factor=1,
+    work_dir=None,
+    active_dB=False,
 ):
     """Run bottom line detection in napari on a given file
 
@@ -15,11 +21,11 @@ def run_napari_btm_line(
     ----------
     filepath: str | os.PathLike
         Path to sidescan file
-    chunk_size: int 
+    chunk_size: int
         Number of pings per single chunk
     default_threshold: float
         Number in range [0, 1] that is used as threshold for binarization of the image before the edges are detected
-    downsampling_factor: int 
+    downsampling_factor: int
         Factor used for decimation of ping signals
     work_dir: str | os.PathLike
         Path to desired directory that is used as default directory for saving/loading of results to ``.npz`` files
@@ -28,14 +34,14 @@ def run_napari_btm_line(
     """
     filepath = Path(filepath)
     add_line_width = 1  # additional line width for plotting of bottom line
-    
+
     sidescan_file = SidescanFile(filepath)
     preproc = SidescanPreprocessor(
         sidescan_file=sidescan_file,
         chunk_size=chunk_size,
         downsampling_factor=downsampling_factor,
     )
-    
+
     # Init bottom detection by doing an initial guess
     preproc.init_napari_bottom_detect(
         default_threshold,
@@ -158,17 +164,19 @@ def run_napari_btm_line(
     widget_thresh.threshold_bin.label = "Threshold binarization [0,1]"
     widget_thresh.choose_strategy.label = "Choose strategy"
     widget_thresh.call_button.text = "r: Recalculate"
-    manual_annotation_widget.activate_manual_annotation.text = "m: Activate manual annotation"
+    manual_annotation_widget.activate_manual_annotation.text = (
+        "m: Activate manual annotation"
+    )
     filepicker_save.filename.label = "File"
     filepicker_load.filename.label = "File"
-    
+
     # Handle click or drag events separately
     @bottom_image_layer.mouse_drag_callbacks.append
     def click_drag(layer, event):
 
         if (
             manual_annotation_widget.activate_manual_annotation.value
-            and event.button == 1 
+            and event.button == 1
             and 0 <= event.position[1] < layer.data.shape[1]
             and 0 <= event.position[2] < layer.data.shape[2]
         ):
@@ -290,14 +298,22 @@ def run_napari_btm_line(
     # run main loop
     viewer.show(block=True)
 
+
 if __name__ == "__main__":
     chunk_size = 1000
     default_threshold = (
         0.07  # [0.0, 1.0] -> threshold to make sonar img binary for edge detection
     )
-    downsampling_factor = 1 
+    downsampling_factor = 1
     active_dB = False
 
     filepath = Path("add_path_to_file_here")
     work_dir = "./sidescan_out"
-    run_napari_btm_line(filepath, chunk_size, default_threshold, downsampling_factor, work_dir=work_dir, active_dB=active_dB)
+    run_napari_btm_line(
+        filepath,
+        chunk_size,
+        default_threshold,
+        downsampling_factor,
+        work_dir=work_dir,
+        active_dB=active_dB,
+    )

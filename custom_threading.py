@@ -118,10 +118,12 @@ class FileImportManager(QWidget):
         self.aborted_signal.emit(msg_str)
         self.deleteLater()
 
+
 class EGNTableProcessingWorkerSignals(QtCore.QObject):
     finished = QtCore.Signal()
     progress = QtCore.Signal(float)
     error_signal = QtCore.Signal(Exception)
+
 
 class EGNTableProcessingWorker(QtCore.QRunnable):
 
@@ -254,7 +256,7 @@ class EGNTableProcessingWorker(QtCore.QRunnable):
             active_interpolation=True,
             nadir_angle=self.nadir_angle,
             use_intern_depth=self.active_intern_depth,
-            progress_signal=self.signals.progress
+            progress_signal=self.signals.progress,
         )
         # self.signals.progress.emit(0.5)
 
@@ -281,7 +283,7 @@ class EGNTableProcessingWorker(QtCore.QRunnable):
 
         for vector_idx in range(num_data):
             if vector_idx % 1000 == 0:
-                self.signals.progress.emit(1000/num_data*0.5)
+                self.signals.progress.emit(1000 / num_data * 0.5)
                 print(f"EGN Progress: {vector_idx/num_data:.2%}")
             r = np.sqrt(
                 (
@@ -402,7 +404,9 @@ class EGNTableBuilder(QWidget):
                 active_downsampling,
             )
             new_worker.signals.error_signal.connect(lambda err: self.build_aborted(err))
-            new_worker.signals.progress.connect(lambda progress: self.update_pbar(progress))
+            new_worker.signals.progress.connect(
+                lambda progress: self.update_pbar(progress)
+            )
             new_worker.signals.finished.connect(self.files_finished_counter)
             self.threadpool.start(new_worker)
 
@@ -441,8 +445,10 @@ class EGNTableBuilder(QWidget):
                     print(f"EGN Parameter mismatch! Skipping file: {egn_file}")
 
         # build final egn table
-        egn_table = np.divide(full_mat, full_hit_cnt, out=np.zeros_like(full_mat), where=full_hit_cnt!=0)
-        egn_table[np.where(full_hit_cnt==0)] = np.nan
+        egn_table = np.divide(
+            full_mat, full_hit_cnt, out=np.zeros_like(full_mat), where=full_hit_cnt != 0
+        )
+        egn_table[np.where(full_hit_cnt == 0)] = np.nan
         print("Saving " + str(self.egn_table_path))
         np.savez(
             self.egn_table_path,
@@ -460,8 +466,8 @@ class EGNTableBuilder(QWidget):
     def update_pbar(self, progress: float):
         self.pbar_val += progress
         disp_var = self.pbar_val / self.num_files
-        self.pbar.setValue(int(100*disp_var))
-        
+        self.pbar.setValue(int(100 * disp_var))
+
     def files_finished_counter(self):
         self.files_finished += 1
         if self.files_finished == self.num_files:
@@ -477,10 +483,12 @@ class EGNTableBuilder(QWidget):
         self.aborted_signal.emit(msg_str)
         self.deleteLater()
 
+
 class PreProcWorkerSignals(QtCore.QObject):
     finished = QtCore.Signal(list)
     progress = QtCore.Signal(float)
     error_signal = QtCore.Signal(Exception)
+
 
 class PreProcWorker(QtCore.QRunnable):
 
@@ -550,10 +558,12 @@ class PreProcWorker(QtCore.QRunnable):
 
         # slant range correction and EGN data
         if self.active_export_slant_corr_mat:
-            slant_data_path = self.work_dir / (self.filepath.stem + "_slant_corrected.npz")
+            slant_data_path = self.work_dir / (
+                self.filepath.stem + "_slant_corrected.npz"
+            )
         else:
             slant_data_path = None
-        
+
         self.signals.progress.emit(0.1)
         if self.load_slant_data:
             slant_data = np.load(slant_data_path)
@@ -570,22 +580,15 @@ class PreProcWorker(QtCore.QRunnable):
                 active_mult_slant_range_resampling=True,
             )
         self.signals.progress.emit(0.4)
-        gain_corrected_path = self.work_dir / (self.filepath.stem + "_egn_corrected.npz")
+        gain_corrected_path = self.work_dir / (
+            self.filepath.stem + "_egn_corrected.npz"
+        )
         if self.active_gain_norm:
             if self.active_egn:
                 if not pathlib.Path(self.egn_table_path).exists():
-                    # dlg = QMessageBox(self)
-                    # dlg.setWindowTitle("EGN table not found")
-                    # dlg.setText(
-                    #     f"The specified EGN table {egn_table_path} doesn't exist."
-                    # )
-                    # dlg.exec()
-                    raise FileNotFoundError(f"The specified EGN table {self.egn_table_path} doesn't exist.")
-
-                # if self.active_export_gain_corr_mat:
-                #     gain_corrected_path = self.filepath.parent / (self.filepath.stem + "_egn_corrected.npz")
-                # else:
-                #     gain_corrected_path = None
+                    raise FileNotFoundError(
+                        f"The specified EGN table {self.egn_table_path} doesn't exist."
+                    )
 
                 if self.load_gain_data:
                     egn_data = np.load(gain_corrected_path)
@@ -624,6 +627,7 @@ class PreProcWorker(QtCore.QRunnable):
             )
         self.signals.progress.emit(0.1)
         self.signals.finished.emit([sidescan_file, preproc])
+
 
 class PreProcManager(QWidget):
     processing_finished = QtCore.Signal(list)
@@ -716,15 +720,19 @@ class PreProcManager(QWidget):
                 active_sharpening_filter=active_sharpening_filter,
             )
             new_worker.signals.error_signal.connect(lambda err: self.build_aborted(err))
-            new_worker.signals.progress.connect(lambda progress: self.update_pbar(progress))
-            new_worker.signals.finished.connect(lambda res_list: self.files_finished_counter(res_list))
+            new_worker.signals.progress.connect(
+                lambda progress: self.update_pbar(progress)
+            )
+            new_worker.signals.finished.connect(
+                lambda res_list: self.files_finished_counter(res_list)
+            )
             self.threadpool.start(new_worker)
 
     def update_pbar(self, progress: float):
         self.pbar_val += progress
         disp_var = self.pbar_val / self.num_files
-        self.pbar.setValue(int(100*disp_var))
-        
+        self.pbar.setValue(int(100 * disp_var))
+
     def files_finished_counter(self, res_list):
         self.files_finished += 1
         self.new_res_present.emit(res_list)

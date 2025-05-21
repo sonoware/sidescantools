@@ -9,6 +9,7 @@ from pathlib import Path
 import geopy.distance as geo_dist
 from custom_widgets import convert_to_dB
 
+
 class SidescanPreprocessor:
     """Main class to apply preprocessing functionalities to sidescan sonar data:
     - Init by loading a SidescanFile with desired parameters
@@ -557,7 +558,7 @@ class SidescanPreprocessor:
         return H
 
     def apply_beam_pattern_correction(self):
-        """TODO"""
+        """Applies Beam Pattern Correction to the processing data"""
 
         num_ping = np.shape(self.sonar_data_proc[0])[0]
         angle_range = [-1 * np.pi / 2, np.pi / 2]
@@ -568,13 +569,18 @@ class SidescanPreprocessor:
         EPS = np.finfo(float).eps
 
         print("Estimating beam pattern...")
-        son_dat = np.hstack((np.fliplr(self.sonar_data_proc[0]), self.sonar_data_proc[1]))
+        son_dat = np.hstack(
+            (np.fliplr(self.sonar_data_proc[0]), self.sonar_data_proc[1])
+        )
         mean_depth = np.array(np.round(np.mean(self.dep_info, 0)), dtype=int)
         dd = mean_depth**2
-        alpha_idx = np.zeros((num_ping, 2*self.ping_len), dtype=int)
+        alpha_idx = np.zeros((num_ping, 2 * self.ping_len), dtype=int)
         for vector_idx in range(num_ping):
             r = np.sqrt(
-                (np.linspace(0, 2 * self.ping_len - 1, 2 * self.ping_len) - self.ping_len)
+                (
+                    np.linspace(0, 2 * self.ping_len - 1, 2 * self.ping_len)
+                    - self.ping_len
+                )
                 ** 2
                 + dd[vector_idx]
             )
@@ -585,39 +591,45 @@ class SidescanPreprocessor:
                 np.round(alpha / angle_stepsize) + angle_num / 2, dtype=int
             )
             for ping_idx in range(self.ping_len):
-                angle_sum[alpha_idx[vector_idx, ping_idx]] += son_dat[vector_idx, ping_idx]
+                angle_sum[alpha_idx[vector_idx, ping_idx]] += son_dat[
+                    vector_idx, ping_idx
+                ]
                 angle_hits[alpha_idx[vector_idx, ping_idx]] += 1
         print(f"Beam pattern done - correcting data.")
 
         # angle_sum /= angle_hits
-        angle_sum = np.divide(angle_sum, angle_hits, out=np.zeros_like(angle_sum), where=angle_hits!=0)
-        angle_sum[np.where(angle_hits==0)] = np.nan
+        angle_sum = np.divide(
+            angle_sum, angle_hits, out=np.zeros_like(angle_sum), where=angle_hits != 0
+        )
+        angle_sum[np.where(angle_hits == 0)] = np.nan
 
         for vector_idx in range(num_ping):
             for ping_idx in range(self.ping_len):
-                son_dat[vector_idx, ping_idx] /= angle_sum[alpha_idx[vector_idx, ping_idx]]
-        
-        self.sonar_data_proc[0] = np.fliplr(son_dat[:, :self.ping_len])
-        self.sonar_data_proc[1] = son_dat[:, self.ping_len:]
+                son_dat[vector_idx, ping_idx] /= angle_sum[
+                    alpha_idx[vector_idx, ping_idx]
+                ]
 
-    # Pie slice filter to remove noisy lines
+        self.sonar_data_proc[0] = np.fliplr(son_dat[:, : self.ping_len])
+        self.sonar_data_proc[1] = son_dat[:, self.ping_len :]
+
+    # Energy normalization
     def apply_energy_normalization(self):
-        """TODO"""
+        """Apply energy normalization on each individual ping (is needed after BAC processing)"""
         for ch in range(self.num_ch):
             son_dat = self.sonar_data_proc[ch]
             num_ping = np.shape(son_dat)[0]
             num_norm = 40
-            pow_vec = np.sum(son_dat[:40]**2, axis=1)
+            pow_vec = np.sum(son_dat[:40] ** 2, axis=1)
             for ping_idx in range(num_ping):
-                if int(num_norm/2) < ping_idx < num_ping - int(num_norm/2):
+                if int(num_norm / 2) < ping_idx < num_ping - int(num_norm / 2):
                     pow_vec[:-1] = pow_vec[1:]
-                    pow_vec[-1] = np.sum(son_dat[ping_idx+int(num_norm/2)]**2)
+                    pow_vec[-1] = np.sum(son_dat[ping_idx + int(num_norm / 2)] ** 2)
                 son_dat[ping_idx] /= np.sqrt(np.mean(pow_vec))
             self.sonar_data_proc[ch] = son_dat
 
     # Pie slice filter to remove noisy lines
     def apply_pie_slice_filter(self):
-        """TODO"""
+        """Apply pie slice filter to remove stripe noise in image"""
         for ch in range(self.num_ch):
             son_dat = self.sonar_data_proc[ch]
             for chunk_idx in range(self.num_chunk):
@@ -691,11 +703,11 @@ class SidescanPreprocessor:
             self.sonar_data_proc[ch] = son_dat
 
     @staticmethod
-    def comp_D(u,v,M_2,N_2):
-        return np.sqrt((u-M_2)**2 + (v-N_2)**2)
+    def comp_D(u, v, M_2, N_2):
+        return np.sqrt((u - M_2) ** 2 + (v - N_2) ** 2)
 
     def apply_sharpening_filter(self):
-        """TODO"""
+        """Use a homomorphic filter to emphasize higher frequencies for image sharpening"""
         print("Applying sharpening filter")
         for ch in range(self.num_ch):
             son_dat = self.sonar_data_proc[ch]
@@ -722,10 +734,17 @@ class SidescanPreprocessor:
                 H = np.zeros((self.chunk_size, self.ping_len))
                 for u in range(self.chunk_size):
                     for v in range(self.ping_len):
-                        H[u,v] = (gamma_H-gamma_L)*(1-np.exp(-1*const_c*((self.comp_D(u, v, M_2, N_2)**2)/(D_0**2)))) + gamma_L
-                
+                        H[u, v] = (gamma_H - gamma_L) * (
+                            1
+                            - np.exp(
+                                -1
+                                * const_c
+                                * ((self.comp_D(u, v, M_2, N_2) ** 2) / (D_0**2))
+                            )
+                        ) + gamma_L
+
                 img_filtered = img_spec * H
-    
+
                 img_r = np.real(np.fft.ifft2(img_filtered))
                 chunk_filt = np.exp(img_r)
 
@@ -871,7 +890,7 @@ class SidescanPreprocessor:
                         f"\rSlant range correction progress: {ping_idx/num_ping*100:.2f}%"
                     )
                     if progress_signal is not None:
-                        progress_signal.emit((1000/num_ping)*0.25)
+                        progress_signal.emit((1000 / num_ping) * 0.25)
 
                 depth = int(self.dep_info[ch][ping_idx])  # in px
                 dd = depth**2
@@ -990,7 +1009,9 @@ class SidescanPreprocessor:
         r_reduc_factor = egn_info["r_reduc_factor"]
 
         # do EGN
-        self.egn_corrected_mat = np.zeros(np.shape(self.slant_corrected_mat)) #TODO Rework to sono data proc
+        self.egn_corrected_mat = np.zeros(
+            np.shape(self.slant_corrected_mat)
+        )  # TODO Rework to sono data proc
         num_ping = np.shape(self.slant_corrected_mat)[0]
         mean_depth = np.array(np.round(np.mean(self.dep_info, 0)), dtype=int)
 

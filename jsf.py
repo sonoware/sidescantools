@@ -610,7 +610,7 @@ class JSFSonarMessageStatus:
         "power48Volts": "l",
         "reserved3": "l",
         "lowRateIO4": "4h",
-        "serialPortState": "8H",
+        "serialPortState": "8B",
         "runtimeAlerts": "l",
         "reserved4": "5l",
     }

@@ -267,7 +267,8 @@ class SidescanGeoreferencer:
             ch_stack = self.proc_data
         else:
             ch_stack = self.sidescan_file.data[self.channel]
-            ch_stack = 20 * np.log10(np.abs(ch_stack) + 0.1)
+            # convert to dB (just if script is run standalone)
+            #ch_stack = 20 * np.log10(np.abs(ch_stack) + 0.1)
 
 
         # Transpose so that the largest axis is horizontal
@@ -320,7 +321,7 @@ class SidescanGeoreferencer:
         # X:L; Y:L                  X:R; Y:L
 
         # new in gdal version 3.11: homography algorithm for warping. Important note: Does not work when gcps are not in right order, i.e. if for example \
-        lower left and lower right image coorainte are switched. this can sometimes happrns when there is noc vessel movement. \
+        lower left and lower right image coorainte are switched. this can sometimes happrns when there is no vessel movement or vessel turns etc. \
         Right now, these chunks are ignored (the data look crappy anyway). 
         """
         ch_split = np.array_split(ch_stack, self.chunk_indices, axis=1)
@@ -392,13 +393,14 @@ class SidescanGeoreferencer:
                         )
                     gdal_translate.extend([str(im_path), str(chunk_path)])
     
+    
                     # gdal < 3.11 syntax
                     if False:
                         if self.active_utm:
                              gdal_warp = [
                                  "gdalwarp",
                                  "-r",
-                                 "bilinear",
+                                 "near",
                                  "-order",
                                  "1",
                                  "-co",
@@ -412,7 +414,7 @@ class SidescanGeoreferencer:
                              gdal_warp = [
                                  "gdalwarp",
                                  "-r",
-                                 "bilinear",
+                                 "near",
                                  "-order",
                                  "1",
                                  "-co",
@@ -424,16 +426,16 @@ class SidescanGeoreferencer:
                              ]
                     
                 # gdal 3.11 syntax
-                #gdal raster reproject -r bilinear --to SRC_METHOD=GCP_HOMOGRAPHY --co COMPRESS=DEFLATE -d=EPSG:4326 -i 2025-03-17_08-30-44_0_ch0_0_chunk_tmp.tif -o 2025-03-17_08-30-44_0_ch0_0_chunk_tmp_WGS84.tif
+                #gdal raster reproject -r near --to SRC_METHOD=GCP_HOMOGRAPHY --co COMPRESS=DEFLATE -d=EPSG:4326 -i 2025-03-17_08-30-44_0_ch0_0_chunk_tmp.tif -o 2025-03-17_08-30-44_0_ch0_0_chunk_tmp_WGS84.tif
                     if self.active_utm:
                         gdal_warp = [
                                 "gdal",
                                 "raster",
                                 "reproject",
                                 "-r",
-                                "bilinear",
+                                "near",
                                 "--to",
-                                "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",    # GCP_HOMOGRAPHY   # GCP_POLYNOMIAL, ORDER=1
+                                "SRC_METHOD=GCP_HOMOGRAPHY",    # GCP_HOMOGRAPHY   # GCP_POLYNOMIAL, ORDER=1
                                 "--co",
                                 "COMPRESS=DEFLATE",
                                 "-d",
@@ -449,9 +451,9 @@ class SidescanGeoreferencer:
                             "raster",
                             "reproject",
                             "-r",
-                            "bilinear",
+                            "near",
                             "--to",
-                            "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",    # GCP_HOMOGRAPHY
+                            "SRC_METHOD=GCP_HOMOGRAPHY",    # GCP_HOMOGRAPHY
                             "--co",
                             "COMPRESS=DEFLATE",
                             "-d",
@@ -467,6 +469,7 @@ class SidescanGeoreferencer:
                         gdal_translate.extend(
                             ["-gcp", str(im_x[i]), str(im_y[i]), str(lo[i]), str(la[i])]
                         )
+
                     gdal_translate.extend([str(im_path), str(chunk_path)])
 
                     # gdal < 3.11 syntax
@@ -475,7 +478,7 @@ class SidescanGeoreferencer:
                              gdal_warp = [
                                  "gdalwarp",
                                  "-r",
-                                 "bilinear",
+                                 "near",
                                  "-order",
                                  "1",
                                  "-co",
@@ -489,7 +492,7 @@ class SidescanGeoreferencer:
                              gdal_warp = [
                                  "gdalwarp",
                                  "-r",
-                                 "bilinear",
+                                 "near",
                                  "-order",
                                  "1",
                                  "-co",
@@ -507,9 +510,9 @@ class SidescanGeoreferencer:
                             "raster",
                             "reproject",
                             "-r",
-                            "bilinear",
+                            "near",
                             "--to",
-                            "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",    # GCP_HOMOGRAPHY
+                            "SRC_METHOD=GCP_HOMOGRAPHY",    # GCP_HOMOGRAPHY
                             "--co",
                             "COMPRESS=DEFLATE",
                             "-d",
@@ -525,9 +528,9 @@ class SidescanGeoreferencer:
                             "raster",
                             "reproject",
                             "-r",
-                            "bilinear",
+                            "near",
                             "--to",
-                            "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",    # GCP_HOMOGRAPHY
+                            "SRC_METHOD=GCP_HOMOGRAPHY",    # GCP_HOMOGRAPHY
                             "--co",
                             "COMPRESS=DEFLATE",
                             "-d",
@@ -584,7 +587,7 @@ class SidescanGeoreferencer:
         if mosaic_tiff.exists():
             mosaic_tiff.unlink()
 
-    # gdal < 3.11 syntax
+    # gdal < 3.11 syntax - still working fine
         if True:
                 gdal_mosaic = [
                 "gdal_merge",
@@ -642,7 +645,7 @@ class SidescanGeoreferencer:
         except Exception as e:
             print(f"An error occurred: {str(e)}")
 
-        #self.cleanup()
+        self.cleanup()
 
     def cleanup(self):
         print(f"Cleaning ...")

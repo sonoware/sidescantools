@@ -589,7 +589,9 @@ class SidescanPreprocessor:
                 angle_hits[alpha_idx[vector_idx, ping_idx]] += 1
         print(f"Beam pattern done - correcting data.")
 
-        angle_sum /= angle_hits
+        # angle_sum /= angle_hits
+        angle_sum = np.divide(angle_sum, angle_hits, out=np.zeros_like(angle_sum), where=angle_hits!=0)
+        angle_sum[np.where(angle_hits==0)] = np.nan
 
         for vector_idx in range(num_ping):
             for ping_idx in range(self.ping_len):

@@ -924,9 +924,7 @@ class ProcessingWidget(QVBoxLayout):
         for sonar_file in self.main_ui.file_dict["Path"]:
             sonar_file_path_list.append(pathlib.Path(sonar_file))
         egn_table_builder = EGNTableBuilder(egn_path)
-        egn_table_builder.table_finished.connect(
-            lambda: self.data_changed.emit()
-        )
+        egn_table_builder.table_finished.connect(lambda: self.data_changed.emit())
         egn_table_builder.aborted_signal.connect(
             lambda err_msg: self.show_error_msg(err_msg)
         )
@@ -943,130 +941,13 @@ class ProcessingWidget(QVBoxLayout):
         dlg = ErrorWarnDialog(title="Error while importing files", message=msg)
         dlg.exec()
 
-    # def do_slant_corr_and_processing(
-    #     self, filepath, load_slant_data: bool = False, load_egn_data: bool = False
-    # ):
-    #     sidescan_file = SidescanFile(filepath=filepath)
-    #     bottom_info = np.load(
-    #         pathlib.Path(self.main_ui.settings_dict["Working dir"])
-    #         / (filepath.stem + "_bottom_info.npz")
-    #     )
-    #     # Check if downsampling was applied
-    #     try:
-    #         downsampling_factor = bottom_info["downsampling_factor"]
-    #     except:
-    #         downsampling_factor = 1
-
-    #     preproc = SidescanPreprocessor(
-    #         sidescan_file=sidescan_file,
-    #         chunk_size=int(self.slant_chunk_size_edit.line_edit.text()),
-    #         downsampling_factor=downsampling_factor,
-    #     )
-
-    #     preproc.portside_bottom_dist = bottom_info["bottom_info_port"].flatten()
-    #     preproc.starboard_bottom_dist = bottom_info["bottom_info_star"].flatten()
-    #     preproc.napari_portside_bottom = bottom_info["bottom_info_port"]
-    #     preproc.napari_starboard_bottom = bottom_info["bottom_info_star"]
-    #     preproc.num_chunk = np.shape(bottom_info["bottom_info_star"])[0]
-
-    #     # slant range correction and EGN data
-    #     if self.export_slant_correction_checkbox.isChecked():
-    #         slant_data_path = pathlib.Path(
-    #             self.main_ui.settings_dict["Working dir"]
-    #         ) / (filepath.stem + "_slant_corrected.npz")
-    #     else:
-    #         slant_data_path = None
-
-    #     if load_slant_data:
-    #         slant_data = np.load(slant_data_path)
-    #         preproc.slant_corrected_mat = slant_data["slant_corr"]
-
-    #     else:
-    #         if self.pie_slice_filter_checkbox.isChecked():
-    #             print(f"Pie slice to: {filepath}")
-    #             preproc.apply_pie_slice_filter()
-    #         preproc.slant_range_correction(
-    #             active_interpolation=True,
-    #             nadir_angle=int(self.nadir_angle_edit.line_edit.text()),
-    #             save_to=slant_data_path,
-    #             active_mult_slant_range_resampling=True,
-    #         )
-
-    #     if self.active_gain_norm_checkbox.isChecked():
-    #         if self.egn_radio_btn.isChecked():
-    #             egn_table_path = self.main_ui.egn_table_picker.cur_dir
-    #             if not pathlib.Path(egn_table_path).exists():
-    #                 dlg = QMessageBox(self)
-    #                 dlg.setWindowTitle("EGN table not found")
-    #                 dlg.setText(
-    #                     f"The specified EGN table {egn_table_path} doesn't exist."
-    #                 )
-    #                 dlg.exec()
-
-    #             if self.export_slant_correction_checkbox.isChecked():
-    #                 gain_corrected_path = pathlib.Path(
-    #                     self.main_ui.settings_dict["Working dir"]
-    #                 ) / (filepath.stem + "_egn_corrected.npz")
-    #             else:
-    #                 gain_corrected_path = None
-
-    #             if load_egn_data:
-    #                 egn_data = np.load(gain_corrected_path)
-    #                 preproc.egn_corrected_mat = egn_data["egn_corrected_mat"]
-    #             else:
-    #                 preproc.do_EGN_correction(
-    #                     egn_table_path,
-    #                     save_to=gain_corrected_path,
-    #                 )
-    #         elif self.beam_ang_corr_radio_btn.isChecked():
-    #             gain_corrected_path = pathlib.Path(
-    #                 self.main_ui.settings_dict["Working dir"]
-    #             ) / (filepath.stem + "_egn_corrected.npz")
-    #             if load_egn_data:
-    #                 egn_data = np.load(gain_corrected_path)
-    #                 preproc.egn_corrected_mat = egn_data["egn_corrected_mat"]
-    #             else:
-    #                 preproc.apply_beam_pattern_correction()
-    #                 preproc.apply_energy_normalization()
-    #                 # TODO: remove need for this HACK
-    #                 preproc.egn_corrected_mat = np.hstack(
-    #                     (
-    #                         np.fliplr(preproc.sonar_data_proc[0]),
-    #                         preproc.sonar_data_proc[1],
-    #                     )
-    #                 )
-    #                 if self.export_slant_correction_checkbox.isChecked():
-    #                     np.savez(
-    #                         gain_corrected_path,
-    #                         egn_table_path="TODO",
-    #                         egn_corrected_mat=preproc.egn_corrected_mat,
-    #                     )
-    #     # TODO: make this work by eliminating need for the other mats
-    #     if self.sharpening_filter_checkbox.isChecked():
-    #         preproc.apply_sharpening_filter()
-    #     self.data_changed.emit()
-    #     return sidescan_file, preproc
-
     def process_all_files(self):
         path_list = []
         for idx, path in enumerate(self.main_ui.file_dict["Path"]):
             if self.main_ui.file_dict["Bottom line"][idx] == "Y":
                 path_list.append(pathlib.Path(path))
-        
-        self.start_intern_processing_manager(path_list)
 
-        # if self.active_multiprocessing_checkbox.isChecked():
-        #     num_worker = int(self.num_worker_edit.line_edit.text())
-        #     pool = multiprocessing.dummy.Pool(num_worker)
-        #     res = pool.map(
-        #         self.do_slant_corr_and_processing,
-        #         path_list,
-        #     )
-        #     print(res)
-        #     pool.close()
-        # else:
-        #     for filepath in path_list:
-        #         self.do_slant_corr_and_processing(filepath)
+        self.start_intern_processing_manager(path_list)
 
     def process_single_file(self):
         if len(self.main_ui.file_table.selectedIndexes()) > 0:
@@ -1078,16 +959,12 @@ class ProcessingWidget(QVBoxLayout):
         else:
             filepath = pathlib.Path(self.main_ui.file_dict["Path"][0])
 
-        # self.do_slant_corr_and_processing(filepath)
-        # self.data_changed.emit()
         self.start_intern_processing_manager([filepath])
 
     def start_intern_processing_manager(self, files: list):
         work_dir = pathlib.Path(self.main_ui.settings_dict["Working dir"])
         pre_proc_mng = PreProcManager()
-        pre_proc_mng.processing_finished.connect(
-            lambda: self.data_changed.emit()
-        )
+        pre_proc_mng.processing_finished.connect(lambda: self.data_changed.emit())
         pre_proc_mng.aborted_signal.connect(
             lambda err_msg: self.show_error_msg(err_msg)
         )
@@ -1251,11 +1128,6 @@ class ViewAndExportWidget(QVBoxLayout):
         if self.active_reprocess_file_checkbox.isChecked():
             load_egn = False
             load_slant = False
-        # sidescan_file, preproc = (
-        #     self.main_ui.processing_widget.do_slant_corr_and_processing(
-        #         filepath, load_slant_data=load_slant, load_egn_data=load_egn
-        #     )
-        # )
         # load data or start processing and trigger napari when data is present
         pre_proc_mng = PreProcManager()
         work_dir = pathlib.Path(self.main_ui.settings_dict["Working dir"])
@@ -1269,8 +1141,12 @@ class ViewAndExportWidget(QVBoxLayout):
             files=[filepath],
             work_dir=work_dir,
             egn_table_path=self.main_ui.egn_table_picker.cur_dir,
-            chunk_size=int(self.main_ui.processing_widget.slant_chunk_size_edit.line_edit.text()),
-            nadir_angle=int(self.main_ui.processing_widget.nadir_angle_edit.line_edit.text()),
+            chunk_size=int(
+                self.main_ui.processing_widget.slant_chunk_size_edit.line_edit.text()
+            ),
+            nadir_angle=int(
+                self.main_ui.processing_widget.nadir_angle_edit.line_edit.text()
+            ),
             active_export_slant_corr_mat=self.main_ui.processing_widget.export_slant_correction_checkbox.isChecked(),
             active_export_gain_corr_mat=self.main_ui.processing_widget.export_final_proc_checkbox.isChecked(),
             load_slant_data=load_slant,
@@ -1281,7 +1157,6 @@ class ViewAndExportWidget(QVBoxLayout):
             active_bac=self.main_ui.processing_widget.beam_ang_corr_radio_btn.isChecked(),
             active_sharpening_filter=self.main_ui.processing_widget.sharpening_filter_checkbox.isChecked(),
         )
-    
 
     def preproc_to_run_napari(self, res: list):
         sidescan_file = res[0]
@@ -1300,7 +1175,7 @@ class ViewAndExportWidget(QVBoxLayout):
             "interpolation": "linear",
         }
         preproc.build_bottom_line_map()
-                            
+
         # chunkify all data for plotting
         raw_image_chunk = np.zeros(
             (preproc.num_chunk, preproc.chunk_size, preproc.ping_len * 2)
@@ -1341,40 +1216,16 @@ class ViewAndExportWidget(QVBoxLayout):
         raw_image_chunk_plot = copy.copy(raw_image_chunk)
         slant_corr_chunk_plot = copy.copy(slant_corr_chunk)
         egn_corr_chunk_plot = copy.copy(egn_corr_chunk)
-        if (
-            self.active_convert_dB_checkbox.isChecked()
-        ):
+        if self.active_convert_dB_checkbox.isChecked():
             raw_image_chunk_plot = convert_to_dB(raw_image_chunk_plot)
             slant_corr_chunk_plot = convert_to_dB(slant_corr_chunk_plot)
             egn_corr_chunk_plot = convert_to_dB(egn_corr_chunk_plot)
         if self.hist_equal_checkbox.isChecked():
             egn_corr_chunk_plot = hist_equalization(egn_corr_chunk_plot)
-            # raw_image_chunk = copy.copy(raw_image_chunk)
-            # viewer, image_layer_1 = napari.imshow(
-            #     convert_to_dB(raw_image_chunk),
-            #     colormap=self.sonar_dat_cmap,
-            #     name="Raw image (dB)",
-            # )
-            # image_layer_2 = viewer.add_image(
-            #     preproc.bottom_map, colormap=bottom_colormap
-            # )
-            # image_layer_3 = viewer.add_image(
-            #     convert_to_dB(slant_corr_chunk),
-            #     colormap=self.sonar_dat_cmap,
-            #     name="Slant corrected image (dB)",
-            # )
-            # image_layer_4 = viewer.add_image(
-            #     convert_to_dB(egn_corr_chunk),
-            #     colormap=self.sonar_dat_cmap,
-            #     name="Gain corrected image (dB)",
-            # )
-        # else:
         viewer, image_layer_1 = napari.imshow(
             raw_image_chunk_plot, colormap=self.sonar_dat_cmap, name="Raw image"
         )
-        image_layer_2 = viewer.add_image(
-            preproc.bottom_map, colormap=bottom_colormap
-        )
+        image_layer_2 = viewer.add_image(preproc.bottom_map, colormap=bottom_colormap)
         image_layer_3 = viewer.add_image(
             slant_corr_chunk_plot,
             colormap=self.sonar_dat_cmap,
@@ -1395,11 +1246,7 @@ class ViewAndExportWidget(QVBoxLayout):
             file_idx = 0
             if len(self.main_ui.file_table.selectedIndexes()) > 0:
                 file_idx = self.main_ui.file_table.selectedIndexes()[0].row()
-            file_list = [
-                pathlib.Path(
-                    self.main_ui.file_dict["Path"][file_idx]
-                )
-            ]
+            file_list = [pathlib.Path(self.main_ui.file_dict["Path"][file_idx])]
 
         work_dir = pathlib.Path(self.main_ui.settings_dict["Working dir"])
         for filepath in file_list:
@@ -1424,8 +1271,12 @@ class ViewAndExportWidget(QVBoxLayout):
             files=file_list,
             work_dir=work_dir,
             egn_table_path=self.main_ui.egn_table_picker.cur_dir,
-            chunk_size=int(self.main_ui.processing_widget.slant_chunk_size_edit.line_edit.text()),
-            nadir_angle=int(self.main_ui.processing_widget.nadir_angle_edit.line_edit.text()),
+            chunk_size=int(
+                self.main_ui.processing_widget.slant_chunk_size_edit.line_edit.text()
+            ),
+            nadir_angle=int(
+                self.main_ui.processing_widget.nadir_angle_edit.line_edit.text()
+            ),
             active_export_slant_corr_mat=self.main_ui.processing_widget.export_slant_correction_checkbox.isChecked(),
             active_export_gain_corr_mat=self.main_ui.processing_widget.export_final_proc_checkbox.isChecked(),
             load_slant_data=load_slant_data,
@@ -1438,57 +1289,53 @@ class ViewAndExportWidget(QVBoxLayout):
         )
 
     def start_georeferencer(self, res_list: list):
-            sidescan_file = res_list[0]
-            preproc = res_list[1]
-            filepath = sidescan_file.filepath
-            proc_data_0 = None
-            proc_data_1 = None
-            if self.active_use_proc_data_checkbox.isChecked():
-                proc_data_0 = preproc.egn_corrected_mat[:, 0 : sidescan_file.ping_len]
-                proc_data_0 = np.nan_to_num(
-                    proc_data_0
-                )  # remove nans from excluding far/nadir unknown values
-                proc_data_1 = preproc.egn_corrected_mat[:, sidescan_file.ping_len :]
-                proc_data_1 = np.nan_to_num(proc_data_1)
+        sidescan_file = res_list[0]
+        preproc = res_list[1]
+        filepath = sidescan_file.filepath
+        proc_data_0 = None
+        proc_data_1 = None
+        if self.active_use_proc_data_checkbox.isChecked():
+            proc_data_0 = preproc.egn_corrected_mat[:, 0 : sidescan_file.ping_len]
+            proc_data_0 = np.nan_to_num(
+                proc_data_0
+            )  # remove nans from excluding far/nadir unknown values
+            proc_data_1 = preproc.egn_corrected_mat[:, sidescan_file.ping_len :]
+            proc_data_1 = np.nan_to_num(proc_data_1)
 
+        proc_data_out_0 = copy.copy(proc_data_0)
+        proc_data_out_1 = copy.copy(proc_data_1)
+        if self.active_convert_dB_checkbox.isChecked():
+            proc_data_out_0 = convert_to_dB(proc_data_out_0)
+            proc_data_out_1 = convert_to_dB(proc_data_out_1)
+        if self.hist_equal_checkbox.isChecked():
+            proc_data_out_0 = hist_equalization(proc_data_out_0)
+            proc_data_out_1 = hist_equalization(proc_data_out_1)
 
-            proc_data_out_0 = copy.copy(proc_data_0)
-            proc_data_out_1 = copy.copy(proc_data_1)
-            if (
-                self.active_convert_dB_checkbox.isChecked()
-            ):
-                proc_data_out_0 = convert_to_dB(proc_data_out_0)
-                proc_data_out_1 = convert_to_dB(proc_data_out_1)
-            if self.hist_equal_checkbox.isChecked():
-                proc_data_out_0 = hist_equalization(proc_data_out_0)
-                proc_data_out_1 = hist_equalization(proc_data_out_1)
-                
-
-            # start georeferencing
-            georeferencer = SidescanGeoreferencer(
-                filepath=filepath,
-                channel=0,
-                dynamic_chunking=self.active_dynamic_chunking_checkbox.isChecked(),
-                active_utm=self.active_utm_checkbox.isChecked(),
-                output_folder=self.main_ui.settings_dict["Georef dir"],
-                proc_data=proc_data_out_0,
-                vertical_beam_angle=int(
-                    self.main_ui.processing_widget.vertical_beam_angle_edit.line_edit.text()
-                ),
-            )
-            georeferencer.process()
-            georeferencer = SidescanGeoreferencer(
-                filepath=filepath,
-                channel=1,
-                dynamic_chunking=self.active_dynamic_chunking_checkbox.isChecked(),
-                active_utm=self.active_utm_checkbox.isChecked(),
-                output_folder=self.main_ui.settings_dict["Georef dir"],
-                proc_data=proc_data_out_1,
-                vertical_beam_angle=int(
-                    self.main_ui.processing_widget.vertical_beam_angle_edit.line_edit.text()
-                ),
-            )
-            georeferencer.process()
+        # start georeferencing
+        georeferencer = SidescanGeoreferencer(
+            filepath=filepath,
+            channel=0,
+            dynamic_chunking=self.active_dynamic_chunking_checkbox.isChecked(),
+            active_utm=self.active_utm_checkbox.isChecked(),
+            output_folder=self.main_ui.settings_dict["Georef dir"],
+            proc_data=proc_data_out_0,
+            vertical_beam_angle=int(
+                self.main_ui.processing_widget.vertical_beam_angle_edit.line_edit.text()
+            ),
+        )
+        georeferencer.process()
+        georeferencer = SidescanGeoreferencer(
+            filepath=filepath,
+            channel=1,
+            dynamic_chunking=self.active_dynamic_chunking_checkbox.isChecked(),
+            active_utm=self.active_utm_checkbox.isChecked(),
+            output_folder=self.main_ui.settings_dict["Georef dir"],
+            proc_data=proc_data_out_1,
+            vertical_beam_angle=int(
+                self.main_ui.processing_widget.vertical_beam_angle_edit.line_edit.text()
+            ),
+        )
+        georeferencer.process()
 
     def generate_wc_img(self, active_generate_all: bool):
         if len(self.main_ui.file_table.selectedIndexes()) > 0:
@@ -1498,9 +1345,7 @@ class ViewAndExportWidget(QVBoxLayout):
                 ]
             )
         else:
-            filepath = pathlib.Path(
-                self.main_ui.file_dict["Path"][0]
-            )
+            filepath = pathlib.Path(self.main_ui.file_dict["Path"][0])
         if active_generate_all:
             pathlist = []
             for path_idx in range(len(self.main_ui.file_dict["Path"])):
@@ -1526,8 +1371,12 @@ class ViewAndExportWidget(QVBoxLayout):
             files=pathlist,
             work_dir=work_dir,
             egn_table_path=self.main_ui.egn_table_picker.cur_dir,
-            chunk_size=int(self.main_ui.processing_widget.slant_chunk_size_edit.line_edit.text()),
-            nadir_angle=int(self.main_ui.processing_widget.nadir_angle_edit.line_edit.text()),
+            chunk_size=int(
+                self.main_ui.processing_widget.slant_chunk_size_edit.line_edit.text()
+            ),
+            nadir_angle=int(
+                self.main_ui.processing_widget.nadir_angle_edit.line_edit.text()
+            ),
             active_export_slant_corr_mat=self.main_ui.processing_widget.export_slant_correction_checkbox.isChecked(),
             active_export_gain_corr_mat=self.main_ui.processing_widget.export_final_proc_checkbox.isChecked(),
             load_slant_data=load_slant_data,
@@ -1538,7 +1387,7 @@ class ViewAndExportWidget(QVBoxLayout):
             active_bac=self.main_ui.processing_widget.beam_ang_corr_radio_btn.isChecked(),
             active_sharpening_filter=self.main_ui.processing_widget.sharpening_filter_checkbox.isChecked(),
         )
-    
+
     def start_wc_image_export(self, res_list: list):
         # TODO: this is quite custom for the GNB project, do we want to alter this?
         active_add_raw_img = True
@@ -1550,9 +1399,7 @@ class ViewAndExportWidget(QVBoxLayout):
         chunk_size = int(self.img_chunk_size_edit.line_edit.text())
         work_dir = pathlib.Path(self.main_ui.settings_dict["Working dir"])
         data = copy.copy(preproc.egn_corrected_mat)
-        if (
-            self.active_convert_dB_checkbox.isChecked()
-        ):
+        if self.active_convert_dB_checkbox.isChecked():
             data = convert_to_dB(data)
         if self.hist_equal_checkbox.isChecked():
             data = hist_equalization(data)
@@ -1564,8 +1411,12 @@ class ViewAndExportWidget(QVBoxLayout):
             data_ch1 = sidescan_file.data[1]
             # decimate raw data for plotting in napari
             if preproc.downsampling_factor != 1:
-                data_ch0 = scisig.decimate(data_ch0, preproc.downsampling_factor, axis=1)
-                data_ch1 = scisig.decimate(data_ch1, preproc.downsampling_factor, axis=1)
+                data_ch0 = scisig.decimate(
+                    data_ch0, preproc.downsampling_factor, axis=1
+                )
+                data_ch1 = scisig.decimate(
+                    data_ch1, preproc.downsampling_factor, axis=1
+                )
             raw_data = np.array(
                 np.hstack((data_ch0, data_ch1)),
                 dtype=float,
@@ -1582,10 +1433,10 @@ class ViewAndExportWidget(QVBoxLayout):
             data_shape = np.shape(data)
             num_chunk = int(np.ceil(data_shape[0] / chunk_size))
             for chunk_idx in range(num_chunk):
-                im_name = str(work_dir / (sidescan_file.filepath.stem + f"_{chunk_idx}.png"))
-                data_out = data[
-                    chunk_idx * chunk_size : (chunk_idx + 1) * chunk_size
-                ]
+                im_name = str(
+                    work_dir / (sidescan_file.filepath.stem + f"_{chunk_idx}.png")
+                )
+                data_out = data[chunk_idx * chunk_size : (chunk_idx + 1) * chunk_size]
                 if active_norm_chunks:
                     data_out = np.array(data_out, dtype=float)
                     data_out[:, : 2 * preproc.ping_len] /= (

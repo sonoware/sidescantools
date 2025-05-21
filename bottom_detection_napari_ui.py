@@ -43,6 +43,7 @@ def run_napari_btm_line(
     )
 
     # Init bottom detection by doing an initial guess
+    print("Initializing napari UI for Bottom Detection")
     preproc.init_napari_bottom_detect(
         default_threshold,
         active_dB=active_dB,

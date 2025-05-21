@@ -1,13 +1,13 @@
 name: env_sidescantools
 channels:
-  - conda-forge
   - defaults
+  - conda-forge
 dependencies:
   - python=3.12
   - geopy
   - conda-forge::napari
+  - conda-forge::pyqt=5.*
   - qtpy
-  - PySide6
   - pyproj
   - conda-forge::gdal=3.11
   - pip

@@ -9,13 +9,10 @@ from qtpy.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QSizePolicy,
-    QProgressBar,
-    QWidget,
 )
 import qtpy.QtCore as QtCore
 import qtpy.QtGui as QtGui
 import pathlib
-from sidescan_file import SidescanFile
 import numpy as np
 from skimage import exposure
 

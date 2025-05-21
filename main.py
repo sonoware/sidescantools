@@ -42,6 +42,7 @@ from custom_widgets import (
 )
 from custom_threading import FileImportManager, EGNTableBuilder, PreProcManager
 from enum import Enum
+import scipy.signal as scisig
 
 GAINSTRAT = Enum("GAINSTRAT", [("BAC", 0), ("EGN", 1)])
 
@@ -1285,7 +1286,13 @@ class ViewAndExportWidget(QVBoxLayout):
     def preproc_to_run_napari(self, res: list):
         sidescan_file = res[0]
         preproc = res[1]
-        raw_image = np.hstack((sidescan_file.data[0], sidescan_file.data[1]))
+        data_ch0 = sidescan_file.data[0]
+        data_ch1 = sidescan_file.data[1]
+        # decimate raw data for plotting in napari
+        if preproc.downsampling_factor != 1:
+            data_ch0 = scisig.decimate(data_ch0, preproc.downsampling_factor, axis=1)
+            data_ch1 = scisig.decimate(data_ch1, preproc.downsampling_factor, axis=1)
+        raw_image = np.hstack((data_ch0, data_ch1))
         colors = [[1, 1, 1, 0], [1, 0, 0, 1]]  # r,g,b,alpha
         bottom_colormap = {
             "colors": colors,
@@ -1293,7 +1300,7 @@ class ViewAndExportWidget(QVBoxLayout):
             "interpolation": "linear",
         }
         preproc.build_bottom_line_map()
-
+                            
         # chunkify all data for plotting
         raw_image_chunk = np.zeros(
             (preproc.num_chunk, preproc.chunk_size, preproc.ping_len * 2)
@@ -1553,8 +1560,14 @@ class ViewAndExportWidget(QVBoxLayout):
         data /= np.nanmax(np.abs(data)) / 255
         data = np.array(data, dtype=np.uint8)
         if active_add_raw_img:
+            data_ch0 = sidescan_file.data[0]
+            data_ch1 = sidescan_file.data[1]
+            # decimate raw data for plotting in napari
+            if preproc.downsampling_factor != 1:
+                data_ch0 = scisig.decimate(data_ch0, preproc.downsampling_factor, axis=1)
+                data_ch1 = scisig.decimate(data_ch1, preproc.downsampling_factor, axis=1)
             raw_data = np.array(
-                np.hstack((sidescan_file.data[0], sidescan_file.data[1])),
+                np.hstack((data_ch0, data_ch1)),
                 dtype=float,
             )
             if (

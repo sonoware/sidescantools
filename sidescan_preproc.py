@@ -161,6 +161,10 @@ class SidescanPreprocessor:
         if active_dB:
             portside = convert_to_dB(portside)
             starboard = convert_to_dB(starboard)
+        if np.min(portside) < 0:
+            portside = portside - np.min(portside)
+        if np.min(starboard) < 0:
+            starboard = starboard - np.min(starboard)
         indv_max_portside = np.max(portside, 1)
         portside = portside / indv_max_portside[:, None]
         indv_max_starboard = np.max(starboard, 1)

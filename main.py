@@ -65,6 +65,7 @@ class SidescanToolsMain(QWidget):
         "Btm def thresh": 0.6,
         "Btm downsampling": 1,
         "Active convert dB": True,
+        "Btm equal hist": True,
         "Active pie slice filter": True,
         "Active sharpening filter": False,
         "Active gain norm": True,
@@ -529,6 +530,9 @@ class SidescanToolsMain(QWidget):
         self.settings_dict["Active convert dB"] = (
             self.bottom_line_detection_widget.active_convert_dB_checkbox.isChecked()
         )
+        self.settings_dict["Btm equal hist"] = (
+            self.bottom_line_detection_widget.active_hist_equal_checkbox.isChecked()
+        )
         self.settings_dict["Active pie slice filter"] = (
             self.processing_widget.pie_slice_filter_checkbox.isChecked()
         )
@@ -611,6 +615,9 @@ class SidescanToolsMain(QWidget):
         )
         self.bottom_line_detection_widget.active_convert_dB_checkbox.setChecked(
             self.settings_dict["Active convert dB"]
+        )
+        self.bottom_line_detection_widget.active_hist_equal_checkbox.setChecked(
+            self.settings_dict["Btm equal hist"]
         )
         self.processing_widget.pie_slice_filter_checkbox.setChecked(
             self.settings_dict["Active pie slice filter"]
@@ -714,6 +721,7 @@ class BottomLineDetectionWidget(QVBoxLayout):
         self.active_convert_dB_checkbox.setToolTip(
             "Convert data to decibel for display (this is usually a good practice)."
         )
+        self.active_hist_equal_checkbox = QCheckBox("Apply Contrast Limited Adaptive Histogram Equalization (CLAHE)")
         self.active_convert_dB_checkbox.stateChanged.connect(self.db_checkbox_changed)
         self.do_btm_detection_btn = QPushButton("Bottom Line Detection")
         self.do_btm_detection_btn.setToolTip("Start Bottom Line Detection")
@@ -724,6 +732,7 @@ class BottomLineDetectionWidget(QVBoxLayout):
         self.addLayout(self.btm_default_thresh)
         self.addLayout(self.btm_downsample_fact)
         self.addWidget(self.active_convert_dB_checkbox)
+        self.addWidget(self.active_hist_equal_checkbox)
         self.addWidget(self.do_btm_detection_btn)
         verticalSpacer = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
         self.addItem(verticalSpacer)
@@ -745,6 +754,7 @@ class BottomLineDetectionWidget(QVBoxLayout):
             downsampling_factor=int(self.btm_downsample_fact.line_edit.text()),
             work_dir=self.main_ui.output_picker.cur_dir,
             active_dB=self.active_convert_dB_checkbox.isChecked(),
+            active_hist_equal=self.active_convert_dB_checkbox.isChecked(),
         )
         self.data_changed.emit()
 

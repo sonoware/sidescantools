@@ -7,7 +7,7 @@ import skimage
 from skimage import feature
 from pathlib import Path
 import geopy.distance as geo_dist
-from custom_widgets import convert_to_dB
+from custom_widgets import convert_to_dB, hist_equalization
 
 
 class SidescanPreprocessor:
@@ -154,7 +154,7 @@ class SidescanPreprocessor:
             else:
                 initial_guess = False
 
-    def init_napari_bottom_detect(self, default_threshold, active_dB=False):
+    def init_napari_bottom_detect(self, default_threshold, active_dB=False,active_hist_equal=False):
 
         # normalize each ping individually
         portside = np.array(self.sonar_data_proc[0], dtype=float)
@@ -171,6 +171,10 @@ class SidescanPreprocessor:
         indv_max_starboard = np.max(starboard, 1)
         starboard = starboard / indv_max_starboard[:, None]
 
+        if active_hist_equal:
+            portside = hist_equalization(portside)
+            starboard = hist_equalization(starboard)
+            
         # do initial bottom line detection for start values
         self.detect_bottom_line_t(
             threshold_bin=default_threshold,

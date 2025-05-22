@@ -14,6 +14,7 @@ def run_napari_btm_line(
     downsampling_factor=1,
     work_dir=None,
     active_dB=False,
+    active_hist_equal=False,
 ):
     """Run bottom line detection in napari on a given file
 
@@ -47,6 +48,7 @@ def run_napari_btm_line(
     preproc.init_napari_bottom_detect(
         default_threshold,
         active_dB=active_dB,
+        active_hist_equal=active_hist_equal,
     )
 
     # build napari GUI
@@ -188,7 +190,11 @@ def run_napari_btm_line(
 
             # on move
             last_pos = np.zeros(3)
-            while event.type == "mouse_move":
+            while (
+                event.type == "mouse_move"
+                and 0 <= event.position[1] < layer.data.shape[1]
+                and 0 <= event.position[2] < layer.data.shape[2]
+            ):
                 dragged = True
 
                 cur_pos = np.array(np.round(event.position), dtype=int)
@@ -270,7 +276,10 @@ def run_napari_btm_line(
             # on release
             if dragged:
                 dragged = False
-            else:
+            elif (
+                0 <= event.position[1] < layer.data.shape[1]
+                and 0 <= event.position[2] < layer.data.shape[2]
+            ):
                 cur_pos = np.array(np.round(event.position), dtype=int)
                 if event.position[2] < layer.data.shape[2] / 2:
                     preproc.napari_portside_bottom[cur_pos[0], cur_pos[1]] = cur_pos[2]

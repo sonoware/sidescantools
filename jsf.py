@@ -20,7 +20,7 @@ class JSFHeader:
         "channel": "B",
         "seq_no": "B",
         "reserved": "H",
-        "msg_size": "L",
+        "msg_size": "l",
     }
     sync: int
     """Marker for the Sync/Start of Header (always 0x1601)"""

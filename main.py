@@ -81,6 +81,7 @@ class SidescanToolsMain(QWidget):
         "Slant active export slant data": True,
         "View reprocess file": False,
         "Img chunk size": 1000,
+        "Img include raw data": False,
         "Georef active proc data": True,
         "Georef active dynamic chunking": False,
         "Georef UTM": True,
@@ -573,6 +574,9 @@ class SidescanToolsMain(QWidget):
         self.settings_dict["Img chunk size"] = (
             self.view_and_export_widget.img_chunk_size_edit.line_edit.text()
         )
+        self.settings_dict["Img include raw data"] = (
+            self.view_and_export_widget.include_raw_data_checkbox.isChecked()
+        )
         self.settings_dict["Georef active proc data"] = (
             self.view_and_export_widget.active_use_proc_data_checkbox.isChecked()
         )
@@ -652,6 +656,9 @@ class SidescanToolsMain(QWidget):
         )
         self.view_and_export_widget.img_chunk_size_edit.line_edit.setText(
             str(self.settings_dict["Img chunk size"])
+        )
+        self.view_and_export_widget.include_raw_data_checkbox.setChecked(
+            self.settings_dict["Img include raw data"]
         )
         self.view_and_export_widget.active_use_proc_data_checkbox.setChecked(
             self.settings_dict["Georef active proc data"]
@@ -1077,6 +1084,9 @@ class ViewAndExportWidget(QVBoxLayout):
         self.generate_all_georef_btn.clicked.connect(
             lambda: self.run_sidescan_georef(True)
         )
+        self.include_raw_data_checkbox = QCheckBox(
+            "Include raw data in Waterfall Image"
+        )
         self.generate_simple_img_btn = QPushButton("Selected")
         self.generate_simple_img_btn.clicked.connect(
             lambda: self.generate_wc_img(False)
@@ -1104,6 +1114,7 @@ class ViewAndExportWidget(QVBoxLayout):
         )
         self.addLayout(self.labeled_georef_buttons)
         self.addLayout(self.img_chunk_size_edit)
+        self.addWidget(self.include_raw_data_checkbox)
         self.labeled_img_export_buttons = Labeled2Buttons(
             "Generate Waterfall Image:",
             self.generate_simple_img_btn,
@@ -1391,7 +1402,7 @@ class ViewAndExportWidget(QVBoxLayout):
 
     def start_wc_image_export(self, res_list: list):
         # TODO: this is quite custom for the GNB project, do we want to alter this?
-        active_add_raw_img = True
+        active_add_raw_img = self.include_raw_data_checkbox.isChecked()
         active_chunkify = True
         active_norm_chunks = False
         # get needed data

@@ -9,7 +9,7 @@ class JSFHeader:
     """JSF File Header"""
 
     HEADERSIZE: int = 16
-    fmt: str = "@"
+    fmt: str = "="
     format_def = {
         "sync": "H",
         "ver": "B",
@@ -20,7 +20,7 @@ class JSFHeader:
         "channel": "B",
         "seq_no": "B",
         "reserved": "H",
-        "msg_size": "L",
+        "msg_size": "l",
     }
     sync: int
     """Marker for the Sync/Start of Header (always 0x1601)"""
@@ -75,7 +75,7 @@ class JSFSonarDataMessage:
     """JSF Message Type 80: Sonar Data Message"""
 
     HEADERSIZE: int = 240
-    fmt: str = "@"
+    fmt: str = "="
 
     format_def = {
         "time": "l",
@@ -591,7 +591,7 @@ class JSFSonarMessageStatus:
     """JSF Message Type 40: Sonar Message Status"""
 
     MESSAGESIZE: int = 100
-    fmt: str = "@"
+    fmt: str = "="
 
     format_def = {
         "overflowCount": "L",
@@ -610,7 +610,7 @@ class JSFSonarMessageStatus:
         "power48Volts": "l",
         "reserved3": "l",
         "lowRateIO4": "4h",
-        "serialPortState": "8H",
+        "serialPortState": "8B",
         "runtimeAlerts": "l",
         "reserved4": "5l",
     }
@@ -703,7 +703,7 @@ class JSFNavigationOffsets:
     """JSF Message Type 181: Navigation Offsets"""
 
     MESSAGESIZE: int = 64
-    fmt: str = "@"
+    fmt: str = "="
 
     format_def = {
         "x_offset": "f",
@@ -764,7 +764,7 @@ class JSFSystemInformation:
     """Message Type 182: System Information"""
 
     MESSAGESIZE = 24
-    fmt: str = "@"
+    fmt: str = "="
 
     format_def = {
         "system_type": "l",
@@ -805,7 +805,7 @@ class JSFTargetFileData:
     """Message Type 1260: Target File Data"""
 
     HEADERSIZE = 824
-    fmt: str = "@"
+    fmt: str = "="
 
     format_def = {
         "time": "l",
@@ -936,7 +936,7 @@ class JSFNMEAString:
     """Message Type 2002: NMEA String"""
 
     HEADERSIZE = 12
-    fmt: str = "@"
+    fmt: str = "="
 
     format_def = {
         "time": "l",
@@ -975,7 +975,7 @@ class JSFPitchRollData:
     """Message Type 2020: Pitch Roll Data"""
 
     MESSAGESIZE = 44
-    fmt: str = "@"
+    fmt: str = "="
 
     format_def = {
         "time": "l",
@@ -1090,7 +1090,7 @@ class JSFPressureSensorReading:
     """Message Type 2060: Pressure Sensor Reading"""
 
     MESSAGESIZE = 76
-    fmt: str = "@"
+    fmt: str = "="
 
     format_def = {
         "time": "l",
@@ -1149,7 +1149,7 @@ class JSFReflectionCoeff:
     """Message Type 2071: Reflection Coefficient"""
 
     HEADERSIZE = 32
-    fmt: str = "@"
+    fmt: str = "="
 
     format_def = {
         "time": "l",
@@ -1205,7 +1205,7 @@ class JSFDopplerVelocityLog:
     """Message Type 2080: Doppler Velocity Log Data (DVL)"""
 
     MESSAGESIZE = 72
-    fmt: str = "@"
+    fmt: str = "="
 
     format_def = {
         "time": "l",
@@ -1330,7 +1330,7 @@ class JSFSituationComprehensiveMessage:
     """Message Type 2091: Situation Comprehensive Message (Version 2)"""
 
     MESSAGESIZE = 100
-    fmt: str = "@"
+    fmt: str = "="
 
     format_def = {
         "time": "l",
@@ -1434,7 +1434,7 @@ class JSFCableCounterDataMessage:
     """Message Type 2100: Cable Counter Data Message"""
 
     MESSAGESIZE = 32
-    fmt: str = "@"
+    fmt: str = "="
 
     format_def = {
         "time": "l",
@@ -1483,7 +1483,7 @@ class JSFKilometerOfPipe:
     """Message Type 2101: Kilometer of Pipe Data"""
 
     MESSAGESIZE = 20
-    fmt: str = "@"
+    fmt: str = "="
 
     format_def = {
         "time": "l",
@@ -1528,7 +1528,7 @@ class JSFContainerTimestampMsg:
     """Message Type 2111: Container Timestamp Message"""
 
     MESSAGESIZE = 12
-    fmt: str = "@"
+    fmt: str = "="
 
     format_def = {
         "time": "l",
@@ -1557,7 +1557,7 @@ class JSFStorageMsgTimestamp:
     """Message Type 426: Storage Message Timestamp - interpretation unclear, reverse engineered using the JSF File Viewer"""
 
     MESSAGESIZE = 8
-    fmt: str = "@"
+    fmt: str = "="
 
     format_def = {
         "time": "l",

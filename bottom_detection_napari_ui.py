@@ -6,8 +6,15 @@ import numpy as np
 from sidescan_file import SidescanFile
 import os
 
+
 def run_napari_btm_line(
-    filepath: str | os.PathLike, chunk_size=1000, default_threshold=0.7, downsampling_factor=1, work_dir=None, convert_to_dB = False,
+    filepath: str | os.PathLike,
+    chunk_size=1000,
+    default_threshold=0.7,
+    downsampling_factor=1,
+    work_dir=None,
+    active_dB=False,
+    active_hist_equal=False,
 ):
     """Run bottom line detection in napari on a given file
 
@@ -15,31 +22,33 @@ def run_napari_btm_line(
     ----------
     filepath: str | os.PathLike
         Path to sidescan file
-    chunk_size: int 
+    chunk_size: int
         Number of pings per single chunk
     default_threshold: float
         Number in range [0, 1] that is used as threshold for binarization of the image before the edges are detected
-    downsampling_factor: int 
+    downsampling_factor: int
         Factor used for decimation of ping signals
     work_dir: str | os.PathLike
         Path to desired directory that is used as default directory for saving/loading of results to ``.npz`` files
-    convert_to_dB: bool
+    active_dB: bool
         If ``True`` data will be converted to dB for display in napari
     """
     filepath = Path(filepath)
     add_line_width = 1  # additional line width for plotting of bottom line
-    
+
     sidescan_file = SidescanFile(filepath)
     preproc = SidescanPreprocessor(
         sidescan_file=sidescan_file,
         chunk_size=chunk_size,
-        convert_to_dB=convert_to_dB,
         downsampling_factor=downsampling_factor,
     )
-    
+
     # Init bottom detection by doing an initial guess
+    print("Initializing napari UI for Bottom Detection")
     preproc.init_napari_bottom_detect(
-        default_threshold, #adjust_starfish_amp_fit=adjust_starfish_amp_fit
+        default_threshold,
+        active_dB=active_dB,
+        active_hist_equal=active_hist_equal,
     )
 
     # build napari GUI
@@ -158,10 +167,12 @@ def run_napari_btm_line(
     widget_thresh.threshold_bin.label = "Threshold binarization [0,1]"
     widget_thresh.choose_strategy.label = "Choose strategy"
     widget_thresh.call_button.text = "r: Recalculate"
-    manual_annotation_widget.activate_manual_annotation.text = "m: Activate manual annotation"
+    manual_annotation_widget.activate_manual_annotation.text = (
+        "m: Activate manual annotation"
+    )
     filepicker_save.filename.label = "File"
     filepicker_load.filename.label = "File"
-    
+
     # Handle click or drag events separately
     @bottom_image_layer.mouse_drag_callbacks.append
     def click_drag(layer, event):
@@ -169,6 +180,8 @@ def run_napari_btm_line(
         if (
             manual_annotation_widget.activate_manual_annotation.value
             and event.button == 1
+            and 0 <= np.round(event.position[1]) < layer.data.shape[1]
+            and 0 <= np.round(event.position[2]) < layer.data.shape[2]
         ):
 
             # print('mouse down')
@@ -177,7 +190,11 @@ def run_napari_btm_line(
 
             # on move
             last_pos = np.zeros(3)
-            while event.type == "mouse_move":
+            while (
+                event.type == "mouse_move"
+                and 0 <= np.round(event.position[1]) < layer.data.shape[1]
+                and 0 <= np.round(event.position[2]) < layer.data.shape[2]
+            ):
                 dragged = True
 
                 cur_pos = np.array(np.round(event.position), dtype=int)
@@ -259,7 +276,10 @@ def run_napari_btm_line(
             # on release
             if dragged:
                 dragged = False
-            else:
+            elif (
+                0 <= np.round(event.position[1]) < layer.data.shape[1]
+                and 0 <= np.round(event.position[2]) < layer.data.shape[2]
+            ):
                 cur_pos = np.array(np.round(event.position), dtype=int)
                 if event.position[2] < layer.data.shape[2] / 2:
                     preproc.napari_portside_bottom[cur_pos[0], cur_pos[1]] = cur_pos[2]
@@ -286,7 +306,7 @@ def run_napari_btm_line(
             bottom_image_layer.data = preproc.bottom_map
 
     # run main loop
-    napari.run(max_loop_level=2)
+    viewer.show(block=True)
 
 
 if __name__ == "__main__":
@@ -294,9 +314,16 @@ if __name__ == "__main__":
     default_threshold = (
         0.07  # [0.0, 1.0] -> threshold to make sonar img binary for edge detection
     )
-    downsampling_factor = 1 
-    convert_to_dB = False
+    downsampling_factor = 1
+    active_dB = False
 
     filepath = Path("add_path_to_file_here")
     work_dir = "./sidescan_out"
-    run_napari_btm_line(filepath, chunk_size, default_threshold, downsampling_factor, work_dir=work_dir, convert_to_dB=convert_to_dB)
+    run_napari_btm_line(
+        filepath,
+        chunk_size,
+        default_threshold,
+        downsampling_factor,
+        work_dir=work_dir,
+        active_dB=active_dB,
+    )

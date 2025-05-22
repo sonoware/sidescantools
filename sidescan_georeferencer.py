@@ -12,7 +12,6 @@ from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 from pyproj import CRS
 from scipy.signal import savgol_filter
-import matplotlib.pyplot as plt
 
 
 # TODO: Doc/Type hints
@@ -183,7 +182,7 @@ class SidescanGeoreferencer:
             self.chunk_indices = np.where(np.diff(LAT_ori) != 0)[0] + 2
 
         elif not self.dynamic_chunking:
-            chunksize = 5
+            chunksize = 20
             self.chunk_indices = int(swath_len / chunksize)
             print(f"Fixed chunk size: {20} pings.")
 

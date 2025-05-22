@@ -20,7 +20,7 @@ class JSFHeader:
         "channel": "B",
         "seq_no": "B",
         "reserved": "H",
-        "msg_size": "L",
+        "msg_size": "l",
     }
     sync: int
     """Marker for the Sync/Start of Header (always 0x1601)"""
@@ -610,7 +610,7 @@ class JSFSonarMessageStatus:
         "power48Volts": "l",
         "reserved3": "l",
         "lowRateIO4": "4h",
-        "serialPortState": "8H",
+        "serialPortState": "8B",
         "runtimeAlerts": "l",
         "reserved4": "5l",
     }

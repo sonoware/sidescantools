@@ -22,7 +22,7 @@ class SidescanGeoreferencer:
     sidescan_file: SidescanFile
     channel: int
     dynamic_chunking: bool
-    UTM: bool
+    active_utm: bool
     output_folder: Path
     proc_data: np.array
     active_proc_data: bool
@@ -37,7 +37,7 @@ class SidescanGeoreferencer:
         filepath: str | os.PathLike,
         channel: int = 0,
         dynamic_chunking: bool = False,
-        UTM: bool = True,
+        active_utm: bool = True,
         proc_data=None,
         output_folder: str | os.PathLike = "./georef_out",
         vertical_beam_angle: int = 60,
@@ -46,7 +46,7 @@ class SidescanGeoreferencer:
         self.sidescan_file = SidescanFile(self.filepath)
         self.channel = channel
         self.dynamic_chunking = dynamic_chunking
-        self.UTM = UTM
+        self.active_utm = active_utm
         self.output_folder = Path(output_folder)
         self.vertical_beam_angle = vertical_beam_angle
 
@@ -109,14 +109,14 @@ class SidescanGeoreferencer:
             except:
                 ValueError("Values or lon and/or lat must not be 0")
 
-            if UTM:
-                NORTH = [utm_coord[0] for utm_coord in UTM]
-                EAST = [utm_coord[1] for utm_coord in UTM]
-                UTM_ZONE = [utm_coord[2] for utm_coord in UTM]
-                UTM_LET = [utm_coord[3] for utm_coord in UTM]
-                crs = CRS.from_dict({'proj': 'utm', 'zone': UTM_ZONE[0], 'south': False})
-                epsg = crs.to_authority()
-                self.epsg_code = f'{epsg[0]}:{epsg[1]}'
+            #if self.active_utm:
+            NORTH = [utm_coord[0] for utm_coord in UTM]
+            EAST = [utm_coord[1] for utm_coord in UTM]
+            UTM_ZONE = [utm_coord[2] for utm_coord in UTM]
+            UTM_LET = [utm_coord[3] for utm_coord in UTM]
+            crs = CRS.from_dict({'proj': 'utm', 'zone': UTM_ZONE[0], 'south': False})
+            epsg = crs.to_authority()
+            self.epsg_code = f'{epsg[0]}:{epsg[1]}'
 
 
         if self.channel == 0:
@@ -171,7 +171,7 @@ class SidescanGeoreferencer:
             print(f"Fixed chunk size: {20} pings.")
 
         # UTM
-        if self.UTM: 
+        if self.active_utm: 
             lo_split_ce = np.array_split(NORTH, self.chunk_indices, axis=0)
             la_split_ce = np.array_split(EAST, self.chunk_indices, axis=0)
             lo_split_e = np.array_split(NORTH_OUTER, self.chunk_indices, axis=0)
@@ -370,12 +370,13 @@ class SidescanGeoreferencer:
                         )
                     gdal_translate.extend([str(im_path), str(chunk_path)])
 
-                    if self.UTM:
+                    if self.active_utm:
                         gdal_warp = [
                             "gdalwarp",
                             "-r",
-                            "cubicspline",
-                            "-tps",
+                            "bilinear",
+                            "-order",
+                            "1",
                             "-co",
                             "COMPRESS=DEFLATE",
                             "-t_srs",
@@ -387,8 +388,9 @@ class SidescanGeoreferencer:
                         gdal_warp = [
                             "gdalwarp",
                             "-r",
-                            "cubicspline",
-                            "-tps",
+                            "bilinear",
+                            "-order",
+                            "1",
                             "-co",
                             "COMPRESS=DEFLATE",
                             "-t_srs",
@@ -404,12 +406,13 @@ class SidescanGeoreferencer:
                         )
                     gdal_translate.extend([str(im_path), str(chunk_path)])
 
-                    if self.UTM:
+                    if self.active_utm:
                         gdal_warp = [
                             "gdalwarp",
                             "-r",
-                            "cubicspline",
-                            "-tps",
+                            "bilinear",
+                            "-order",
+                            "1",
                             "-co",
                             "COMPRESS=DEFLATE",
                             "-t_srs",
@@ -421,8 +424,9 @@ class SidescanGeoreferencer:
                         gdal_warp = [
                             "gdalwarp",
                             "-r",
-                            "cubicspline",
-                            "-tps",
+                            "bilinear",
+                            "-order",
+                            "1",
                             "-co",
                             "COMPRESS=DEFLATE",
                             "-t_srs",
@@ -576,7 +580,7 @@ def main():
     args = parser.parse_args()
     print("args:", args)
 
-    georeferencer = SidescanGeoreferencer(args.xtf, args.channel, args.dynamic_chunking, args.UTM)
+    georeferencer = SidescanGeoreferencer(args.xtf, args.channel, args.dynamic_chunking, args.active_utm)
     georeferencer.process()
 
 

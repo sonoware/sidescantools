@@ -7,6 +7,7 @@ import skimage
 from skimage import feature
 from pathlib import Path
 import geopy.distance as geo_dist
+from custom_widgets import convert_to_dB, hist_equalization
 
 
 class SidescanPreprocessor:
@@ -28,13 +29,11 @@ class SidescanPreprocessor:
         "Only use starboard",
     ]
     """["Each side individually", "Combine both sides", "Only use portside", "Only use starboard"]"""
-    convert_to_dB: bool
     downsampling_factor: int
 
     def __init__(
         self,
         sidescan_file: SidescanFile,
-        convert_to_dB=False,
         chunk_size=500,
         num_ch=2,
         downsampling_factor=1,
@@ -46,8 +45,6 @@ class SidescanPreprocessor:
         ----------
         sidescan_file: SidescanFile
             Reference to SidescanFile class that holds a loaded sidescan data file (XTF/JSF)
-        convert_to_dB: bool
-            If ``True`` data will be converted to dB
         chunk_size: int
             Number of pings per single chunk
         num_ch: int
@@ -61,10 +58,9 @@ class SidescanPreprocessor:
         self.sonar_data_proc = copy.deepcopy(self.sidescan_file.data)
         self.sonar_data_proc = np.array(self.sonar_data_proc).astype(float)
 
-        self.chunk_size = chunk_size
+        self.chunk_size = chunk_size            
         self.ping_len = self.sidescan_file.ping_len
         self.num_ch = num_ch
-        self.convert_to_dB = convert_to_dB
         self.downsampling_factor = downsampling_factor
 
         if downsampling_factor != 1:
@@ -72,10 +68,6 @@ class SidescanPreprocessor:
                 self.sonar_data_proc, downsampling_factor, axis=2
             )
             self.ping_len = int(np.ceil(self.ping_len / self.downsampling_factor))
-        # TODO: This conversion has to be redone. Here the incoming data has to be analyzed to find a suitable conversion to a log scale.
-        if convert_to_dB:
-            self.convert_to_dB = convert_to_dB
-            self.sonar_data_proc = 20 * np.log10(np.abs(self.sonar_data_proc) + 0.1)
 
         ## Print spatial information estimation
         start_idx = 0
@@ -107,7 +99,7 @@ class SidescanPreprocessor:
         print(
             f"Resolution in tow/heading direction: {geo_dist.geodesic(end_coord, start_coord).m / self.sidescan_file.num_ping} m"
         )
-        print("(Estimated from start and end GPS position")
+        print("(Estimated from start and end GPS position)")
         print("------------------------------------------------------------")
 
     def detect_bottom_line_t(
@@ -162,16 +154,27 @@ class SidescanPreprocessor:
             else:
                 initial_guess = False
 
-    def init_napari_bottom_detect(self, default_threshold):
+    def init_napari_bottom_detect(self, default_threshold, active_dB=False,active_hist_equal=False):
 
         # normalize each ping individually
         portside = np.array(self.sonar_data_proc[0], dtype=float)
+        starboard = np.array(self.sonar_data_proc[1], dtype=float)
+        if active_dB:
+            portside = convert_to_dB(portside)
+            starboard = convert_to_dB(starboard)
+        if np.min(portside) < 0:
+            portside = portside - np.min(portside)
+        if np.min(starboard) < 0:
+            starboard = starboard - np.min(starboard)
         indv_max_portside = np.max(portside, 1)
         portside = portside / indv_max_portside[:, None]
-        starboard = np.array(self.sonar_data_proc[1], dtype=float)
         indv_max_starboard = np.max(starboard, 1)
         starboard = starboard / indv_max_starboard[:, None]
 
+        if active_hist_equal:
+            portside = hist_equalization(portside)
+            starboard = hist_equalization(starboard)
+            
         # do initial bottom line detection for start values
         self.detect_bottom_line_t(
             threshold_bin=default_threshold,
@@ -558,8 +561,82 @@ class SidescanPreprocessor:
         H[int(M / 2) :] = np.flipud(H[: int(M / 2)])
         return H
 
+    def apply_beam_pattern_correction(self):
+        """Applies Beam Pattern Correction to the processing data"""
+
+        num_ping = np.shape(self.sonar_data_proc[0])[0]
+        angle_range = [-1 * np.pi / 2, np.pi / 2]
+        angle_num = 360
+        angle_stepsize = (angle_range[1] - angle_range[0]) / angle_num
+        angle_sum = np.zeros(angle_num)
+        angle_hits = np.zeros(angle_num)
+        EPS = np.finfo(float).eps
+
+        print("Estimating beam pattern...")
+        son_dat = np.hstack(
+            (np.fliplr(self.sonar_data_proc[0]), self.sonar_data_proc[1])
+        )
+        mean_depth = np.array(np.round(np.mean(self.dep_info, 0)), dtype=int)
+        dd = mean_depth**2
+        alpha_idx = np.zeros((num_ping, 2 * self.ping_len), dtype=int)
+        for vector_idx in range(num_ping):
+            r = np.sqrt(
+                (
+                    np.linspace(0, 2 * self.ping_len - 1, 2 * self.ping_len)
+                    - self.ping_len
+                )
+                ** 2
+                + dd[vector_idx]
+            )
+            alpha = np.sign(
+                np.linspace(0, 2 * self.ping_len - 1, 2 * self.ping_len) - self.ping_len
+            ) * np.arccos(mean_depth[vector_idx] / (r + EPS))
+            alpha_idx[vector_idx] = np.array(
+                np.round(alpha / angle_stepsize) + angle_num / 2, dtype=int
+            )
+            for ping_idx in range(self.ping_len):
+                angle_sum[alpha_idx[vector_idx, ping_idx]] += son_dat[
+                    vector_idx, ping_idx
+                ]
+                angle_hits[alpha_idx[vector_idx, ping_idx]] += 1
+        print(f"Beam pattern done - correcting data.")
+
+        # angle_sum /= angle_hits
+        angle_sum = np.divide(
+            angle_sum, angle_hits, out=np.zeros_like(angle_sum), where=angle_hits != 0
+        )
+        angle_sum[np.where(angle_hits == 0)] = np.nan
+
+        for vector_idx in range(num_ping):
+            for ping_idx in range(self.ping_len):
+                son_dat[vector_idx, ping_idx] /= angle_sum[
+                    alpha_idx[vector_idx, ping_idx]
+                ]
+
+        self.sonar_data_proc[0] = np.fliplr(son_dat[:, : self.ping_len])
+        self.sonar_data_proc[1] = son_dat[:, self.ping_len :]
+
+    # Energy normalization
+    def apply_energy_normalization(self):
+        """Apply energy normalization on each individual ping (is needed after BAC processing)"""
+        for ch in range(self.num_ch):
+            son_dat = self.sonar_data_proc[ch]
+            num_ping = np.shape(son_dat)[0]
+            num_norm = 40
+            pow_vec = np.sum(son_dat[:40] ** 2, axis=1)
+            for ping_idx in range(num_ping):
+                if int(num_norm / 2) < ping_idx < num_ping - int(num_norm / 2):
+                    pow_vec[:-1] = pow_vec[1:]
+                    pow_vec[-1] = np.sum(son_dat[ping_idx + int(num_norm / 2)] ** 2)
+                son_dat[ping_idx] /= np.sqrt(np.mean(pow_vec))
+            self.sonar_data_proc[ch] = son_dat
+
     # Pie slice filter to remove noisy lines
     def apply_pie_slice_filter(self):
+        """Apply pie slice filter to remove stripe noise in image"""
+        if self.sidescan_file.num_ping < self.chunk_size:
+            print("Not implemented for Nping < chunk size")
+            return
         for ch in range(self.num_ch):
             son_dat = self.sonar_data_proc[ch]
             for chunk_idx in range(self.num_chunk):
@@ -632,6 +709,64 @@ class SidescanPreprocessor:
 
             self.sonar_data_proc[ch] = son_dat
 
+    @staticmethod
+    def comp_D(u, v, M_2, N_2):
+        return np.sqrt((u - M_2) ** 2 + (v - N_2) ** 2)
+
+    def apply_sharpening_filter(self):
+        """Use a homomorphic filter to emphasize higher frequencies for image sharpening"""
+        print("Applying sharpening filter")
+        if self.sidescan_file.num_ping < self.chunk_size:
+            print("Not implemented for Nping < chunk size")
+            return
+        for ch in range(self.num_ch):
+            son_dat = self.sonar_data_proc[ch]
+            for chunk_idx in range(self.num_chunk):
+                # avoid zero padding
+                if chunk_idx == self.num_chunk - 1:
+                    cur_chunk = son_dat[-1 * self.chunk_size :]
+                else:
+                    cur_chunk = son_dat[
+                        chunk_idx * self.chunk_size : (chunk_idx + 1) * self.chunk_size
+                    ]
+
+                if np.nanmin(cur_chunk) <= 0:
+                    cur_chunk = np.clip(cur_chunk, a_min=1e-3, a_max=None)
+                img_proc = np.log(cur_chunk + np.finfo(float).eps)
+                img_spec = np.fft.fft2(img_proc)
+
+                gamma_H = 3.0
+                gamma_L = 0.3
+                M_2 = self.chunk_size / 2
+                N_2 = self.ping_len / 2
+                const_c = 2
+                D_0 = self.comp_D(0, 0, M_2, N_2)
+                H = np.zeros((self.chunk_size, self.ping_len))
+                for u in range(self.chunk_size):
+                    for v in range(self.ping_len):
+                        H[u, v] = (gamma_H - gamma_L) * (
+                            1
+                            - np.exp(
+                                -1
+                                * const_c
+                                * ((self.comp_D(u, v, M_2, N_2) ** 2) / (D_0**2))
+                            )
+                        ) + gamma_L
+
+                img_filtered = img_spec * H
+
+                img_r = np.real(np.fft.ifft2(img_filtered))
+                chunk_filt = np.exp(img_r)
+
+                if chunk_idx == self.num_chunk - 1:
+                    son_dat[-1 * self.chunk_size :] = chunk_filt
+                else:
+                    son_dat[
+                        chunk_idx * self.chunk_size : (chunk_idx + 1) * self.chunk_size
+                    ] = chunk_filt
+
+            self.sonar_data_proc[ch] = son_dat
+
     # Slant range correction, partly taken from PINGMapper
     def slant_range_correction(
         self,
@@ -639,8 +774,8 @@ class SidescanPreprocessor:
         save_to=None,
         nadir_angle=0,
         use_intern_depth=False,
-        remove_wc=False,
         active_mult_slant_range_resampling=False,
+        progress_signal=None,
     ):
         """Correct slant range for current data. The current sidescan data is projected
         to the seafloor, assuming that the seafloor is flat and using the bottom line detection data.
@@ -660,8 +795,6 @@ class SidescanPreprocessor:
             Use 0 if it is not known.
         use_intern_depth: bool
             If ``True`` internal depth information is used. Otherwise the depth is estimated from the bottom detection data.
-        remove_wc: bool
-             If ``True`` the distorted watercolumn data is removed
         active_mult_slant_range_resampling: bool
             If ``True`` pings with different slant ranges are resampled to the longest slant range.
             This results in a slant corrected matrix where all samples are equidistant.
@@ -754,7 +887,6 @@ class SidescanPreprocessor:
                             )
                         )
 
-        self.slant_corrected_dat = []
         for ch in range(2):
             slant_cor_mat = np.zeros(
                 np.shape(self.sonar_data_proc[0]), dtype=np.float32
@@ -763,16 +895,14 @@ class SidescanPreprocessor:
 
             num_ping = np.shape(slant_cor_mat)[0]
             for ping_idx in range(num_ping):
-                if ping_idx % 1000 == 0:
+                if ping_idx % 1000 == 0 and ping_idx != 0:
                     print(
                         f"\rSlant range correction progress: {ping_idx/num_ping*100:.2f}%"
                     )
+                    if progress_signal is not None:
+                        progress_signal.emit((1000 / num_ping) * 0.25)
 
                 depth = int(self.dep_info[ch][ping_idx])  # in px
-                # Remove water column
-                if remove_wc:
-                    son_data[ping_idx, : depth + 1] = 0
-
                 dd = depth**2
                 # vector to store reloacted pixels
                 ping_dat = (
@@ -797,43 +927,28 @@ class SidescanPreprocessor:
                         ping_dat = np.zeros_like(ping_dat)
                     else:
                         ping_dat[nans] = np.interp(x(nans), x(~nans), ping_dat[~nans])
-                    if len(last_val) > 0:
-                        ping_dat[last_val[-1] + 1 :] = (
-                            0  # remove all interpolated values after last known val
-                        )
-
-                # TODO: revise this part
-                # if ch == 0:
-                #     depth_on_ground = int(
-                #         np.round(
-                #             np.sin(np.deg2rad(90 - nadir_angle))
-                #             * starboard_bottom_dist_conv[ping_idx]
-                #         )
-                #     )  # (self.ping_len - portside_bottom_dist_conv[ping_idx])))
-                # else:
-                #     depth_on_ground = int(
-                #         np.round(
-                #             np.sin(np.deg2rad(90 - nadir_angle))
-                #             * starboard_bottom_dist_conv[ping_idx]
-                #         )
-                #     )
+                    # TODO: probably no way to implement this with all other filtering steps?
+                    # if len(last_val) > 0:
+                    #     # remove all interpolated values after last known val
+                    #     ping_dat[last_val[-1] + 1 :] = np.nan
 
                 # remove remaining nadir
-                if nadir_angle != 0:
-                    depth_on_ground = int(round(np.sqrt((depth + 1) ** 2 - dd), 0))
-                    ping_dat[:depth_on_ground] = 0
+                # TODO: see above
+                # if nadir_angle != 0:
+                #     depth_on_ground = int(round(np.sqrt((depth + 1) ** 2 - dd), 0))
+                #     ping_dat[:depth_on_ground] = np.nan
 
                 if ch == 0:
                     ping_dat = np.flip(ping_dat)
 
                 slant_cor_mat[ping_idx] = ping_dat
 
-            self.slant_corrected_dat.append(slant_cor_mat)
+            self.sonar_data_proc[ch] = slant_cor_mat
 
         print("Slant range correction completed.")
 
         self.slant_corrected_mat = np.hstack(
-            (self.slant_corrected_dat[0], self.slant_corrected_dat[1])
+            (self.sonar_data_proc[0], self.sonar_data_proc[1])
         )
 
         y_axis_m = self.gen_simple_y_axis()
@@ -904,7 +1019,9 @@ class SidescanPreprocessor:
         r_reduc_factor = egn_info["r_reduc_factor"]
 
         # do EGN
-        self.egn_corrected_mat = np.zeros(np.shape(self.slant_corrected_mat))
+        self.egn_corrected_mat = np.zeros(
+            np.shape(self.slant_corrected_mat)
+        )  # TODO Rework to sono data proc
         num_ping = np.shape(self.slant_corrected_mat)[0]
         mean_depth = np.array(np.round(np.mean(self.dep_info, 0)), dtype=int)
 
@@ -933,7 +1050,7 @@ class SidescanPreprocessor:
                 ):
                     self.egn_corrected_mat[vector_idx, ping_idx] = (
                         self.slant_corrected_mat[vector_idx, ping_idx]
-                        / egn_table[r_idx[ping_idx], alpha_idx[ping_idx]]
+                        / (egn_table[r_idx[ping_idx], alpha_idx[ping_idx]] + EPS)
                     )
 
         if save_to is not None:

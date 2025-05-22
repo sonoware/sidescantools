@@ -180,8 +180,8 @@ def run_napari_btm_line(
         if (
             manual_annotation_widget.activate_manual_annotation.value
             and event.button == 1
-            and 0 <= event.position[1] < layer.data.shape[1]
-            and 0 <= event.position[2] < layer.data.shape[2]
+            and 0 <= np.round(event.position[1]) < layer.data.shape[1]
+            and 0 <= np.round(event.position[2]) < layer.data.shape[2]
         ):
 
             # print('mouse down')
@@ -192,8 +192,8 @@ def run_napari_btm_line(
             last_pos = np.zeros(3)
             while (
                 event.type == "mouse_move"
-                and 0 <= event.position[1] < layer.data.shape[1]
-                and 0 <= event.position[2] < layer.data.shape[2]
+                and 0 <= np.round(event.position[1]) < layer.data.shape[1]
+                and 0 <= np.round(event.position[2]) < layer.data.shape[2]
             ):
                 dragged = True
 
@@ -277,8 +277,8 @@ def run_napari_btm_line(
             if dragged:
                 dragged = False
             elif (
-                0 <= event.position[1] < layer.data.shape[1]
-                and 0 <= event.position[2] < layer.data.shape[2]
+                0 <= np.round(event.position[1]) < layer.data.shape[1]
+                and 0 <= np.round(event.position[2]) < layer.data.shape[2]
             ):
                 cur_pos = np.array(np.round(event.position), dtype=int)
                 if event.position[2] < layer.data.shape[2] / 2:

@@ -754,7 +754,7 @@ class BottomLineDetectionWidget(QVBoxLayout):
             downsampling_factor=int(self.btm_downsample_fact.line_edit.text()),
             work_dir=self.main_ui.output_picker.cur_dir,
             active_dB=self.active_convert_dB_checkbox.isChecked(),
-            active_hist_equal=self.active_convert_dB_checkbox.isChecked(),
+            active_hist_equal=self.active_hist_equal_checkbox.isChecked(),
         )
         self.data_changed.emit()
 

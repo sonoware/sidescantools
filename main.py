@@ -68,7 +68,7 @@ class SidescanToolsMain(QWidget):
         "Active pie slice filter": True,
         "Active sharpening filter": False,
         "Active gain norm": True,
-        "Active hist equal": False,
+        "Active hist equal": True,
         "Slant gain norm strategy": GAINSTRAT.BAC.value,
         "Slant vertical beam angle": 60,
         "Slant nadir angle": 0,
@@ -1103,6 +1103,7 @@ class ViewAndExportWidget(QVBoxLayout):
             self.generate_all_georef_btn,
         )
         self.addLayout(self.labeled_georef_buttons)
+        self.addLayout(self.img_chunk_size_edit)
         self.labeled_img_export_buttons = Labeled2Buttons(
             "Generate Waterfall Image:",
             self.generate_simple_img_btn,

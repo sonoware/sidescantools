@@ -33,6 +33,8 @@ def hist_equalization(array: np.array):
     # p2, p98 = np.percentile(array, (2, 98))
     # array = exposure.rescale_intensity(array, in_range=(p2, p98))
     # TODO: clip limit?
+    if np.min(array) < 0:
+        array -= np.min(array)
     array /= np.max(np.abs(array))
     array = exposure.equalize_adapthist(array, clip_limit=0.01)
     return array

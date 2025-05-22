@@ -438,7 +438,6 @@ class SidescanGeoreferencer:
                                 "SRC_METHOD=GCP_HOMOGRAPHY",    # GCP_HOMOGRAPHY   # GCP_POLYNOMIAL, ORDER=1
                                 "--co",
                                 "COMPRESS=DEFLATE",
-                                "--debug on",
                                 "-d",
                                 self.epsg_code,
                                 "-i",
@@ -457,7 +456,6 @@ class SidescanGeoreferencer:
                             "SRC_METHOD=GCP_HOMOGRAPHY",    # GCP_HOMOGRAPHY
                             "--co",
                             "COMPRESS=DEFLATE",
-                            "--debug on",
                             "-d",
                             "EPSG:4326",
                             "-i",
@@ -517,7 +515,6 @@ class SidescanGeoreferencer:
                             "SRC_METHOD=GCP_HOMOGRAPHY",    # GCP_HOMOGRAPHY
                             "--co",
                             "COMPRESS=DEFLATE",
-                            "--debug on",
                             "-d",
                             self.epsg_code,
                             "-i",
@@ -536,7 +533,6 @@ class SidescanGeoreferencer:
                             "SRC_METHOD=GCP_HOMOGRAPHY",    # GCP_HOMOGRAPHY
                             "--co",
                             "COMPRESS=DEFLATE",
-                            "--debug on",
                             "-d",
                             "EPSG:4326",
                             "-i",

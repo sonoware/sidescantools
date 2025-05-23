@@ -237,7 +237,7 @@ class SidescanGeoreferencer:
                 im_x_left_outer = 1 #-1
                 im_x_right_outer = np.shape(lo_chunk_ce)[0] -1  #-1
                 im_y_nad = 0    #1
-                im_y_outer = swath_width #-swath_width
+                im_y_outer = -swath_width #-swath_width
 
                 gcp = np.array(
                     (

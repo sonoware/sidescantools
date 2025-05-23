@@ -86,6 +86,7 @@ class SidescanToolsMain(QWidget):
         "Georef active proc data": True,
         "Georef active dynamic chunking": False,
         "Georef UTM": True,
+        "Georef Poly": False,
         "Georef active custom colormap": False,
         "Path": [],
         "Meta info": dict(),
@@ -590,12 +591,11 @@ class SidescanToolsMain(QWidget):
         self.settings_dict["Georef UTM"] = (
             self.view_and_export_widget.active_utm_checkbox.isChecked()
         )
+        self.settings_dict["Georef Poly"] = (
+            self.view_and_export_widget.active_poly_checkbox.isChecked()
+        )
         self.settings_dict["Georef active custom colormap"] = (
             self.view_and_export_widget.active_colormap_checkbox.isChecked()
-        )
-
-        self.settings_dict["Georef UTM"] = (
-            self.active_utm_checkbox.isChecked()
         )
 
     def update_ui_from_settings(self):
@@ -679,6 +679,9 @@ class SidescanToolsMain(QWidget):
         )
         self.view_and_export_widget.active_utm_checkbox.setChecked(
             self.settings_dict["Georef UTM"]
+        )
+        self.view_and_export_widget.active_poly_checkbox.setChecked(
+            self.settings_dict["Georef Poly"]
         )
         self.view_and_export_widget.active_colormap_checkbox.setChecked(
             self.settings_dict["Georef active custom colormap"]
@@ -1088,6 +1091,10 @@ class ViewAndExportWidget(QVBoxLayout):
         self.active_utm_checkbox.setToolTip(
             "Coordinates in UTM (default). WGS84 if unchecked."
         )
+        self.active_poly_checkbox = QCheckBox("Polynomial")
+        self.active_poly_checkbox.setToolTip(
+            "Polynomial order 1 transformation (affine) instead of homographic. Default is homographic."
+        )
         self.active_colormap_checkbox = QCheckBox("Apply custom Colormap")
         self.active_colormap_checkbox.setToolTip(
             "Applies the colormap used in napari to the exported waterfall images. Otherwise grey scale values are used."
@@ -1120,6 +1127,7 @@ class ViewAndExportWidget(QVBoxLayout):
         self.addWidget(self.active_use_proc_data_checkbox)
         self.addWidget(self.active_dynamic_chunking_checkbox)
         self.addWidget(self.active_utm_checkbox)
+        self.addWidget(self.active_poly_checkbox)
         self.addWidget(self.active_colormap_checkbox)
         self.labeled_georef_buttons = Labeled2Buttons(
             "Generate Geotiff:",
@@ -1343,6 +1351,7 @@ class ViewAndExportWidget(QVBoxLayout):
             channel=0,
             dynamic_chunking=self.active_dynamic_chunking_checkbox.isChecked(),
             active_utm=self.active_utm_checkbox.isChecked(),
+            active_poly=self.active_poly_checkbox.isChecked(),
             output_folder=self.main_ui.settings_dict["Georef dir"],
             proc_data=proc_data_out_0,
             vertical_beam_angle=int(
@@ -1355,6 +1364,7 @@ class ViewAndExportWidget(QVBoxLayout):
             channel=1,
             dynamic_chunking=self.active_dynamic_chunking_checkbox.isChecked(),
             active_utm=self.active_utm_checkbox.isChecked(),
+            active_poly=self.active_poly_checkbox.isChecked(),
             output_folder=self.main_ui.settings_dict["Georef dir"],
             proc_data=proc_data_out_1,
             vertical_beam_angle=int(

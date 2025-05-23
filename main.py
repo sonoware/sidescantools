@@ -1093,7 +1093,8 @@ class ViewAndExportWidget(QVBoxLayout):
         )
         self.active_poly_checkbox = QCheckBox("Polynomial")
         self.active_poly_checkbox.setToolTip(
-            "Polynomial order 1 transformation (affine) instead of homographic. Default is homographic."
+            "Polynomial order 1 transformation (affine) instead of homographic. Default is homographic.\
+                Use polynomial option if geotiff looks strange."
         )
         self.active_colormap_checkbox = QCheckBox("Apply custom Colormap")
         self.active_colormap_checkbox.setToolTip(

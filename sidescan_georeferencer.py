@@ -1,5 +1,4 @@
 import argparse
-from osgeo import gdal  # Leads to Segmentation fault when exiting main GUI -.-
 from pathlib import Path, PurePath
 import os
 import numpy as np
@@ -10,7 +9,7 @@ import subprocess
 import itertools
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
-from pyproj import CRS
+from pyproj import CRS, datadir
 from scipy.signal import savgol_filter
 
 
@@ -182,9 +181,9 @@ class SidescanGeoreferencer:
             self.chunk_indices = np.where(np.diff(LAT_ori) != 0)[0] + 2
 
         elif not self.dynamic_chunking:
-            chunksize = 20
+            chunksize = 5
             self.chunk_indices = int(swath_len / chunksize)
-            print(f"Fixed chunk size: {20} pings.")
+            print(f"Fixed chunk size: {chunksize} pings.")
 
         # UTM
         if self.active_utm: 
@@ -291,9 +290,11 @@ class SidescanGeoreferencer:
         Starts a subprocess to run shell commands.
 
         """
-        result = subprocess.run(command, capture_output=True, text=True)
+        env = os.environ.copy()
+        env["PROJ_LIB"] = datadir.get_data_dir()
+        result = subprocess.run(command, capture_output=True, text=True, env=env)
         if result.returncode == 0:
-            pass
+            print(result.stdout)
             # print(f"Command executed successfully: {' '.join(command)}")
         else:
             print(f"Error occurred: {result.stderr}")
@@ -434,7 +435,7 @@ class SidescanGeoreferencer:
                                 "-r",
                                 "near",
                                 "--to",
-                                "SRC_METHOD=GCP_HOMOGRAPHY",    # GCP_HOMOGRAPHY   # GCP_POLYNOMIAL, ORDER=1
+                                "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",    # GCP_HOMOGRAPHY   # GCP_POLYNOMIAL, ORDER=1
                                 "--co",
                                 "COMPRESS=DEFLATE",
                                 "-d",
@@ -452,7 +453,7 @@ class SidescanGeoreferencer:
                             "-r",
                             "near",
                             "--to",
-                            "SRC_METHOD=GCP_HOMOGRAPHY",    # GCP_HOMOGRAPHY
+                            "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",    # GCP_HOMOGRAPHY
                             "--co",
                             "COMPRESS=DEFLATE",
                             "-d",
@@ -511,7 +512,7 @@ class SidescanGeoreferencer:
                             "-r",
                             "near",
                             "--to",
-                            "SRC_METHOD=GCP_HOMOGRAPHY",    # GCP_HOMOGRAPHY
+                            "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",    # GCP_HOMOGRAPHY
                             "--co",
                             "COMPRESS=DEFLATE",
                             "-d",
@@ -529,7 +530,7 @@ class SidescanGeoreferencer:
                             "-r",
                             "near",
                             "--to",
-                            "SRC_METHOD=GCP_HOMOGRAPHY",    # GCP_HOMOGRAPHY
+                            "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",    # GCP_HOMOGRAPHY
                             "--co",
                             "COMPRESS=DEFLATE",
                             "-d",

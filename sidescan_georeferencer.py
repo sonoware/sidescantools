@@ -22,6 +22,8 @@ class SidescanGeoreferencer:
     channel: int
     dynamic_chunking: bool
     active_utm: bool
+    active_homography: bool
+    active_poly: bool
     output_folder: Path
     proc_data: np.array
     active_proc_data: bool
@@ -37,6 +39,8 @@ class SidescanGeoreferencer:
         channel: int = 0,
         dynamic_chunking: bool = False,
         active_utm: bool = True,
+        active_homography: bool = True,
+        active_poly: bool = False,
         proc_data=None,
         output_folder: str | os.PathLike = "./georef_out",
         vertical_beam_angle: int = 60,
@@ -46,6 +50,8 @@ class SidescanGeoreferencer:
         self.channel = channel
         self.dynamic_chunking = dynamic_chunking
         self.active_utm = active_utm
+        self.active_homography = active_homography
+        self.active_poly = active_poly
         self.output_folder = Path(output_folder)
         self.vertical_beam_angle = vertical_beam_angle
 
@@ -383,8 +389,79 @@ class SidescanGeoreferencer:
                 except Exception as e:
                     print(f'Exception: {e}')
 
-                #gdal_translate = ["gdal", "raster", "convert", "-of", "GTiff"]
                 gdal_translate = ["gdal_translate", "-of", "GTiff"]
+
+                gdal_warp_utm = [
+                        "gdal",
+                        "raster",
+                        "reproject",
+                        "-r",
+                        "near",
+                        "--to",
+                        "SRC_METHOD=GCP_HOMOGRAPHY",    # GCP_HOMOGRAPHY
+                        "--co",
+                        "COMPRESS=DEFLATE",
+                        "-d",
+                        self.epsg_code,
+                        "-i",
+                        str(chunk_path),
+                        "-o",
+                        str(warp_path)
+                    ]
+                
+                gdal_warp_wgs84 = [
+                        "gdal",
+                        "raster",
+                        "reproject",
+                        "-r",
+                        "near",
+                        "--to",
+                        "SRC_METHOD=GCP_HOMOGRAPHY",    # GCP_HOMOGRAPHY
+                        "--co",
+                        "COMPRESS=DEFLATE",
+                        "-d",
+                        "EPSG:4326",
+                        "-i",
+                        str(chunk_path),
+                        "-o",
+                        str(warp_path)
+                    ]
+                
+                gdal_warp_utm_poly = [
+                        "gdal",
+                        "raster",
+                        "reproject",
+                        "-r",
+                        "near",
+                        "--to",
+                        "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",    # GCP_HOMOGRAPHY
+                        "--co",
+                        "COMPRESS=DEFLATE",
+                        "-d",
+                        self.epsg_code,
+                        "-i",
+                        str(chunk_path),
+                        "-o",
+                        str(warp_path)
+                    ]
+                
+                gdal_warp_wgs84_poly = [
+                        "gdal",
+                        "raster",
+                        "reproject",
+                        "-r",
+                        "near",
+                        "--to",
+                        "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",    # GCP_HOMOGRAPHY
+                        "--co",
+                        "COMPRESS=DEFLATE",
+                        "-d",
+                        "EPSG:4326",
+                        "-i",
+                        str(chunk_path),
+                        "-o",
+                        str(warp_path)
+                    ]
 
                 if self.dynamic_chunking:
                     for i in range(4):
@@ -428,41 +505,16 @@ class SidescanGeoreferencer:
                 # gdal 3.11 syntax
                 #gdal raster reproject -r near --to SRC_METHOD=GCP_HOMOGRAPHY --co COMPRESS=DEFLATE -d=EPSG:4326 -i 2025-03-17_08-30-44_0_ch0_0_chunk_tmp.tif -o 2025-03-17_08-30-44_0_ch0_0_chunk_tmp_WGS84.tif
                     if self.active_utm:
-                        gdal_warp = [
-                                "gdal",
-                                "raster",
-                                "reproject",
-                                "-r",
-                                "near",
-                                "--to",
-                                "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",    # GCP_HOMOGRAPHY   # GCP_POLYNOMIAL, ORDER=1
-                                "--co",
-                                "COMPRESS=DEFLATE",
-                                "-d",
-                                self.epsg_code,
-                                "-i",
-                                str(chunk_path),
-                                "-o",
-                                str(warp_path)
-                            ]
+                        if self.active_homography:
+                            gdal_warp = gdal_warp_utm 
+                        elif self.active_poly:
+                            gdal_warp = gdal_warp_utm_poly
                     else:    
-                        gdal_warp = [
-                            "gdal",
-                            "raster",
-                            "reproject",
-                            "-r",
-                            "near",
-                            "--to",
-                            "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",    # GCP_HOMOGRAPHY
-                            "--co",
-                            "COMPRESS=DEFLATE",
-                            "-d",
-                            "EPSG:4326",
-                            "-i",
-                            str(chunk_path),
-                            "-o",
-                            str(warp_path)
-                        ]
+                        if self.active_homography:
+                            gdal_warp = gdal_warp_wgs84
+                        elif self.active_poly:
+                            gdal_warp = gdal_warp_wgs84_poly
+
 
                 elif not self.dynamic_chunking:
                     for i in range(len(gcp_chunk)):
@@ -472,74 +524,18 @@ class SidescanGeoreferencer:
 
                     gdal_translate.extend([str(im_path), str(chunk_path)])
 
-                    # gdal < 3.11 syntax
-                    if False:
-                        if self.active_utm:
-                             gdal_warp = [
-                                 "gdalwarp",
-                                 "-r",
-                                 "near",
-                                 "-order",
-                                 "1",
-                                 "-co",
-                                 "COMPRESS=DEFLATE",
-                                 "-t_srs",
-                                 self.epsg_code,
-                                 str(chunk_path),
-                                 str(warp_path),
-                             ]
-                        else:
-                             gdal_warp = [
-                                 "gdalwarp",
-                                 "-r",
-                                 "near",
-                                 "-order",
-                                 "1",
-                                 "-co",
-                                 "COMPRESS=DEFLATE",
-                                 "-t_srs",
-                                 "EPSG:4326",
-                                 str(chunk_path),
-                                 str(warp_path),
-                             ]
 
                     # gdal 3.11 syntax
                     if self.active_utm:
-                        gdal_warp = [
-                            "gdal",
-                            "raster",
-                            "reproject",
-                            "-r",
-                            "near",
-                            "--to",
-                            "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",    # GCP_HOMOGRAPHY
-                            "--co",
-                            "COMPRESS=DEFLATE",
-                            "-d",
-                            self.epsg_code,
-                            "-i",
-                            str(chunk_path),
-                            "-o",
-                            str(warp_path)
-                        ]
+                        if self.active_homography:
+                            gdal_warp = gdal_warp_utm 
+                        elif self.active_poly:
+                            gdal_warp = gdal_warp_utm_poly
                     else:    
-                        gdal_warp = [
-                            "gdal",
-                            "raster",
-                            "reproject",
-                            "-r",
-                            "near",
-                            "--to",
-                            "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",    # GCP_HOMOGRAPHY
-                            "--co",
-                            "COMPRESS=DEFLATE",
-                            "-d",
-                            "EPSG:4326",
-                            "-i",
-                            str(chunk_path),
-                            "-o",
-                            str(warp_path)
-                        ]
+                        if self.active_homography:
+                            gdal_warp = gdal_warp_wgs84
+                        elif self.active_poly:
+                            gdal_warp = gdal_warp_wgs84_poly
 
 
                 # optional: append .points header and fist and last center point
@@ -699,10 +695,24 @@ def main():
         help="Uses UTM projection rather than WGS84. Default is UTM",
     )
 
+    parser.add_argument(
+        "--homography",
+        type=bool,
+        default=True,
+        help="Uses homographic transformation instead of affine for georeferencing. Default is homographic.",
+    )
+
+    parser.add_argument(
+        "--poly",
+        type=bool,
+        default=False,
+        help="Uses polynomial order 1 transformation (affine) instead of homographic for georeferencing. Default is homographic.",
+    )
+
     args = parser.parse_args()
     print("args:", args)
 
-    georeferencer = SidescanGeoreferencer(args.xtf, args.channel, args.dynamic_chunking, args.UTM)
+    georeferencer = SidescanGeoreferencer(args.xtf, args.channel, args.dynamic_chunking, args.UTM, args.homography, args.poly)
     georeferencer.process()
 
 

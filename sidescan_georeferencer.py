@@ -39,7 +39,7 @@ class SidescanGeoreferencer:
         channel: int = 0,
         dynamic_chunking: bool = False,
         active_utm: bool = True,
-        active_homography: bool = True,
+        #active_homography: bool = True,
         active_poly: bool = False,
         proc_data=None,
         output_folder: str | os.PathLike = "./georef_out",
@@ -50,7 +50,7 @@ class SidescanGeoreferencer:
         self.channel = channel
         self.dynamic_chunking = dynamic_chunking
         self.active_utm = active_utm
-        self.active_homography = active_homography
+        #self.active_homography = active_homography
         self.active_poly = active_poly
         self.output_folder = Path(output_folder)
         self.vertical_beam_angle = vertical_beam_angle
@@ -505,14 +505,14 @@ class SidescanGeoreferencer:
                 # gdal 3.11 syntax
                 #gdal raster reproject -r near --to SRC_METHOD=GCP_HOMOGRAPHY --co COMPRESS=DEFLATE -d=EPSG:4326 -i 2025-03-17_08-30-44_0_ch0_0_chunk_tmp.tif -o 2025-03-17_08-30-44_0_ch0_0_chunk_tmp_WGS84.tif
                     if self.active_utm:
-                        if self.active_homography:
-                            gdal_warp = gdal_warp_utm 
-                        elif self.active_poly:
+                        #if self.active_homography:
+                        gdal_warp = gdal_warp_utm 
+                        if self.active_poly:
                             gdal_warp = gdal_warp_utm_poly
                     else:    
-                        if self.active_homography:
-                            gdal_warp = gdal_warp_wgs84
-                        elif self.active_poly:
+                        #if self.active_homography:
+                        gdal_warp = gdal_warp_wgs84
+                        if self.active_poly:
                             gdal_warp = gdal_warp_wgs84_poly
 
 
@@ -527,14 +527,14 @@ class SidescanGeoreferencer:
 
                     # gdal 3.11 syntax
                     if self.active_utm:
-                        if self.active_homography:
-                            gdal_warp = gdal_warp_utm 
-                        elif self.active_poly:
+                        #if self.active_homography:
+                        gdal_warp = gdal_warp_utm 
+                        if self.active_poly:
                             gdal_warp = gdal_warp_utm_poly
                     else:    
-                        if self.active_homography:
-                            gdal_warp = gdal_warp_wgs84
-                        elif self.active_poly:
+                        #if self.active_homography:
+                        gdal_warp = gdal_warp_wgs84
+                        if self.active_poly:
                             gdal_warp = gdal_warp_wgs84_poly
 
 

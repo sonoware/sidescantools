@@ -788,32 +788,32 @@ class ProcessingWidget(QVBoxLayout):
             "Use homomorphic filter to sharpen the resulting images."
         )
         self.slant_and_gain_label = QLabel(
-            "Slant Range Correction and Gain Normalization"
+            "Slant Range Correction and Gain Normalisation"
         )
         self.slant_and_gain_label.setFont(title_font)
-        self.active_gain_norm_checkbox = QCheckBox("Apply Gain Normalization")
-        self.radio_grp_label = QLabel("Gain Normalization Strategy:")
+        self.active_gain_norm_checkbox = QCheckBox("Apply Gain Normalisation")
+        self.radio_grp_label = QLabel("Gain Normalisation Strategy:")
         self.radio_grp_label.setToolTip(
-            "Decide which Gain Normalization Strategy shall be used: \n"
-            "  - Beam Angle Correction: Estimates Beam Pattern from current file and applies normalization. Works with single files.\n"
-            "  - Empirical Gain Normalization: Estimates a more precise Beam Pattern using all files of the current which is saved as EGN table. Does only work, when enough data is present."
+            "Decide which Gain Normalisation Strategy shall be used: \n"
+            "  - Beam Angle Correction: Estimates Beam Pattern from current file and applies normalisation. Works with single files.\n"
+            "  - Empirical Gain Normalisation: Estimates a more precise Beam Pattern using all files of the current which is saved as EGN table. Does only work, when enough data is present."
         )
         self.gain_norm_radio_group = QButtonGroup()
         self.beam_ang_corr_radio_btn = QRadioButton(
             "Beam Angle Correction (BAC, works on single file)"
         )
         self.beam_ang_corr_radio_btn.setToolTip(
-            "Decide which Gain Normalization Strategy shall be used: \n"
-            "  - Beam Angle Correction: Estimates Beam Pattern from current file and applies normalization. Works with single files.\n"
-            "  - Empirical Gain Normalization: Estimates a more precise Beam Pattern using all files of the current which is saved as EGN table. Does only work, when enough data is present."
+            "Decide which Gain Normalisation Strategy shall be used: \n"
+            "  - Beam Angle Correction: Estimates Beam Pattern from current file and applies normalisation. Works with single files.\n"
+            "  - Empirical Gain Normalisation: Estimates a more precise Beam Pattern using all files of the current which is saved as EGN table. Does only work, when enough data is present."
         )
         self.egn_radio_btn = QRadioButton(
-            "Empirical Gain Normalization (EGN, needs precalculated table)"
+            "Empirical Gain Normalisation (EGN, needs precalculated table)"
         )
         self.egn_radio_btn.setToolTip(
-            "Decide which Gain Normalization Strategy shall be used: \n"
-            "  - Beam Angle Correction: Estimates Beam Pattern from current file and applies normalization. Works with single files.\n"
-            "  - Empirical Gain Normalization: Estimates a more precise Beam Pattern using all files of the current which is saved as EGN table. Does only work, when enough data is present."
+            "Decide which Gain Normalisation Strategy shall be used: \n"
+            "  - Beam Angle Correction: Estimates Beam Pattern from current file and applies normalisation. Works with single files.\n"
+            "  - Empirical Gain Normalisation: Estimates a more precise Beam Pattern using all files of the current which is saved as EGN table. Does only work, when enough data is present."
         )
         self.gain_norm_radio_group.addButton(self.beam_ang_corr_radio_btn)
         self.gain_norm_radio_group.addButton(self.egn_radio_btn)
@@ -835,7 +835,7 @@ class ProcessingWidget(QVBoxLayout):
         self.nadir_angle_edit.label.setToolTip(
             "Angle between perpendicular and first bottom return (usually unknown, default is 0°)"
         )
-        self.optional_egn_label = QLabel("Advanced Gain Normalization Parameter")
+        self.optional_egn_label = QLabel("Advanced Gain Normalisation Parameter")
         self.optional_egn_label.setFont(title_font)
         self.active_intern_depth_checkbox = QCheckBox("Use internal Depth")
         self.active_intern_depth_checkbox.setToolTip(

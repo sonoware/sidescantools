@@ -1,6 +1,6 @@
 import argparse
 from pathlib import Path, PurePath
-import os
+import os, copy
 import numpy as np
 import utm
 import math
@@ -296,9 +296,10 @@ class SidescanGeoreferencer:
         Starts a subprocess to run shell commands.
 
         """
-        env = os.environ.copy()
-        env["PROJ_LIB"] = datadir.get_data_dir()
-        result = subprocess.run(command, capture_output=True, text=True, env=env)
+        cur_env = copy.copy(os.environ)
+        cur_env["PROJ_LIB"] = datadir.get_data_dir()
+        cur_env["PROJ_DATA"] = datadir.get_data_dir()
+        result = subprocess.run(command, capture_output=True, text=True, env=cur_env)
         if result.returncode == 0:
             print(result.stdout)
             # print(f"Command executed successfully: {' '.join(command)}")

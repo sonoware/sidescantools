@@ -83,7 +83,6 @@ class SidescanGeoreferencer:
         GROUND_RANGE = []
         swath_len = len(PING)
         swath_width = len(self.sidescan_file.data[self.channel][0])
-        print(f"swath_len: {swath_len}, swath_width: {swath_width}")
 
         PING = np.ndarray.flatten(np.array(PING))
         LON_ori = np.ndarray.flatten(np.array(LON_ori))
@@ -266,6 +265,7 @@ class SidescanGeoreferencer:
         - Stack channel so that the largest axis is horizontal
         - Norm data to max 255 for pic generation
         """
+
         # check whether processed data is present
         if self.active_proc_data:
             ch_stack = self.proc_data
@@ -274,9 +274,22 @@ class SidescanGeoreferencer:
             # convert to dB (just if script is run standalone)
             #ch_stack = 20 * np.log10(np.abs(ch_stack) + 0.1)
 
+        # Extract metadata for each ping in sonar channel
+        PING = self.sidescan_file.packet_no
+        swath_len = len(PING)
+        swath_width = len(self.sidescan_file.data[self.channel][0])
+        print(f"swath_len: {swath_len}, swath_width: {swath_width}")
+
 
         # Transpose so that the largest axis is horizontal
         ch_stack = ch_stack if ch_stack.shape[0] < ch_stack.shape[1] else ch_stack.T
+        if False:
+            if swath_len >= swath_width:
+                ch_stack = ch_stack
+                    #ch_stack = ch_stack if ch_stack.shape[0] < ch_stack.shape[1] else ch_stack.T
+            elif swath_len <= swath_width:
+                ch_stack = ch_stack.T
+
         ch_stack = np.array(ch_stack, dtype=float)
 
         # Hack for alter transparency
@@ -713,7 +726,7 @@ def main():
     args = parser.parse_args()
     print("args:", args)
 
-    georeferencer = SidescanGeoreferencer(args.xtf, args.channel, args.dynamic_chunking, args.UTM, args.homography, args.poly)
+    georeferencer = SidescanGeoreferencer(args.xtf, args.channel, args.dynamic_chunking, args.UTM, args.poly)
     georeferencer.process()
 
 

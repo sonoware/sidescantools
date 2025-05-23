@@ -1,7 +1,6 @@
 import argparse
-from osgeo import gdal  # Leads to Segmentation fault when exiting main GUI -.-
 from pathlib import Path, PurePath
-import os
+import os, copy
 import numpy as np
 import utm
 import math
@@ -10,8 +9,8 @@ import subprocess
 import itertools
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
-from pyproj import CRS
-
+from pyproj import CRS, datadir
+from scipy.signal import savgol_filter
 
 
 # TODO: Doc/Type hints
@@ -23,6 +22,8 @@ class SidescanGeoreferencer:
     channel: int
     dynamic_chunking: bool
     active_utm: bool
+    active_homography: bool
+    active_poly: bool
     output_folder: Path
     proc_data: np.array
     active_proc_data: bool
@@ -38,6 +39,8 @@ class SidescanGeoreferencer:
         channel: int = 0,
         dynamic_chunking: bool = False,
         active_utm: bool = True,
+        #active_homography: bool = True,
+        active_poly: bool = False,
         proc_data=None,
         output_folder: str | os.PathLike = "./georef_out",
         vertical_beam_angle: int = 60,
@@ -47,6 +50,8 @@ class SidescanGeoreferencer:
         self.channel = channel
         self.dynamic_chunking = dynamic_chunking
         self.active_utm = active_utm
+        #self.active_homography = active_homography
+        self.active_poly = active_poly
         self.output_folder = Path(output_folder)
         self.vertical_beam_angle = vertical_beam_angle
 
@@ -71,19 +76,18 @@ class SidescanGeoreferencer:
 
         # Extract metadata for each ping in sonar channel
         PING = self.sidescan_file.packet_no
-        LON = self.sidescan_file.longitude
-        LAT = self.sidescan_file.latitude
-        HEAD = np.radians(self.sidescan_file.sensor_heading)
+        LON_ori = self.sidescan_file.longitude
+        LAT_ori = self.sidescan_file.latitude
+        HEAD_ori = np.radians(self.sidescan_file.sensor_heading)
         SLANT_RANGE = self.sidescan_file.slant_range[self.channel]
         GROUND_RANGE = []
         swath_len = len(PING)
         swath_width = len(self.sidescan_file.data[self.channel][0])
-        print(f"swath_len: {swath_len}, swath_width: {swath_width}")
 
         PING = np.ndarray.flatten(np.array(PING))
-        LON = np.ndarray.flatten(np.array(LON))
-        LAT = np.ndarray.flatten(np.array(LAT))
-        HEAD = np.ndarray.flatten(np.array(HEAD))
+        LON_ori = np.ndarray.flatten(np.array(LON_ori))
+        LAT_ori = np.ndarray.flatten(np.array(LAT_ori))
+        HEAD_ori = np.ndarray.flatten(np.array(HEAD_ori))
         SLANT_RANGE = np.ndarray.flatten(np.array(SLANT_RANGE))
 
         ground_range = [
@@ -93,14 +97,30 @@ class SidescanGeoreferencer:
         GROUND_RANGE.append(ground_range)
         GROUND_RANGE = np.ndarray.flatten(np.array(GROUND_RANGE))
 
-        MASK = LON != 0
+        MASK = LON_ori != 0
 
-        LON = LON[MASK]
-        LAT = LAT[MASK]
-        HEAD = HEAD[MASK]
+        LON_ori = LON_ori[MASK]
+        LAT_ori = LAT_ori[MASK]
+        HEAD_ori = HEAD_ori[MASK]
         GROUND_RANGE = GROUND_RANGE[MASK]
         SLANT_RANGE = SLANT_RANGE[MASK]
         PING = PING[MASK]
+
+        HEAD = savgol_filter(HEAD_ori, 120, 1)
+        x = range(len(HEAD))
+        #plt.title("Heading")
+        #plt.plot(x, HEAD_ori, label='Original Heading')
+        #plt.plot(x, HEAD, label='Smoothed Heading')
+        #plt.legend()
+        #plt.show()
+
+        LAT = savgol_filter(LAT_ori, 120, 1)
+        LON = savgol_filter(LON_ori, 120, 1)
+        #plt.title("Navigation")
+        #plt.plot(LON_ori, LAT_ori, label='Original Navigation')
+        #plt.plot(LON, LAT, label='Smoothed Navigation')
+        #plt.legend()
+        #plt.show()
 
         UTM = []
         for la, lo in zip(LAT, LON):
@@ -109,14 +129,14 @@ class SidescanGeoreferencer:
             except:
                 ValueError("Values or lon and/or lat must not be 0")
 
-            #if self.active_utm:
-            NORTH = [utm_coord[0] for utm_coord in UTM]
-            EAST = [utm_coord[1] for utm_coord in UTM]
-            UTM_ZONE = [utm_coord[2] for utm_coord in UTM]
-            UTM_LET = [utm_coord[3] for utm_coord in UTM]
-            crs = CRS.from_dict({'proj': 'utm', 'zone': UTM_ZONE[0], 'south': False})
-            epsg = crs.to_authority()
-            self.epsg_code = f'{epsg[0]}:{epsg[1]}'
+            if UTM:
+                NORTH = [utm_coord[0] for utm_coord in UTM]
+                EAST = [utm_coord[1] for utm_coord in UTM]
+                UTM_ZONE = [utm_coord[2] for utm_coord in UTM]
+                UTM_LET = [utm_coord[3] for utm_coord in UTM]
+                crs = CRS.from_dict({'proj': 'utm', 'zone': UTM_ZONE[0], 'south': False})
+                epsg = crs.to_authority()
+                self.epsg_code = f'{epsg[0]}:{epsg[1]}'
 
 
         if self.channel == 0:
@@ -163,12 +183,12 @@ class SidescanGeoreferencer:
 
         if self.dynamic_chunking:
             print("Dynamic chunking active.")
-            self.chunk_indices = np.where(np.diff(LAT) != 0)[0] + 2
+            self.chunk_indices = np.where(np.diff(LAT_ori) != 0)[0] + 2
 
         elif not self.dynamic_chunking:
-            chunksize = 20
+            chunksize = 5
             self.chunk_indices = int(swath_len / chunksize)
-            print(f"Fixed chunk size: {20} pings.")
+            print(f"Fixed chunk size: {chunksize} pings.")
 
         # UTM
         if self.active_utm: 
@@ -208,12 +228,15 @@ class SidescanGeoreferencer:
                 la_e_ll = la_chunk_e[0]
                 la_e_lr = la_chunk_e[-1]
 
-                im_x_right_nad = np.shape(lo_chunk_ce)[0] - 2
-                im_x_right_outer = np.shape(lo_chunk_ce)[0] - 2
-                im_x_left_nad = 0
-                im_x_left_outer = 0
-                im_y_nad = 1
-                im_y_outer = -swath_width
+                # add/substract small values to ensure overlap on outer edges (move inwards/outwards at nadir/outer edge)
+                # TODO: make curvature-dependent
+
+                im_x_left_nad = 1   #1
+                im_x_right_nad = np.shape(lo_chunk_ce)[0] -1
+                im_x_left_outer = 1 #-1
+                im_x_right_outer = np.shape(lo_chunk_ce)[0] -1  #-1
+                im_y_nad = 0    #1
+                im_y_outer = -swath_width #-swath_width
 
                 gcp = np.array(
                     (
@@ -233,7 +256,6 @@ class SidescanGeoreferencer:
                     )
                 )
 
-
                 self.GCP_SPLIT.append(gcp)
                 self.POINTS_SPLIT.append(points)      
 
@@ -243,17 +265,31 @@ class SidescanGeoreferencer:
         - Stack channel so that the largest axis is horizontal
         - Norm data to max 255 for pic generation
         """
+
         # check whether processed data is present
         if self.active_proc_data:
             ch_stack = self.proc_data
         else:
             ch_stack = self.sidescan_file.data[self.channel]
+            # convert to dB (just if script is run standalone)
+            #ch_stack = 20 * np.log10(np.abs(ch_stack) + 0.1)
 
-        # TODO: Insert gmt logic here, if applied in the future
+        # Extract metadata for each ping in sonar channel
+        PING = self.sidescan_file.packet_no
+        swath_len = len(PING)
+        swath_width = len(self.sidescan_file.data[self.channel][0])
+        print(f"swath_len: {swath_len}, swath_width: {swath_width}")
 
 
         # Transpose so that the largest axis is horizontal
         ch_stack = ch_stack if ch_stack.shape[0] < ch_stack.shape[1] else ch_stack.T
+        if False:
+            if swath_len >= swath_width:
+                ch_stack = ch_stack
+                    #ch_stack = ch_stack if ch_stack.shape[0] < ch_stack.shape[1] else ch_stack.T
+            elif swath_len <= swath_width:
+                ch_stack = ch_stack.T
+
         ch_stack = np.array(ch_stack, dtype=float)
 
         # Hack for alter transparency
@@ -273,9 +309,12 @@ class SidescanGeoreferencer:
         Starts a subprocess to run shell commands.
 
         """
-        result = subprocess.run(command, capture_output=True, text=True)
+        cur_env = copy.copy(os.environ)
+        cur_env["PROJ_LIB"] = datadir.get_data_dir()
+        cur_env["PROJ_DATA"] = datadir.get_data_dir()
+        result = subprocess.run(command, capture_output=True, text=True, env=cur_env)
         if result.returncode == 0:
-            pass
+            print(result.stdout)
             # print(f"Command executed successfully: {' '.join(command)}")
         else:
             print(f"Error occurred: {result.stderr}")
@@ -301,6 +340,9 @@ class SidescanGeoreferencer:
         # LO,LA(0):E                LO,LA(chunk):E
         # X:L; Y:L                  X:R; Y:L
 
+        # new in gdal version 3.11: homography algorithm for warping. Important note: Does not work when gcps are not in right order, i.e. if for example \
+        lower left and lower right image coorainte are switched. this can sometimes happrns when there is no vessel movement or vessel turns etc. \
+        Right now, these chunks are ignored (the data look crappy anyway). 
         """
         ch_split = np.array_split(ch_stack, self.chunk_indices, axis=1)
 
@@ -363,77 +405,152 @@ class SidescanGeoreferencer:
 
                 gdal_translate = ["gdal_translate", "-of", "GTiff"]
 
+                gdal_warp_utm = [
+                        "gdal",
+                        "raster",
+                        "reproject",
+                        "-r",
+                        "near",
+                        "--to",
+                        "SRC_METHOD=GCP_HOMOGRAPHY",    # GCP_HOMOGRAPHY
+                        "--co",
+                        "COMPRESS=DEFLATE",
+                        "-d",
+                        self.epsg_code,
+                        "-i",
+                        str(chunk_path),
+                        "-o",
+                        str(warp_path)
+                    ]
+                
+                gdal_warp_wgs84 = [
+                        "gdal",
+                        "raster",
+                        "reproject",
+                        "-r",
+                        "near",
+                        "--to",
+                        "SRC_METHOD=GCP_HOMOGRAPHY",    # GCP_HOMOGRAPHY
+                        "--co",
+                        "COMPRESS=DEFLATE",
+                        "-d",
+                        "EPSG:4326",
+                        "-i",
+                        str(chunk_path),
+                        "-o",
+                        str(warp_path)
+                    ]
+                
+                gdal_warp_utm_poly = [
+                        "gdal",
+                        "raster",
+                        "reproject",
+                        "-r",
+                        "near",
+                        "--to",
+                        "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",    # GCP_HOMOGRAPHY
+                        "--co",
+                        "COMPRESS=DEFLATE",
+                        "-d",
+                        self.epsg_code,
+                        "-i",
+                        str(chunk_path),
+                        "-o",
+                        str(warp_path)
+                    ]
+                
+                gdal_warp_wgs84_poly = [
+                        "gdal",
+                        "raster",
+                        "reproject",
+                        "-r",
+                        "near",
+                        "--to",
+                        "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",    # GCP_HOMOGRAPHY
+                        "--co",
+                        "COMPRESS=DEFLATE",
+                        "-d",
+                        "EPSG:4326",
+                        "-i",
+                        str(chunk_path),
+                        "-o",
+                        str(warp_path)
+                    ]
+
                 if self.dynamic_chunking:
                     for i in range(4):
                         gdal_translate.extend(
                             ["-gcp", str(im_x[i]), str(im_y[i]), str(lo[i]), str(la[i])]
                         )
                     gdal_translate.extend([str(im_path), str(chunk_path)])
-
+    
+    
+                    # gdal < 3.11 syntax
+                    if False:
+                        if self.active_utm:
+                             gdal_warp = [
+                                 "gdalwarp",
+                                 "-r",
+                                 "near",
+                                 "-order",
+                                 "1",
+                                 "-co",
+                                 "COMPRESS=DEFLATE",
+                                 "-t_srs",
+                                 self.epsg_code,
+                                 str(chunk_path),
+                                 str(warp_path),
+                             ]
+                        else:
+                             gdal_warp = [
+                                 "gdalwarp",
+                                 "-r",
+                                 "near",
+                                 "-order",
+                                 "1",
+                                 "-co",
+                                 "COMPRESS=DEFLATE",
+                                 "-t_srs",
+                                 "EPSG:4326",
+                                 str(chunk_path),
+                                 str(warp_path),
+                             ]
+                    
+                # gdal 3.11 syntax
+                #gdal raster reproject -r near --to SRC_METHOD=GCP_HOMOGRAPHY --co COMPRESS=DEFLATE -d=EPSG:4326 -i 2025-03-17_08-30-44_0_ch0_0_chunk_tmp.tif -o 2025-03-17_08-30-44_0_ch0_0_chunk_tmp_WGS84.tif
                     if self.active_utm:
-                        gdal_warp = [
-                            "gdalwarp",
-                            "-r",
-                            "bilinear",
-                            "-order",
-                            "1",
-                            "-co",
-                            "COMPRESS=DEFLATE",
-                            "-t_srs",
-                            self.epsg_code,
-                            str(chunk_path),
-                            str(warp_path),
-                        ]
-                    else:
-                        gdal_warp = [
-                            "gdalwarp",
-                            "-r",
-                            "bilinear",
-                            "-order",
-                            "1",
-                            "-co",
-                            "COMPRESS=DEFLATE",
-                            "-t_srs",
-                            "EPSG:4326",
-                            str(chunk_path),
-                            str(warp_path),
-                        ]
+                        #if self.active_homography:
+                        gdal_warp = gdal_warp_utm 
+                        if self.active_poly:
+                            gdal_warp = gdal_warp_utm_poly
+                    else:    
+                        #if self.active_homography:
+                        gdal_warp = gdal_warp_wgs84
+                        if self.active_poly:
+                            gdal_warp = gdal_warp_wgs84_poly
+
 
                 elif not self.dynamic_chunking:
                     for i in range(len(gcp_chunk)):
                         gdal_translate.extend(
                             ["-gcp", str(im_x[i]), str(im_y[i]), str(lo[i]), str(la[i])]
                         )
+
                     gdal_translate.extend([str(im_path), str(chunk_path)])
 
+
+                    # gdal 3.11 syntax
                     if self.active_utm:
-                        gdal_warp = [
-                            "gdalwarp",
-                            "-r",
-                            "bilinear",
-                            "-order",
-                            "1",
-                            "-co",
-                            "COMPRESS=DEFLATE",
-                            "-t_srs",
-                            "EPSG:32632",
-                            str(chunk_path),
-                            str(warp_path),
-                        ]
-                    else:
-                        gdal_warp = [
-                            "gdalwarp",
-                            "-r",
-                            "bilinear",
-                            "-order",
-                            "1",
-                            "-co",
-                            "COMPRESS=DEFLATE",
-                            "-t_srs",
-                            "EPSG:4326",
-                            str(chunk_path),
-                            str(warp_path),
-                        ]
+                        #if self.active_homography:
+                        gdal_warp = gdal_warp_utm 
+                        if self.active_poly:
+                            gdal_warp = gdal_warp_utm_poly
+                    else:    
+                        #if self.active_homography:
+                        gdal_warp = gdal_warp_wgs84
+                        if self.active_poly:
+                            gdal_warp = gdal_warp_wgs84_poly
+
 
                 # optional: append .points header and fist and last center point
 
@@ -480,21 +597,36 @@ class SidescanGeoreferencer:
         if mosaic_tiff.exists():
             mosaic_tiff.unlink()
 
-        gdal_merge = [
-            "gdal_merge",
-            "-o",
-            str(mosaic_tiff),
-            "-n",
-            "0",
-            "-co",
-            "COMPRESS=DEFLATE",
-            "-co",
-            "TILED=YES",
-            "--optfile",
-            str(txt_path),
-        ]
+    # gdal < 3.11 syntax - still working fine
+        if False:
+                gdal_mosaic = [
+                "gdal_merge",
+                "-o",
+                str(mosaic_tiff),
+                "-n",
+                "0",
+                "-co",
+                "COMPRESS=DEFLATE",
+                "-co",
+                "TILED=YES",
+                "--optfile",
+                str(txt_path),
+            ]
+    
+    # gdal 3.11 syntax
+        if True:
+            gdal_mosaic = [
+                "gdal", "raster", "mosaic",
+                "-i", f"@{txt_path}",
+                "-o", str(mosaic_tiff),
+                "--src-nodata", "0",
+                "--resolution", "highest",
+                "--co", "COMPRESS=DEFLATE",
+                "--co", "TILED=YES"
+            ]
 
-        self.run_command(gdal_merge)
+
+        self.run_command(gdal_mosaic)
 
 
     def process(self):
@@ -556,7 +688,7 @@ class SidescanGeoreferencer:
         image_to_write.save(im_path)
 
 def main():
-    parser = argparse.ArgumentParser(description="Tool to georeference sidescan data")
+    parser = argparse.ArgumentParser(description="Tool to process sidescan sonar data")
     parser.add_argument("xtf", metavar="FILE", help="Path to xtf/jsf file")
     parser.add_argument(
         "channel",
@@ -568,7 +700,7 @@ def main():
         "--dynamic_chunking",
         type=bool,
         default=False,
-        help="Implements chunking based on GPS information density",
+        help="Implements chunking based on GPS information density; only use for bad/scarce GPS data",
     )
     parser.add_argument(
         "--UTM",
@@ -577,10 +709,24 @@ def main():
         help="Uses UTM projection rather than WGS84. Default is UTM",
     )
 
+    parser.add_argument(
+        "--homography",
+        type=bool,
+        default=True,
+        help="Uses homographic transformation instead of affine for georeferencing. Default is homographic.",
+    )
+
+    parser.add_argument(
+        "--poly",
+        type=bool,
+        default=False,
+        help="Uses polynomial order 1 transformation (affine) instead of homographic for georeferencing. Default is homographic.",
+    )
+
     args = parser.parse_args()
     print("args:", args)
 
-    georeferencer = SidescanGeoreferencer(args.xtf, args.channel, args.dynamic_chunking, args.active_utm)
+    georeferencer = SidescanGeoreferencer(args.xtf, args.channel, args.dynamic_chunking, args.UTM, args.poly)
     georeferencer.process()
 
 

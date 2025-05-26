@@ -88,9 +88,9 @@ In the following section all GUI elements are described in more detail.
 - `View Processed Data`: Initiates data viewer to inspect the raw input data, bottom line detection, slant range and EGN corrected data of the currently selected file.
 
 ### Georeferencing and image generation
-- Tick `Use processed Data` if above processing steps should be applied, otherwise an ordinary waterfall image based on the raw data will be created
-- `Dynamic Chunking` chooses number of pings within one chunk for georeferencing based on distance between GPS points. Only apply when GPS data are bad. If unticked, chunk size is 5 pings.
-- Untick `UTM` is you prefer WGS84 (unprojected)
+- Tick `Use processed Data` if above processing steps should be applied, otherwise a waterfall image based on the raw data will be created
+- `Dynamic Chunking` chooses number of pings within one chunk for georeferencing based on distance between GPS points. Only apply when GPS data are bad! If unticked, chunk size is 5 pings.
+- Untick `UTM` if you prefer WGS84 (unprojected)
 - Tick `Polynomial` if homographic transformation doesn't work. Sometimes, if e.g. vessel movement is irregular, the polynomial tranformation type works more reliable. If in doubt, compare geotiff with the (ungeoreferenced) waterfall image. 
 - `Apply Custom Colormap`: Select from a range of colormaps; if unticked, greyscale values are used
 - `Generate Geotiff`: Uses gdal reproject (with either homography or polynomial order 1) and ground control points (gcps) to georeference data chunk wise and export as Geotiff

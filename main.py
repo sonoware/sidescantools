@@ -690,8 +690,11 @@ class BottomLineDetectionWidget(QVBoxLayout):
         self.btm_label.setFont(title_font)
         self.btm_chunk_size_edit = LabeledLineEdit(
             "Chunk Size:",
-            QtGui.QIntValidator(100, 5000, self),
+            QtGui.QIntValidator(100, 9999, self),
             self.main_ui.settings_dict["Btm chunk size"],
+        )
+        self.btm_chunk_size_edit.line_edit.editingFinished.connect(
+            self.validate_chunk_size
         )
         self.btm_chunk_size_edit.label.setToolTip(
             "Number of pings in one chunk for bottom detection."
@@ -716,7 +719,9 @@ class BottomLineDetectionWidget(QVBoxLayout):
         self.active_convert_dB_checkbox.setToolTip(
             "Convert data to decibel for display (this is usually a good practice)."
         )
-        self.active_hist_equal_checkbox = QCheckBox("Apply Contrast Limited Adaptive Histogram Equalization (CLAHE)")
+        self.active_hist_equal_checkbox = QCheckBox(
+            "Apply Contrast Limited Adaptive Histogram Equalization (CLAHE)"
+        )
         self.active_convert_dB_checkbox.stateChanged.connect(self.db_checkbox_changed)
         self.do_btm_detection_btn = QPushButton("Bottom Line Detection")
         self.do_btm_detection_btn.setToolTip("Start Bottom Line Detection")
@@ -752,6 +757,11 @@ class BottomLineDetectionWidget(QVBoxLayout):
             active_hist_equal=self.active_hist_equal_checkbox.isChecked(),
         )
         self.data_changed.emit()
+
+    def validate_chunk_size(self):
+        val = int(self.btm_chunk_size_edit.line_edit.text())
+        if val % 2 == 1:
+            self.btm_chunk_size_edit.line_edit.setText(str(val - 1))
 
 
 # Processing widget
@@ -834,8 +844,11 @@ class ProcessingWidget(QVBoxLayout):
         )
         self.slant_chunk_size_edit = LabeledLineEdit(
             "Chunk Size:",
-            QtGui.QIntValidator(100, 5000, self),
+            QtGui.QIntValidator(100, 9999, self),
             self.main_ui.settings_dict["Slant chunk size"],
+        )
+        self.slant_chunk_size_edit.line_edit.editingFinished.connect(
+            self.validate_chunk_size
         )
         self.slant_chunk_size_edit.label.setToolTip(
             "Number of pings in one chunk for for slant range and EGN correction. Is also used to determine the size of the exported waterfall images."
@@ -1004,6 +1017,11 @@ class ProcessingWidget(QVBoxLayout):
         ):
             self.egn_radio_btn.setChecked(True)
 
+    def validate_chunk_size(self):
+        val = int(self.slant_chunk_size_edit.line_edit.text())
+        if val % 2 == 1:
+            self.slant_chunk_size_edit.line_edit.setText(str(val - 1))
+
 
 # View and export
 class ViewAndExportWidget(QVBoxLayout):
@@ -1049,8 +1067,11 @@ class ViewAndExportWidget(QVBoxLayout):
 
         self.img_chunk_size_edit = LabeledLineEdit(
             "Chunk Size:",
-            QtGui.QIntValidator(100, 5000, self),
+            QtGui.QIntValidator(100, 9999, self),
             self.main_ui.settings_dict["Img chunk size"],
+        )
+        self.img_chunk_size_edit.line_edit.editingFinished.connect(
+            self.validate_chunk_size
         )
         self.img_chunk_size_edit.label.setToolTip(
             "Number of pings in one chunk of the exported waterfall images."
@@ -1478,6 +1499,11 @@ class ViewAndExportWidget(QVBoxLayout):
                 data_out *= 255
             SidescanGeoreferencer.write_img(im_name, data)
             print(f"{im_name} written.")
+
+    def validate_chunk_size(self):
+        val = int(self.img_chunk_size_edit.line_edit.text())
+        if val % 2 == 1:
+            self.img_chunk_size_edit.line_edit.setText(str(val - 1))
 
 
 def main():

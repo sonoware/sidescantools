@@ -82,7 +82,10 @@ class SidescanGeoreferencer:
         SLANT_RANGE = self.sidescan_file.slant_range[self.channel]
         GROUND_RANGE = []
         swath_len = len(PING)
-        swath_width = len(self.sidescan_file.data[self.channel][0])
+        if self.active_proc_data:
+            swath_width = len(self.proc_data[0])
+        else:
+            swath_width = len(self.sidescan_file.data[self.channel][0])
 
         PING = np.ndarray.flatten(np.array(PING))
         LON_ori = np.ndarray.flatten(np.array(LON_ori))
@@ -271,13 +274,11 @@ class SidescanGeoreferencer:
             ch_stack = self.proc_data
         else:
             ch_stack = self.sidescan_file.data[self.channel]
-            # convert to dB (just if script is run standalone)
-            #ch_stack = 20 * np.log10(np.abs(ch_stack) + 0.1)
 
         # Extract metadata for each ping in sonar channel
         PING = self.sidescan_file.packet_no
         swath_len = len(PING)
-        swath_width = len(self.sidescan_file.data[self.channel][0])
+        swath_width = len(ch_stack[0])
         print(f"swath_len: {swath_len}, swath_width: {swath_width}")
 
 
@@ -379,7 +380,6 @@ class SidescanGeoreferencer:
                 data_stack = np.stack(
                     (ch_chunk_flip, ch_chunk_flip, ch_chunk_flip), axis=-1
                 )
-                image_to_write = Image.fromarray(data_stack)
                 image_to_write = Image.fromarray(data_stack)
                 alpha = Image.fromarray(alpha)
                 image_to_write.putalpha(alpha)

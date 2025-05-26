@@ -11,6 +11,7 @@ from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 from pyproj import CRS, datadir
 from scipy.signal import savgol_filter
+import napari
 
 
 # TODO: Doc/Type hints
@@ -40,7 +41,7 @@ class SidescanGeoreferencer:
         dynamic_chunking: bool = False,
         active_utm: bool = True,
         #active_homography: bool = True,
-        active_poly: bool = False,
+        active_poly: bool = True,
         proc_data=None,
         output_folder: str | os.PathLike = "./georef_out",
         vertical_beam_angle: int = 60,
@@ -712,14 +713,14 @@ def main():
     parser.add_argument(
         "--homography",
         type=bool,
-        default=True,
+        default=False,
         help="Uses homographic transformation instead of affine for georeferencing. Default is homographic.",
     )
 
     parser.add_argument(
         "--poly",
         type=bool,
-        default=False,
+        default=True,
         help="Uses polynomial order 1 transformation (affine) instead of homographic for georeferencing. Default is homographic.",
     )
 

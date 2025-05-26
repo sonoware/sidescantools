@@ -86,7 +86,7 @@ class SidescanToolsMain(QWidget):
         "Georef active proc data": True,
         "Georef active dynamic chunking": False,
         "Georef UTM": True,
-        "Georef Poly": False,
+        "Georef Poly": True,
         "Georef active custom colormap": False,
         "Path": [],
         "Meta info": dict(),

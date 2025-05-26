@@ -9,16 +9,18 @@ As of now, SidescanTools can process and read data from two formats:
 
 # Main Processing Steps
 1. Detect **bottom line** in waterfall view (required for any following processing step).
-2. **Slant-range correction**: Calculate ground range by projecting slant ranges onto bottom, assuming flat seafloor.
-3. **Empirical gain normalization** (EGN) is used to correct for intensity changes by angle and distance.
-   EGN sums and averages amplitudes of all pings over all loaded files to correct intensity.
+2. **Geometric Corrections**: Slant-range correction: Calculate ground range by projecting slant ranges onto bottom, assuming flat seafloor.
+3. **Radiometric Corrections** Baam angle correction (BAC) or Empirical Gain Normalisation (EGN): is used to correct for intensity changes by angle (BAC) or angle and distance (EGN).
+   Note: EGN Needs mtultiple files for good performance. If only few files exist, use BAC!
+   BAC sums & averages intensities per beam angle over all pings in a file. 
+   EGN sums and averages amplitudes of all pings by beam angle and distance over all loaded files to correct for intensity.
    Note that this only works for files from the *same* instrument.
    A good approach is one EGN table per survey/day and per instrument.
 4. Export data as **georeferenced image** to view on a map.
 
 # Issues and Planned Features
 The following features are still under development and will be improved in future releases:
-- **Georeferencing** currently uses [gdal](https://gdal.org/) and `polynomial 1` which preserves parallel lines -- _custom georeferencing to be implemented_
+- **Georeferencing** currently uses [gdal v3.11](https://gdal.org/) and `homography` or `polynomial 1` as warping algortihm along with ground control points. Usually, homography is more precise but can in some cases produce wavy structures and/or shifts in the data. In this case, use `Polynomial` (preserves parallel lines) -- _custom georeferencing to be implemented_
 - **Data processing** currently freezes the GUI, information about the current state is only shown in the console -- _background processing to be implemented_
 - **Loading XTF/JSF files** always reads the entire file -- _loading only headers to show meta information while keeping the GUI responsive to be implemented_
 - **Recommendations** _for downsampling and processing based on loaded data to be implemented_
@@ -30,26 +32,26 @@ The following features are still under development and will be improved in futur
 3. Install required packages from `requirements.txt`.
    Using a virtual (conda!) environment is recommended.
    Currently packages are listed without minimum version.
-   - Recommended: Use anaconda or miniconda and install gdal using: conda install -c confa-forge gdal=3.11
-   - If you do not use conda and are on Windows and have trouble installing GDAL, check [cgohlke's wheels](https://github.com/cgohlke/geospatial-wheels/releases) (not recommended!)
+   - Recommended: Use anaconda or miniconda and install gdal v3.11 using: conda install -c confa-forge gdal=3.11
+   - If you do not use conda and are on Windows and have trouble installing GDAL, check [cgohlke's wheels](https://github.com/cgohlke/geospatial-wheels/releases) (not recommended! Currently does not work for gdal v3.11!)
    - On Linux, if not using conda, you may need to install your system's gdal package (e.g., `apt install libgdal-dev` or `yum install libgdal-dev`)
-4. Start GUI by typing `python main.py`
+4. Start GUI by running the typing `main.py` script from within your environment
 
 
 # Usage
-In the following all GUI elements are explained in more detail.
+In the following section all GUI elements are described in more detail.
 
 ## Add Sidescan Data
 - Add sidescan data by pressing `Add XTF/JSF` in the top left panel
 
-## Bottom-line Detection
-- `Bottom-line Detection` initiates the bottom-line detection window
+## Bottom Line Detection (BLD)
+- `Bottomline Detection` initiates the bottom-line detection window
 - `Chunk Size`: Number of pings in a single view
 - `Default Threshold`: Threshold used on normalized ping data to make data binary for bottom detection
 - `Downsampling Factor`: Integer number to reduce samples per each ping (Data is decimated using this factor)
 - Tick `Convert to dB` to convert data to decibels instead of intensities
 
-## Bottom Line Detection
+### Interactive BLD
 - The selected file is read and divided into chunks.
   An initial depth detection is done for the full file which can be adjusted for each frame/chunk.
 - Threshold and side strategies that can be selected: `Each Side Individually`, `Combine Both Sides`, `Only Use Portside`, `Only Use Starboard`
@@ -86,14 +88,15 @@ In the following all GUI elements are explained in more detail.
 - `View Processed Data`: Initiates data viewer to inspect the raw input data, bottom line detection, slant range and EGN corrected data of the currently selected file.
 
 ### Georeferencing and image generation
-- Tick `Use processed Data` if above processing steps should be applied, otherwise an ordinary waterfall image based on the raw data will be created
-- `Dynamic Chunking` chooses number of pings within one chunk for georeferencing based on distance between GPS points. Only apply when GPS data are bad. If unticked, chunk size is 5 pings.
-- Untick `UTM` is you prefer WGS84 (unprojected)
+- Tick `Use processed Data` if above processing steps should be applied, otherwise a waterfall image based on the raw data will be created
+- `Dynamic Chunking` chooses number of pings within one chunk for georeferencing based on distance between GPS points. Only apply when GPS data are bad! If unticked, chunk size is 5 pings.
+- Untick `UTM` if you prefer WGS84 (unprojected)
 - Tick `Polynomial` if homographic transformation doesn't work. Sometimes, if e.g. vessel movement is irregular, the polynomial tranformation type works more reliable. If in doubt, compare geotiff with the (ungeoreferenced) waterfall image. 
 - `Apply Custom Colormap`: Select from a range of colormaps; if unticked, greyscale values are used
 - `Generate Geotiff`: Uses gdal reproject (with either homography or polynomial order 1) and ground control points (gcps) to georeference data chunk wise and export as Geotiff
 - `Include raw data in waterfall image`: produces additional png with raw undprocessed data
 - `Generate Waterfall Image`: Generates a non-georeferenced png file from processed data. Adjust chunk size if you need one file instead of several.
+#### Important Note: If the file is shorter than wide (i.e., number of pings < number of samples for both channels) the georeferencing doesn't work!
 
 # About
 SidescanTools is an open-source software project by [GEOMAR](https://www.geomar.de/ghostnetbusters) and [sonoware](https://www.sonoware.de/news/2024-12-06_uebergabe_foerderbescheid/) funded by the AI Fund of the State of Schleswig-Holstein.

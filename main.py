@@ -558,12 +558,6 @@ class SidescanToolsMain(QWidget):
         self.settings_dict["Slant active use downsampling"] = (
             self.processing_widget.active_bottom_detection_downsampling_checkbox.isChecked()
         )
-        self.settings_dict["Slant active multiprocessing"] = (
-            self.processing_widget.active_multiprocessing_checkbox.isChecked()
-        )
-        self.settings_dict["Slant num worker"] = int(
-            self.processing_widget.num_worker_edit.line_edit.text()
-        )
         self.settings_dict["Slant active export proc data"] = (
             self.processing_widget.export_final_proc_checkbox.isChecked()
         )
@@ -646,12 +640,6 @@ class SidescanToolsMain(QWidget):
         )
         self.processing_widget.active_bottom_detection_downsampling_checkbox.setChecked(
             self.settings_dict["Slant active use downsampling"]
-        )
-        self.processing_widget.active_multiprocessing_checkbox.setChecked(
-            self.settings_dict["Slant active multiprocessing"]
-        )
-        self.processing_widget.num_worker_edit.line_edit.setText(
-            str(self.settings_dict["Slant num worker"])
         )
         self.processing_widget.export_final_proc_checkbox.setChecked(
             self.settings_dict["Slant active export proc data"]
@@ -869,15 +857,6 @@ class ProcessingWidget(QVBoxLayout):
         self.egn_table_name_edit.label.setToolTip(
             "Set name of EGN Table that is written as .npz file."
         )
-        self.active_multiprocessing_checkbox = QCheckBox("Active Multiprocessing")
-        self.active_multiprocessing_checkbox.setToolTip(
-            "Use multiprocessing in python to enable faster processing by multithreading."
-        )
-        self.num_worker_edit = LabeledLineEdit(
-            "Number of Workers:",
-            QtGui.QIntValidator(0, 32, self),
-            str(self.main_ui.settings_dict["Slant num worker"]),
-        )
         self.export_slant_correction_checkbox = QCheckBox(
             "Export Slant Range corrected Data"
         )
@@ -918,8 +897,6 @@ class ProcessingWidget(QVBoxLayout):
         self.addWidget(self.optional_egn_label)
         self.addLayout(self.nadir_angle_edit)
         self.addLayout(self.slant_chunk_size_edit)
-        self.addWidget(self.active_multiprocessing_checkbox)
-        self.addLayout(self.num_worker_edit)
         self.addWidget(self.export_slant_correction_checkbox)
         self.addWidget(self.export_final_proc_checkbox)
         self.addWidget(QHLine())

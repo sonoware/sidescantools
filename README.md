@@ -96,6 +96,7 @@ In the following section all GUI elements are described in more detail.
 - `Generate Geotiff`: Uses gdal reproject (with either homography or polynomial order 1) and ground control points (gcps) to georeference data chunk wise and export as Geotiff
 - `Include raw data in waterfall image`: produces additional png with raw undprocessed data
 - `Generate Waterfall Image`: Generates a non-georeferenced png file from processed data. Adjust chunk size if you need one file instead of several.
+#### Important Note: If the file is shorter than wide (i.e., number of pings > number of samples for both channels) the georeferencing doesn't work!
 
 # About
 SidescanTools is an open-source software project by [GEOMAR](https://www.geomar.de/ghostnetbusters) and [sonoware](https://www.sonoware.de/news/2024-12-06_uebergabe_foerderbescheid/) funded by the AI Fund of the State of Schleswig-Holstein.

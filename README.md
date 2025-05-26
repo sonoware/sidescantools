@@ -14,13 +14,16 @@ As of now, SidescanTools can process and read data from two formats:
 - Filter stripe noise using a Filter in 2DFFT domain
 - Apply a sharpening filter 
 - Apply one of two **Gain Normalization** Strategies:
-Beam Angle Correction (BAC, works on a single file) or Empirical Gain Normalization (EGN, works by analyzing all files in the project)
+
+  - Beam Angle Correction (BAC, works on a single file)
+  - Empirical Gain Normalization (EGN, works by analyzing all files in the project)
 
    Note: EGN needs quite some data for good performance. If only few data exist, use BAC!
    BAC sums & averages intensities per beam angle over all pings in a file. 
    EGN sums and averages amplitudes of all pings by beam angle and distance over all loaded files to correct for intensity.
    Note that this only works for files from the *same* instrument.
    A good approach is one EGN table per survey/day and per instrument.
+
 4. **View and Export**
   - View data of the different steps in napari to examine procesing results.
   - Export data as **georeferenced image** to view on a map.
@@ -29,8 +32,8 @@ Beam Angle Correction (BAC, works on a single file) or Empirical Gain Normalizat
 # Issues and Planned Features
 The following features are still under development and will be improved in future releases:
 - **Georeferencing** currently uses [gdal v3.11](https://gdal.org/) and `homography` or `polynomial 1` as warping algortihm along with ground control points. Usually, homography is more precise but can in some cases produce wavy structures and/or shifts in the data. In this case, use `Polynomial` (preserves parallel lines) -- _custom georeferencing to be implemented_
-- _Implement a standard case per possible imported datatype for optimal visibility of objects in the images_
-- **Bottom line detection* sometimes failes, especially when there are a lot of reflections in the water coloumn. Therefore a strategy to counter this should be examined.
+- _Implement a standard case per possible imported datatype for **optimal visibility of objects** in the images_
+- **Bottom line detection** sometimes failes, especially when there are a lot of reflections in the water coloumn. Therefore a strategy to counter this should be examined.
 
 # Getting Started
 1. Currently we use Anaconda/Miniconda for platform indepent installation using Python 3.12. This is preferred because the installation of GDAL is essential and often doesn't work using pip. 

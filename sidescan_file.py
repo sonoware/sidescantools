@@ -233,7 +233,11 @@ class SidescanFile:
                         self.depth[p_idx] = packet.message.depth / 1e3
                         self.packet_no[p_idx] = packet.message.packet_no
                         self.seconds_per_ping[:, p_idx] = packet.message.sampling_interval_ns / 1e9
-                        self.slant_range[:, p_idx] = self.seconds_per_ping[0, p_idx] * self.ping_len * packet.message.SOS / 2 # TODO search for info message or how to get the slant range???
+                        # check whether SOS is valid
+                        sos = packet.message.SOS
+                        if sos == 0:
+                            sos = 1500
+                        self.slant_range[:, p_idx] = self.seconds_per_ping[0, p_idx] * self.ping_len * sos / 2
                         self.starting_depth[p_idx] = packet.message.starting_depth
                         self.gain_adc[p_idx] = packet.message.gain_adc
 

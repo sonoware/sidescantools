@@ -1330,11 +1330,12 @@ class ViewAndExportWidget(QVBoxLayout):
         proc_data_0 = None
         proc_data_1 = None
         if self.active_use_proc_data_checkbox.isChecked():
-            proc_data_0 = preproc.egn_corrected_mat[:, 0 : sidescan_file.ping_len]
+            ping_len = int(np.shape(preproc.egn_corrected_mat)[1]/2)
+            proc_data_0 = preproc.egn_corrected_mat[:, 0 : ping_len]
             proc_data_0 = np.nan_to_num(
                 proc_data_0
             )  # remove nans from excluding far/nadir unknown values
-            proc_data_1 = preproc.egn_corrected_mat[:, sidescan_file.ping_len :]
+            proc_data_1 = preproc.egn_corrected_mat[:, ping_len :]
             proc_data_1 = np.nan_to_num(proc_data_1)
 
         proc_data_out_0 = copy.copy(proc_data_0)

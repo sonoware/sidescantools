@@ -109,6 +109,11 @@ class SidescanGeoreferencer:
 
         HEAD = savgol_filter(HEAD_ori, 120, 1)
         x = range(len(HEAD))
+        head_data = np.stack([x, HEAD], axis=0)
+        view_head = napari.Viewer()
+        view_head.add_image(head_data, name = 'Heading')
+        #layer_head = view_head.layers['Heading']
+        #layer_head.save('./Heading.png')
         #plt.title("Heading")
         #plt.plot(x, HEAD_ori, label='Original Heading')
         #plt.plot(x, HEAD, label='Smoothed Heading')
@@ -117,11 +122,18 @@ class SidescanGeoreferencer:
 
         LAT = savgol_filter(LAT_ori, 120, 1)
         LON = savgol_filter(LON_ori, 120, 1)
+        lola_data = np.stack([LON, LAT], axis = 0)
+        view_lola = napari.Viewer()
+        view_lola.add_image(lola_data, name = 'Navigation')
+        #layer_lola = view_head.layers['Navigation']
+        #layer_lola.save('./Navigation.png')
         #plt.title("Navigation")
         #plt.plot(LON_ori, LAT_ori, label='Original Navigation')
         #plt.plot(LON, LAT, label='Smoothed Navigation')
         #plt.legend()
         #plt.show()
+
+        napari.run()
 
         UTM = []
         for la, lo in zip(LAT, LON):

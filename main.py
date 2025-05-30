@@ -18,6 +18,7 @@ from qtpy.QtWidgets import (
     QSpacerItem,
     QRadioButton,
     QButtonGroup,
+    QComboBox,
 )
 from qtpy.QtGui import QPalette, QColor, QShortcut, QKeySequence
 import qtpy.QtCore as QtCore
@@ -86,7 +87,8 @@ class SidescanToolsMain(QWidget):
         "Georef active proc data": True,
         "Georef active dynamic chunking": False,
         "Georef UTM": True,
-        "Georef Poly": True,
+        "Resolution Mode": list,
+        "Warp Mode": list,
         "Georef active custom colormap": False,
         "Path": [],
         "Meta info": dict(),
@@ -591,9 +593,6 @@ class SidescanToolsMain(QWidget):
         self.settings_dict["Georef UTM"] = (
             self.view_and_export_widget.active_utm_checkbox.isChecked()
         )
-        self.settings_dict["Georef Poly"] = (
-            self.view_and_export_widget.active_poly_checkbox.isChecked()
-        )
         self.settings_dict["Georef active custom colormap"] = (
             self.view_and_export_widget.active_colormap_checkbox.isChecked()
         )
@@ -680,9 +679,6 @@ class SidescanToolsMain(QWidget):
         self.view_and_export_widget.active_utm_checkbox.setChecked(
             self.settings_dict["Georef UTM"]
         )
-        self.view_and_export_widget.active_poly_checkbox.setChecked(
-            self.settings_dict["Georef Poly"]
-        )
         self.view_and_export_widget.active_colormap_checkbox.setChecked(
             self.settings_dict["Georef active custom colormap"]
         )
@@ -714,7 +710,7 @@ class BottomLineDetectionWidget(QVBoxLayout):
             self.main_ui.settings_dict["Btm def thresh"],
         )
         self.btm_default_thresh.label.setToolTip(
-            "Threshold that is applied to normalized data to find edges between water and ground. Needs to be in range[ 0 - 1]."
+            "Threshold that is applied to normalised data to find edges between water and ground. Needs to be in range[ 0 - 1]."
         )
         self.btm_downsample_fact = LabeledLineEdit(
             "Downsampling Factor:",
@@ -728,7 +724,7 @@ class BottomLineDetectionWidget(QVBoxLayout):
         self.active_convert_dB_checkbox.setToolTip(
             "Convert data to decibel for display (this is usually a good practice)."
         )
-        self.active_hist_equal_checkbox = QCheckBox("Apply Contrast Limited Adaptive Histogram Equalization (CLAHE)")
+        self.active_hist_equal_checkbox = QCheckBox("Apply Contrast Limited Adaptive Histogram Equalisation (CLAHE)")
         self.active_convert_dB_checkbox.stateChanged.connect(self.db_checkbox_changed)
         self.do_btm_detection_btn = QPushButton("Bottom Line Detection")
         self.do_btm_detection_btn.setToolTip("Start Bottom Line Detection")
@@ -1085,17 +1081,32 @@ class ViewAndExportWidget(QVBoxLayout):
         self.active_use_proc_data_checkbox.setToolTip(
             "Export pictures using the processed (filtered and corrected) data. Otherwise raw data is exported."
         )
+        self.res_mode_label = QLabel("Resolution Mode")
+        self.res_mode_label.setToolTip("Set mode for final resolution. Leave average, if unsure.")
+        self.warp_mode_label = QLabel("Warp Method")
+        self.warp_mode_label.setToolTip("Set method for warping algorithm. Leave polynomial 1 if unsure, homography is in expermental state.")
+
+        self.resolution_mode_dropdown = QComboBox()
+        self.resolution_mode_dropdown.setToolTip("Set mode for final resolution. Chose average, if unsure.")
+        for res_disp, res_int in SidescanGeoreferencer.resolution_mode.items():
+            self.resolution_mode_dropdown.addItem(res_disp, res_int)
+        self.resolution_mode_dropdown.setCurrentIndex(3)
+        self.resolution_mode_dropdown.currentIndexChanged.connect(self.change_res_mode)
+
+        self.warp_mode_dropdown = QComboBox()
+        self.warp_mode_dropdown.setToolTip("Set method for warping algorithm. Leave polynomial 1 if unsure, homography is in expermental state.")
+        for warp_disp, warp_int in SidescanGeoreferencer.warp_algorithm.items():
+            self.warp_mode_dropdown.addItem(warp_disp, warp_int)
+        self.warp_mode_dropdown.setCurrentIndex(0)
+        self.warp_mode_dropdown.currentIndexChanged.connect(self.change_warp_mode)
+
         self.active_dynamic_chunking_checkbox = QCheckBox("Dynamic Chunking")
         self.active_dynamic_chunking_checkbox.setToolTip("Experimental")
         self.active_utm_checkbox = QCheckBox("UTM")
         self.active_utm_checkbox.setToolTip(
             "Coordinates in UTM (default). WGS84 if unchecked."
         )
-        self.active_poly_checkbox = QCheckBox("Polynomial")
-        self.active_poly_checkbox.setToolTip(
-            "Polynomial order 1 transformation (affine) instead of homographic. Default is homographic.\
-                Use polynomial option if geotiff looks strange."
-        )
+
         self.active_colormap_checkbox = QCheckBox("Apply custom Colormap")
         self.active_colormap_checkbox.setToolTip(
             "Applies the colormap used in napari to the exported waterfall images. Otherwise grey scale values are used."
@@ -1126,9 +1137,12 @@ class ViewAndExportWidget(QVBoxLayout):
         self.addWidget(QHLine())
         self.addWidget(self.georef_label)
         self.addWidget(self.active_use_proc_data_checkbox)
+        self.addWidget(self.res_mode_label)
+        self.addWidget(self.resolution_mode_dropdown)
+        self.addWidget(self.warp_mode_label)
+        self.addWidget(self.warp_mode_dropdown)
         self.addWidget(self.active_dynamic_chunking_checkbox)
         self.addWidget(self.active_utm_checkbox)
-        self.addWidget(self.active_poly_checkbox)
         self.addWidget(self.active_colormap_checkbox)
         self.labeled_georef_buttons = Labeled2Buttons(
             "Generate Geotiff:",
@@ -1152,6 +1166,16 @@ class ViewAndExportWidget(QVBoxLayout):
         self.main_ui.bottom_line_detection_widget.active_convert_dB_checkbox.setChecked(
             self.active_convert_dB_checkbox.isChecked()
         )
+
+    def change_res_mode(self, index):
+        selected_res_mode = self.resolution_mode_dropdown.currentText()
+        self.main_ui.settings_dict["Resolution Mode"] = selected_res_mode
+
+    def change_warp_mode(self):
+        selected_warp_mode = self.warp_mode_dropdown.currentText()
+        self.main_ui.settings_dict["Warp Mode"] = selected_warp_mode
+
+    
 
     def show_proc_file_in_napari(self):
         file_idx = 0
@@ -1352,12 +1376,13 @@ class ViewAndExportWidget(QVBoxLayout):
             channel=0,
             dynamic_chunking=self.active_dynamic_chunking_checkbox.isChecked(),
             active_utm=self.active_utm_checkbox.isChecked(),
-            active_poly=self.active_poly_checkbox.isChecked(),
             output_folder=self.main_ui.settings_dict["Georef dir"],
             proc_data=proc_data_out_0,
             vertical_beam_angle=int(
                 self.main_ui.processing_widget.vertical_beam_angle_edit.line_edit.text()
             ),
+            resolution_mode = self.resolution_mode_dropdown.currentData(),
+            warp_algorithm = self.warp_mode_dropdown.currentData(),
         )
         georeferencer.process()
         georeferencer = SidescanGeoreferencer(
@@ -1365,12 +1390,13 @@ class ViewAndExportWidget(QVBoxLayout):
             channel=1,
             dynamic_chunking=self.active_dynamic_chunking_checkbox.isChecked(),
             active_utm=self.active_utm_checkbox.isChecked(),
-            active_poly=self.active_poly_checkbox.isChecked(),
             output_folder=self.main_ui.settings_dict["Georef dir"],
             proc_data=proc_data_out_1,
             vertical_beam_angle=int(
                 self.main_ui.processing_widget.vertical_beam_angle_edit.line_edit.text()
             ),
+            resolution_mode = self.resolution_mode_dropdown.currentData(),
+            warp_algorithm = self.warp_mode_dropdown.currentData(),
         )
         georeferencer.process()
 

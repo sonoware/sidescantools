@@ -39,8 +39,8 @@ class SidescanGeoreferencer:
         "Common": "common"
         }
     warp_algorithm: dict = {
-        "Polynomial 1": "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1", 
-        "Homography": "SRC_METHOD=GCP_HOMOGRAPHY"
+        "Polynomial 1 (recommended)": "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1", 
+        "Homography (experimental)": "SRC_METHOD=GCP_HOMOGRAPHY"
     }
 
     def __init__(

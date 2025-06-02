@@ -31,7 +31,7 @@ class SidescanGeoreferencer:
     chunk_indices: np.array
     vertical_beam_angle: int
     epsg_code: str
-    resolution_mode: dict = {
+    resolution_options: dict = {
         "Same": "same",
         "Highest": "highest", 
         "Lowest": "lowest", 
@@ -69,19 +69,11 @@ class SidescanGeoreferencer:
         proc_data = None,
         output_folder: str | os.PathLike = "./georef_out",
         vertical_beam_angle: int = 60,
-        resolution_mode: dict = {
-
-        "Same": "same",
-        "Highest": "highest", 
-        "Lowest": "lowest", 
-        "Average": "average", 
-        "Common": "common"
-        },
         warp_algorithm: dict = {
         "Polynomial 1": "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1", 
         "Homography": "SRC_METHOD=GCP_HOMOGRAPHY"
         },
-
+        resolution_mode: str = "average",
         resampling_method: dict = {
         "Near": "near",
         "Bilinear": "bilinear",

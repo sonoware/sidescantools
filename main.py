@@ -1089,7 +1089,7 @@ class ViewAndExportWidget(QVBoxLayout):
 
         self.resolution_mode_dropdown = QComboBox()
         self.resolution_mode_dropdown.setToolTip("Set mode for final resolution. Chose average, if unsure.")
-        for res_disp, res_int in SidescanGeoreferencer.resolution_mode.items():
+        for res_disp, res_int in SidescanGeoreferencer.resolution_options.items():
             self.resolution_mode_dropdown.addItem(res_disp, res_int)
         self.resolution_mode_dropdown.setCurrentIndex(3)
         self.resolution_mode_dropdown.currentIndexChanged.connect(self.change_res_mode)

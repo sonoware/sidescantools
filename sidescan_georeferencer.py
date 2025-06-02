@@ -38,12 +38,12 @@ class SidescanGeoreferencer:
         "Average": "average", 
         "Common": "common"
         }
-    warp_algorithm: dict = {
+    warp_options: dict = {
         "Polynomial 1 (recommended)": "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1", 
         "Homography (experimental)": "SRC_METHOD=GCP_HOMOGRAPHY"
     }
 
-    resampling_method: dict = {
+    resampling_options: dict = {
         "Near": "near",
         "Bilinear": "bilinear",
         "Cubic": "cubicspline",
@@ -69,26 +69,9 @@ class SidescanGeoreferencer:
         proc_data = None,
         output_folder: str | os.PathLike = "./georef_out",
         vertical_beam_angle: int = 60,
-        warp_algorithm: dict = {
-        "Polynomial 1": "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1", 
-        "Homography": "SRC_METHOD=GCP_HOMOGRAPHY"
-        },
+        warp_algorithm: str = "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",
         resolution_mode: str = "average",
-        resampling_method: dict = {
-        "Near": "near",
-        "Bilinear": "bilinear",
-        "Cubic": "cubicspline",
-        "Lanczos": "lanczos",
-        "Average": "average",
-        "RMS": "rms",
-        "Mode": "mode",
-        "Maximum": "max",
-        "Minimum": "min",
-        "Median": "med",
-        "1. Quartile": "q1",
-        "3. Quartile": "q3",
-        "Weighted Sum": "sum"
-        }
+        resampling_method: str = "near"
     ):
         self.filepath = Path(filepath)
         self.sidescan_file = SidescanFile(self.filepath)

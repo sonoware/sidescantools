@@ -1109,19 +1109,16 @@ class ViewAndExportWidget(QVBoxLayout):
         self.resolution_mode_dropdown.setToolTip("Set mode for final resolution. Chose average, if unsure.")
         for res_disp, res_int in SidescanGeoreferencer.resolution_options.items():
             self.resolution_mode_dropdown.addItem(res_disp, res_int)
-        self.resolution_mode_dropdown.currentIndexChanged.connect(self.change_res_mode)
 
         self.warp_mode_dropdown = QComboBox()
         self.warp_mode_dropdown.setToolTip("Set method for warping algorithm. Leave polynomial 1 if unsure, homography is in expermental state.")
         for warp_disp, warp_int in SidescanGeoreferencer.warp_options.items():
             self.warp_mode_dropdown.addItem(warp_disp, warp_int)
-        self.warp_mode_dropdown.currentIndexChanged.connect(self.change_warp_mode)
 
         self.resamp_mode_dropdown = QComboBox()
         self.resamp_mode_dropdown.setToolTip("Select resampling method. Leave near neighbour, if unsure (least interpolation).")
         for resamp_disp, resamp_int in SidescanGeoreferencer.resampling_options.items():
             self.resamp_mode_dropdown.addItem(resamp_disp, resamp_int)
-        self.resamp_mode_dropdown.currentIndexChanged.connect(self.change_resampling_method)
 
         self.active_dynamic_chunking_checkbox = QCheckBox("Dynamic Chunking")
         self.active_dynamic_chunking_checkbox.setToolTip("Experimental")
@@ -1191,18 +1188,6 @@ class ViewAndExportWidget(QVBoxLayout):
         self.main_ui.bottom_line_detection_widget.active_convert_dB_checkbox.setChecked(
             self.active_convert_dB_checkbox.isChecked()
         )
-
-    def change_res_mode(self, index):
-        selected_res_mode = self.resolution_mode_dropdown.currentText()
-        self.main_ui.settings_dict["Resolution Mode"] = selected_res_mode
-
-    def change_warp_mode(self):
-        selected_warp_mode = self.warp_mode_dropdown.currentText()
-        self.main_ui.settings_dict["Warp Mode"] = selected_warp_mode
-
-    def change_resampling_method(self):
-        selected_resamp_mode = self.resamp_mode_dropdown.currentText()
-        self.main_ui.settings_dict["Resampling Method"] = selected_resamp_mode   
 
     def show_proc_file_in_napari(self):
         file_idx = 0

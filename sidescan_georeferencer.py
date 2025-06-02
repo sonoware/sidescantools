@@ -43,6 +43,22 @@ class SidescanGeoreferencer:
         "Homography (experimental)": "SRC_METHOD=GCP_HOMOGRAPHY"
     }
 
+    resampling_method: dict = {
+        "Near": "near",
+        "Bilinear": "bilinear",
+        "Cubic": "cubicspline",
+        "Lanczos": "lanczos",
+        "Average": "average",
+        "RMS": "rms",
+        "Mode": "mode",
+        "Maximum": "max",
+        "Minimum": "min",
+        "Median": "med",
+        "1. Quartile": "q1",
+        "3. Quartile": "q3",
+        "Weighted Sum": "sum"
+    }
+
     def __init__(
         self,
         filepath: str | os.PathLike,
@@ -54,6 +70,7 @@ class SidescanGeoreferencer:
         output_folder: str | os.PathLike = "./georef_out",
         vertical_beam_angle: int = 60,
         resolution_mode: dict = {
+
         "Same": "same",
         "Highest": "highest", 
         "Lowest": "lowest", 
@@ -63,7 +80,23 @@ class SidescanGeoreferencer:
         warp_algorithm: dict = {
         "Polynomial 1": "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1", 
         "Homography": "SRC_METHOD=GCP_HOMOGRAPHY"
-    }
+        },
+
+        resampling_method: dict = {
+        "Near": "near",
+        "Bilinear": "bilinear",
+        "Cubic": "cubicspline",
+        "Lanczos": "lanczos",
+        "Average": "average",
+        "RMS": "rms",
+        "Mode": "mode",
+        "Maximum": "max",
+        "Minimum": "min",
+        "Median": "med",
+        "1. Quartile": "q1",
+        "3. Quartile": "q3",
+        "Weighted Sum": "sum"
+        }
     ):
         self.filepath = Path(filepath)
         self.sidescan_file = SidescanFile(self.filepath)
@@ -75,6 +108,7 @@ class SidescanGeoreferencer:
         self.vertical_beam_angle = vertical_beam_angle
         self.resolution_mode = resolution_mode
         self.warp_algorithm = warp_algorithm
+        self.resampling_method = resampling_method
         self.active_proc_data = False
         self.GCP_SPLIT = []
         self.POINTS_SPLIT = []
@@ -443,7 +477,7 @@ class SidescanGeoreferencer:
                         "raster",
                         "reproject",
                         "-r",
-                        "near",
+                        self.resampling_method,
                         "--to",
                         self.warp_algorithm,   
                         "--co",
@@ -461,7 +495,7 @@ class SidescanGeoreferencer:
                         "raster",
                         "reproject",
                         "-r",
-                        "near",
+                        self.resampling_method,
                         "--to",
                         self.warp_algorithm,
                         "--co",

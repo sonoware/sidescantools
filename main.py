@@ -561,12 +561,6 @@ class SidescanToolsMain(QWidget):
         self.settings_dict["Slant active use downsampling"] = (
             self.processing_widget.active_bottom_detection_downsampling_checkbox.isChecked()
         )
-        self.settings_dict["Slant active multiprocessing"] = (
-            self.processing_widget.active_multiprocessing_checkbox.isChecked()
-        )
-        self.settings_dict["Slant num worker"] = int(
-            self.processing_widget.num_worker_edit.line_edit.text()
-        )
         self.settings_dict["Slant active export proc data"] = (
             self.processing_widget.export_final_proc_checkbox.isChecked()
         )
@@ -647,12 +641,6 @@ class SidescanToolsMain(QWidget):
         self.processing_widget.active_bottom_detection_downsampling_checkbox.setChecked(
             self.settings_dict["Slant active use downsampling"]
         )
-        self.processing_widget.active_multiprocessing_checkbox.setChecked(
-            self.settings_dict["Slant active multiprocessing"]
-        )
-        self.processing_widget.num_worker_edit.line_edit.setText(
-            str(self.settings_dict["Slant num worker"])
-        )
         self.processing_widget.export_final_proc_checkbox.setChecked(
             self.settings_dict["Slant active export proc data"]
         )
@@ -699,8 +687,11 @@ class BottomLineDetectionWidget(QVBoxLayout):
         self.btm_label.setFont(title_font)
         self.btm_chunk_size_edit = LabeledLineEdit(
             "Chunk Size:",
-            QtGui.QIntValidator(100, 5000, self),
+            QtGui.QIntValidator(100, 9999, self),
             self.main_ui.settings_dict["Btm chunk size"],
+        )
+        self.btm_chunk_size_edit.line_edit.editingFinished.connect(
+            self.validate_chunk_size
         )
         self.btm_chunk_size_edit.label.setToolTip(
             "Number of pings in one chunk for bottom detection."
@@ -725,7 +716,9 @@ class BottomLineDetectionWidget(QVBoxLayout):
         self.active_convert_dB_checkbox.setToolTip(
             "Convert data to decibel for display (this is usually a good practice)."
         )
-        self.active_hist_equal_checkbox = QCheckBox("Apply Contrast Limited Adaptive Histogram Equalisation (CLAHE)")
+        self.active_hist_equal_checkbox = QCheckBox(
+            "Apply Contrast Limited Adaptive Histogram Equalization (CLAHE)"
+        )
         self.active_convert_dB_checkbox.stateChanged.connect(self.db_checkbox_changed)
         self.do_btm_detection_btn = QPushButton("Bottom Line Detection")
         self.do_btm_detection_btn.setToolTip("Start Bottom Line Detection")
@@ -761,6 +754,11 @@ class BottomLineDetectionWidget(QVBoxLayout):
             active_hist_equal=self.active_hist_equal_checkbox.isChecked(),
         )
         self.data_changed.emit()
+
+    def validate_chunk_size(self):
+        val = int(self.btm_chunk_size_edit.line_edit.text())
+        if val % 2 == 1:
+            self.btm_chunk_size_edit.line_edit.setText(str(val - 1))
 
 
 # Processing widget
@@ -843,8 +841,11 @@ class ProcessingWidget(QVBoxLayout):
         )
         self.slant_chunk_size_edit = LabeledLineEdit(
             "Chunk Size:",
-            QtGui.QIntValidator(100, 5000, self),
+            QtGui.QIntValidator(100, 9999, self),
             self.main_ui.settings_dict["Slant chunk size"],
+        )
+        self.slant_chunk_size_edit.line_edit.editingFinished.connect(
+            self.validate_chunk_size
         )
         self.slant_chunk_size_edit.label.setToolTip(
             "Number of pings in one chunk for for slant range and EGN correction. Is also used to determine the size of the exported waterfall images."
@@ -865,15 +866,6 @@ class ProcessingWidget(QVBoxLayout):
         )
         self.egn_table_name_edit.label.setToolTip(
             "Set name of EGN Table that is written as .npz file."
-        )
-        self.active_multiprocessing_checkbox = QCheckBox("Active Multiprocessing")
-        self.active_multiprocessing_checkbox.setToolTip(
-            "Use multiprocessing in python to enable faster processing by multithreading."
-        )
-        self.num_worker_edit = LabeledLineEdit(
-            "Number of Workers:",
-            QtGui.QIntValidator(0, 32, self),
-            str(self.main_ui.settings_dict["Slant num worker"]),
         )
         self.export_slant_correction_checkbox = QCheckBox(
             "Export Slant Range corrected Data"
@@ -915,8 +907,6 @@ class ProcessingWidget(QVBoxLayout):
         self.addWidget(self.optional_egn_label)
         self.addLayout(self.nadir_angle_edit)
         self.addLayout(self.slant_chunk_size_edit)
-        self.addWidget(self.active_multiprocessing_checkbox)
-        self.addLayout(self.num_worker_edit)
         self.addWidget(self.export_slant_correction_checkbox)
         self.addWidget(self.export_final_proc_checkbox)
         self.addWidget(QHLine())
@@ -1024,6 +1014,11 @@ class ProcessingWidget(QVBoxLayout):
         ):
             self.egn_radio_btn.setChecked(True)
 
+    def validate_chunk_size(self):
+        val = int(self.slant_chunk_size_edit.line_edit.text())
+        if val % 2 == 1:
+            self.slant_chunk_size_edit.line_edit.setText(str(val - 1))
+
 
 # View and export
 class ViewAndExportWidget(QVBoxLayout):
@@ -1069,8 +1064,11 @@ class ViewAndExportWidget(QVBoxLayout):
 
         self.img_chunk_size_edit = LabeledLineEdit(
             "Chunk Size:",
-            QtGui.QIntValidator(100, 5000, self),
+            QtGui.QIntValidator(100, 9999, self),
             self.main_ui.settings_dict["Img chunk size"],
+        )
+        self.img_chunk_size_edit.line_edit.editingFinished.connect(
+            self.validate_chunk_size
         )
         self.img_chunk_size_edit.label.setToolTip(
             "Number of pings in one chunk of the exported waterfall images."
@@ -1368,11 +1366,12 @@ class ViewAndExportWidget(QVBoxLayout):
         proc_data_0 = None
         proc_data_1 = None
         if self.active_use_proc_data_checkbox.isChecked():
-            proc_data_0 = preproc.egn_corrected_mat[:, 0 : sidescan_file.ping_len]
+            ping_len = int(np.shape(preproc.egn_corrected_mat)[1]/2)
+            proc_data_0 = preproc.egn_corrected_mat[:, 0 : ping_len]
             proc_data_0 = np.nan_to_num(
                 proc_data_0
             )  # remove nans from excluding far/nadir unknown values
-            proc_data_1 = preproc.egn_corrected_mat[:, sidescan_file.ping_len :]
+            proc_data_1 = preproc.egn_corrected_mat[:, ping_len :]
             proc_data_1 = np.nan_to_num(proc_data_1)
 
         proc_data_out_0 = copy.copy(proc_data_0)
@@ -1544,6 +1543,11 @@ class ViewAndExportWidget(QVBoxLayout):
                 data_out *= 255
             SidescanGeoreferencer.write_img(im_name, data)
             print(f"{im_name} written.")
+
+    def validate_chunk_size(self):
+        val = int(self.img_chunk_size_edit.line_edit.text())
+        if val % 2 == 1:
+            self.img_chunk_size_edit.line_edit.setText(str(val - 1))
 
 
 def main():

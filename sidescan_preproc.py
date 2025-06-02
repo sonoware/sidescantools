@@ -618,7 +618,7 @@ class SidescanPreprocessor:
 
     # Energy normalization
     def apply_energy_normalization(self):
-        """Apply energy normalization on each individual ping (is needed after BAC processing)"""
+        """Apply energy normalisation on each individual ping (is needed after BAC processing)"""
         for ch in range(self.num_ch):
             son_dat = self.sonar_data_proc[ch]
             num_ping = np.shape(son_dat)[0]
@@ -714,7 +714,7 @@ class SidescanPreprocessor:
         return np.sqrt((u - M_2) ** 2 + (v - N_2) ** 2)
 
     def apply_sharpening_filter(self):
-        """Use a homomorphic filter to emphasize higher frequencies for image sharpening"""
+        """Use a homomorphic filter to emphasise higher frequencies for image sharpening"""
         print("Applying sharpening filter")
         if self.sidescan_file.num_ping < self.chunk_size:
             print("Not implemented for Nping < chunk size")

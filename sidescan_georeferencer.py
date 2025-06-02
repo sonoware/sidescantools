@@ -11,10 +11,10 @@ from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 from pyproj import CRS, datadir
 from scipy.signal import savgol_filter
+import napari
 
 
 # TODO: Doc/Type hints
-# TODO change ping size fixed chunks, also print command, change naming (zweimal ch0 in chunk file namen)
 
 class SidescanGeoreferencer:
     filepath: Path
@@ -22,7 +22,6 @@ class SidescanGeoreferencer:
     channel: int
     dynamic_chunking: bool
     active_utm: bool
-    active_homography: bool
     active_poly: bool
     output_folder: Path
     proc_data: np.array
@@ -32,6 +31,33 @@ class SidescanGeoreferencer:
     chunk_indices: np.array
     vertical_beam_angle: int
     epsg_code: str
+    resolution_options: dict = {
+        "Same": "same",
+        "Highest": "highest", 
+        "Lowest": "lowest", 
+        "Average": "average", 
+        "Common": "common"
+        }
+    warp_options: dict = {
+        "Polynomial 1 (recommended)": "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1", 
+        "Homography (experimental)": "SRC_METHOD=GCP_HOMOGRAPHY"
+    }
+
+    resampling_options: dict = {
+        "Near": "near",
+        "Bilinear": "bilinear",
+        "Cubic": "cubicspline",
+        "Lanczos": "lanczos",
+        "Average": "average",
+        "RMS": "rms",
+        "Mode": "mode",
+        "Maximum": "max",
+        "Minimum": "min",
+        "Median": "med",
+        "1. Quartile": "q1",
+        "3. Quartile": "q3",
+        "Weighted Sum": "sum"
+    }
 
     def __init__(
         self,
@@ -39,22 +65,25 @@ class SidescanGeoreferencer:
         channel: int = 0,
         dynamic_chunking: bool = False,
         active_utm: bool = True,
-        #active_homography: bool = True,
-        active_poly: bool = False,
-        proc_data=None,
+        active_poly: bool = True,
+        proc_data = None,
         output_folder: str | os.PathLike = "./georef_out",
         vertical_beam_angle: int = 60,
+        warp_algorithm: str = "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",
+        resolution_mode: str = "average",
+        resampling_method: str = "near"
     ):
         self.filepath = Path(filepath)
         self.sidescan_file = SidescanFile(self.filepath)
         self.channel = channel
         self.dynamic_chunking = dynamic_chunking
         self.active_utm = active_utm
-        #self.active_homography = active_homography
         self.active_poly = active_poly
         self.output_folder = Path(output_folder)
         self.vertical_beam_angle = vertical_beam_angle
-
+        self.resolution_mode = resolution_mode
+        self.warp_algorithm = warp_algorithm
+        self.resampling_method = resampling_method
         self.active_proc_data = False
         self.GCP_SPLIT = []
         self.POINTS_SPLIT = []
@@ -111,6 +140,11 @@ class SidescanGeoreferencer:
 
         HEAD = savgol_filter(HEAD_ori, 120, 1)
         x = range(len(HEAD))
+        head_data = np.stack([x, HEAD], axis=0)
+        #view_head = napari.Viewer()
+        #view_head.add_image(head_data, name = 'Heading')
+        #layer_head = view_head.layers['Heading']
+        #layer_head.save('./Heading.png')
         #plt.title("Heading")
         #plt.plot(x, HEAD_ori, label='Original Heading')
         #plt.plot(x, HEAD, label='Smoothed Heading')
@@ -119,11 +153,18 @@ class SidescanGeoreferencer:
 
         LAT = savgol_filter(LAT_ori, 120, 1)
         LON = savgol_filter(LON_ori, 120, 1)
+        lola_data = np.stack([LON, LAT], axis = 0)
+        #view_lola = napari.Viewer()
+        #view_lola.add_image(lola_data, name = 'Navigation')
+        #layer_lola = view_head.layers['Navigation']
+        #layer_lola.save('./Navigation.png')
         #plt.title("Navigation")
         #plt.plot(LON_ori, LAT_ori, label='Original Navigation')
         #plt.plot(LON, LAT, label='Smoothed Navigation')
         #plt.legend()
         #plt.show()
+
+        #napari.run()
 
         UTM = []
         for la, lo in zip(LAT, LON):
@@ -314,11 +355,11 @@ class SidescanGeoreferencer:
         cur_env["PROJ_LIB"] = datadir.get_data_dir()
         cur_env["PROJ_DATA"] = datadir.get_data_dir()
         result = subprocess.run(command, capture_output=True, text=True, env=cur_env)
-        if result.returncode == 0:
-            print(result.stdout)
-            # print(f"Command executed successfully: {' '.join(command)}")
-        else:
+        if result.returncode != 0:
             print(f"Error occurred: {result.stderr}")
+            #print(result.stdout)
+            # print(f"Command executed successfully: {' '.join(command)}")
+            
 
     def georeference(self, ch_stack, otiff):
         """
@@ -410,9 +451,9 @@ class SidescanGeoreferencer:
                         "raster",
                         "reproject",
                         "-r",
-                        "near",
+                        self.resampling_method,
                         "--to",
-                        "SRC_METHOD=GCP_HOMOGRAPHY",    # GCP_HOMOGRAPHY
+                        self.warp_algorithm,   
                         "--co",
                         "COMPRESS=DEFLATE",
                         "-d",
@@ -428,9 +469,9 @@ class SidescanGeoreferencer:
                         "raster",
                         "reproject",
                         "-r",
-                        "near",
+                        self.resampling_method,
                         "--to",
-                        "SRC_METHOD=GCP_HOMOGRAPHY",    # GCP_HOMOGRAPHY
+                        self.warp_algorithm,
                         "--co",
                         "COMPRESS=DEFLATE",
                         "-d",
@@ -441,41 +482,6 @@ class SidescanGeoreferencer:
                         str(warp_path)
                     ]
                 
-                gdal_warp_utm_poly = [
-                        "gdal",
-                        "raster",
-                        "reproject",
-                        "-r",
-                        "near",
-                        "--to",
-                        "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",    # GCP_HOMOGRAPHY
-                        "--co",
-                        "COMPRESS=DEFLATE",
-                        "-d",
-                        self.epsg_code,
-                        "-i",
-                        str(chunk_path),
-                        "-o",
-                        str(warp_path)
-                    ]
-                
-                gdal_warp_wgs84_poly = [
-                        "gdal",
-                        "raster",
-                        "reproject",
-                        "-r",
-                        "near",
-                        "--to",
-                        "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",    # GCP_HOMOGRAPHY
-                        "--co",
-                        "COMPRESS=DEFLATE",
-                        "-d",
-                        "EPSG:4326",
-                        "-i",
-                        str(chunk_path),
-                        "-o",
-                        str(warp_path)
-                    ]
 
                 if self.dynamic_chunking:
                     for i in range(4):
@@ -519,15 +525,13 @@ class SidescanGeoreferencer:
                 # gdal 3.11 syntax
                 #gdal raster reproject -r near --to SRC_METHOD=GCP_HOMOGRAPHY --co COMPRESS=DEFLATE -d=EPSG:4326 -i 2025-03-17_08-30-44_0_ch0_0_chunk_tmp.tif -o 2025-03-17_08-30-44_0_ch0_0_chunk_tmp_WGS84.tif
                     if self.active_utm:
-                        #if self.active_homography:
                         gdal_warp = gdal_warp_utm 
-                        if self.active_poly:
-                            gdal_warp = gdal_warp_utm_poly
+                        #if self.active_poly:
+                        #    gdal_warp = gdal_warp_utm_poly
                     else:    
-                        #if self.active_homography:
                         gdal_warp = gdal_warp_wgs84
-                        if self.active_poly:
-                            gdal_warp = gdal_warp_wgs84_poly
+                        #if self.active_poly:
+                        #    gdal_warp = gdal_warp_wgs84_poly
 
 
                 elif not self.dynamic_chunking:
@@ -541,15 +545,13 @@ class SidescanGeoreferencer:
 
                     # gdal 3.11 syntax
                     if self.active_utm:
-                        #if self.active_homography:
                         gdal_warp = gdal_warp_utm 
-                        if self.active_poly:
-                            gdal_warp = gdal_warp_utm_poly
+                        #if self.active_poly:
+                        #    gdal_warp = gdal_warp_utm_poly
                     else:    
-                        #if self.active_homography:
                         gdal_warp = gdal_warp_wgs84
-                        if self.active_poly:
-                            gdal_warp = gdal_warp_wgs84_poly
+                        #if self.active_poly:
+                        #    gdal_warp = gdal_warp_wgs84_poly
 
 
                 # optional: append .points header and fist and last center point
@@ -615,12 +617,13 @@ class SidescanGeoreferencer:
     
     # gdal 3.11 syntax
         if True:
+            #resolution_mode = self.resolution_mode == self.resolution_mode[3]
             gdal_mosaic = [
                 "gdal", "raster", "mosaic",
                 "-i", f"@{txt_path}",
                 "-o", str(mosaic_tiff),
                 "--src-nodata", "0",
-                "--resolution", "highest",
+                "--resolution", self.resolution_mode,
                 "--co", "COMPRESS=DEFLATE",
                 "--co", "TILED=YES"
             ]
@@ -639,11 +642,11 @@ class SidescanGeoreferencer:
         ch_stack = self.channel_stack()
 
         try:
-            print(f"Georeferencing channel {self.channel}...")
+            print(f"Processing chunks in channel {self.channel} with warp method {self.warp_algorithm}...")
 
             self.georeference(ch_stack=ch_stack, otiff=tif_path)
 
-            print(f"Mosaicking channel {self.channel}...")
+            print(f"Mosaicking channel {self.channel} with resolution mode {self.resolution_mode}...")
             self.mosaic(mosaic_tif_path)
 
             # save GCPs to .csv
@@ -710,16 +713,9 @@ def main():
     )
 
     parser.add_argument(
-        "--homography",
-        type=bool,
-        default=True,
-        help="Uses homographic transformation instead of affine for georeferencing. Default is homographic.",
-    )
-
-    parser.add_argument(
         "--poly",
         type=bool,
-        default=False,
+        default=True,
         help="Uses polynomial order 1 transformation (affine) instead of homographic for georeferencing. Default is homographic.",
     )
 

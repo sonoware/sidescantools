@@ -1096,14 +1096,14 @@ class ViewAndExportWidget(QVBoxLayout):
 
         self.warp_mode_dropdown = QComboBox()
         self.warp_mode_dropdown.setToolTip("Set method for warping algorithm. Leave polynomial 1 if unsure, homography is in expermental state.")
-        for warp_disp, warp_int in SidescanGeoreferencer.warp_algorithm.items():
+        for warp_disp, warp_int in SidescanGeoreferencer.warp_options.items():
             self.warp_mode_dropdown.addItem(warp_disp, warp_int)
         self.warp_mode_dropdown.setCurrentIndex(0)
         self.warp_mode_dropdown.currentIndexChanged.connect(self.change_warp_mode)
 
         self.resamp_mode_dropdown = QComboBox()
         self.resamp_mode_dropdown.setToolTip("Select resampling method. Leave near neighbour, if unsure (least interpolation).")
-        for resamp_disp, resamp_int in SidescanGeoreferencer.resampling_method.items():
+        for resamp_disp, resamp_int in SidescanGeoreferencer.resampling_options.items():
             self.resamp_mode_dropdown.addItem(resamp_disp, resamp_int)
         self.resamp_mode_dropdown.setCurrentIndex(0)
         self.resamp_mode_dropdown.currentIndexChanged.connect(self.change_warp_mode)

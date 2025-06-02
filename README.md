@@ -96,9 +96,11 @@ In the following all GUI elements are explained in more detail.
 
 ### Georeferencing and image generation
 - Tick `Use processed Data` if above processing steps should be applied, otherwise a waterfall image based on the raw data will be created
+- Warp Method: Set transformation method for output chunks. Leave `Polynomial 1` if unsure - Sometimes, if e.g. vessel movement is irregular, the polynomial tranformation type works more reliable. If in doubt, compare geotiff with the (ungeoreferenced) waterfall image. Find more infos at [gdal] (https://gdal.org/en/stable/programs/gdal_raster_reproject.html)
+- Resampling Method: Set resampling method for output chunks. Find more infos at [gdal] (https://gdal.org/en/stable/programs/gdal_raster_reproject.html)
+- Resolution Mode: Set output file resolution. Find more infos at [gdal] (https://gdal.org/en/stable/programs/gdal_raster_mosaic.html)
 - `Dynamic Chunking` chooses number of pings within one chunk for georeferencing based on distance between GPS points. Only apply when GPS data are bad! If unticked, chunk size is 5 pings.
-- Untick `UTM` if you prefer WGS84 (unprojected)
-- Tick `Polynomial` if homographic transformation doesn't work. Sometimes, if e.g. vessel movement is irregular, the polynomial tranformation type works more reliable. If in doubt, compare geotiff with the (ungeoreferenced) waterfall image. 
+- Untick `UTM` if you prefer WGS84 (unprojected) 
 - `Apply Custom Colormap`: Select from a range of colormaps; if unticked, greyscale values are used
 - `Generate Geotiff`: Uses gdal reproject (with either homography or polynomial order 1) and ground control points (gcps) to georeference data chunk wise and export as Geotiff
 - `Include raw data in waterfall image`: produces additional png with raw undprocessed data

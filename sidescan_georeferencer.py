@@ -189,7 +189,7 @@ class SidescanGeoreferencer:
         #plt.legend()
         #plt.show()
 
-        napari.run()
+        #napari.run()
 
         UTM = []
         for la, lo in zip(LAT, LON):

@@ -380,12 +380,11 @@ class SidescanGeoreferencer:
         cur_env["PROJ_LIB"] = datadir.get_data_dir()
         cur_env["PROJ_DATA"] = datadir.get_data_dir()
         result = subprocess.run(command, capture_output=True, text=True, env=cur_env)
-        if result.returncode == 0:
-            pass
+        if result.returncode != 0:
+            print(f"Error occurred: {result.stderr}")
             #print(result.stdout)
             # print(f"Command executed successfully: {' '.join(command)}")
-        else:
-            print(f"Error occurred: {result.stderr}")
+            
 
     def georeference(self, ch_stack, otiff):
         """

@@ -591,6 +591,15 @@ class SidescanToolsMain(QWidget):
         self.settings_dict["Georef active custom colormap"] = (
             self.view_and_export_widget.active_colormap_checkbox.isChecked()
         )
+        self.settings_dict["Resolution Mode"] = (
+            self.view_and_export_widget.resolution_mode_dropdown.currentIndex()
+        )
+        self.settings_dict["Warp Mode"] = (
+            self.view_and_export_widget.warp_mode_dropdown.currentIndex()
+        )
+        self.settings_dict["Resampling Method"] = (
+            self.view_and_export_widget.resamp_mode_dropdown.currentIndex()
+        )
 
     def update_ui_from_settings(self):
         self.output_picker.update_dir(self.settings_dict["Working dir"])
@@ -670,6 +679,15 @@ class SidescanToolsMain(QWidget):
         )
         self.view_and_export_widget.active_colormap_checkbox.setChecked(
             self.settings_dict["Georef active custom colormap"]
+        )
+        self.view_and_export_widget.resolution_mode_dropdown.setCurrentIndex(
+            self.settings_dict["Resolution Mode"] 
+        )
+        self.view_and_export_widget.warp_mode_dropdown.setCurrentIndex(
+            self.settings_dict["Warp Mode"] 
+        )
+        self.view_and_export_widget.resamp_mode_dropdown.setCurrentIndex(
+            self.settings_dict["Resampling Method"] 
         )
         self.processing_widget.load_proc_strat()
 
@@ -1091,22 +1109,19 @@ class ViewAndExportWidget(QVBoxLayout):
         self.resolution_mode_dropdown.setToolTip("Set mode for final resolution. Chose average, if unsure.")
         for res_disp, res_int in SidescanGeoreferencer.resolution_options.items():
             self.resolution_mode_dropdown.addItem(res_disp, res_int)
-        self.resolution_mode_dropdown.setCurrentIndex(3)
         self.resolution_mode_dropdown.currentIndexChanged.connect(self.change_res_mode)
 
         self.warp_mode_dropdown = QComboBox()
         self.warp_mode_dropdown.setToolTip("Set method for warping algorithm. Leave polynomial 1 if unsure, homography is in expermental state.")
         for warp_disp, warp_int in SidescanGeoreferencer.warp_options.items():
             self.warp_mode_dropdown.addItem(warp_disp, warp_int)
-        self.warp_mode_dropdown.setCurrentIndex(0)
         self.warp_mode_dropdown.currentIndexChanged.connect(self.change_warp_mode)
 
         self.resamp_mode_dropdown = QComboBox()
         self.resamp_mode_dropdown.setToolTip("Select resampling method. Leave near neighbour, if unsure (least interpolation).")
         for resamp_disp, resamp_int in SidescanGeoreferencer.resampling_options.items():
             self.resamp_mode_dropdown.addItem(resamp_disp, resamp_int)
-        self.resamp_mode_dropdown.setCurrentIndex(0)
-        self.resamp_mode_dropdown.currentIndexChanged.connect(self.change_warp_mode)
+        self.resamp_mode_dropdown.currentIndexChanged.connect(self.change_resampling_method)
 
         self.active_dynamic_chunking_checkbox = QCheckBox("Dynamic Chunking")
         self.active_dynamic_chunking_checkbox.setToolTip("Experimental")

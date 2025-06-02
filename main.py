@@ -89,6 +89,7 @@ class SidescanToolsMain(QWidget):
         "Georef UTM": True,
         "Resolution Mode": list,
         "Warp Mode": list,
+        "Resampling Method": list,
         "Georef active custom colormap": False,
         "Path": [],
         "Meta info": dict(),
@@ -1085,6 +1086,8 @@ class ViewAndExportWidget(QVBoxLayout):
         self.res_mode_label.setToolTip("Set mode for final resolution. Leave average, if unsure.")
         self.warp_mode_label = QLabel("Warp Method")
         self.warp_mode_label.setToolTip("Set method for warping algorithm. Leave polynomial 1 if unsure, homography is in expermental state.")
+        self.resamp_mode_label = QLabel("Resampling Method")
+        self.resamp_mode_label.setToolTip("Select resampling method. Leave near neighbour, if unsure (least interpolation).")
 
         self.resolution_mode_dropdown = QComboBox()
         self.resolution_mode_dropdown.setToolTip("Set mode for final resolution. Chose average, if unsure.")
@@ -1099,6 +1102,13 @@ class ViewAndExportWidget(QVBoxLayout):
             self.warp_mode_dropdown.addItem(warp_disp, warp_int)
         self.warp_mode_dropdown.setCurrentIndex(0)
         self.warp_mode_dropdown.currentIndexChanged.connect(self.change_warp_mode)
+
+        self.resamp_mode_dropdown = QComboBox()
+        self.resamp_mode_dropdown.setToolTip("Select resampling method. Leave near neighbour, if unsure (least interpolation).")
+        for resamp_disp, resamp_int in SidescanGeoreferencer.resampling_method.items():
+            self.resamp_mode_dropdown.addItem(resamp_disp, resamp_int)
+        self.resamp_mode_dropdown.setCurrentIndex(0)
+        self.resamp_mode_dropdown.currentIndexChanged.connect(self.change_warp_mode)
 
         self.active_dynamic_chunking_checkbox = QCheckBox("Dynamic Chunking")
         self.active_dynamic_chunking_checkbox.setToolTip("Experimental")
@@ -1141,6 +1151,8 @@ class ViewAndExportWidget(QVBoxLayout):
         self.addWidget(self.resolution_mode_dropdown)
         self.addWidget(self.warp_mode_label)
         self.addWidget(self.warp_mode_dropdown)
+        self.addWidget(self.resamp_mode_label)
+        self.addWidget(self.resamp_mode_dropdown)
         self.addWidget(self.active_dynamic_chunking_checkbox)
         self.addWidget(self.active_utm_checkbox)
         self.addWidget(self.active_colormap_checkbox)
@@ -1175,7 +1187,9 @@ class ViewAndExportWidget(QVBoxLayout):
         selected_warp_mode = self.warp_mode_dropdown.currentText()
         self.main_ui.settings_dict["Warp Mode"] = selected_warp_mode
 
-    
+    def change_resampling_method(self):
+        selected_resamp_mode = self.resamp_mode_dropdown.currentText()
+        self.main_ui.settings_dict["Resampling Method"] = selected_resamp_mode   
 
     def show_proc_file_in_napari(self):
         file_idx = 0
@@ -1383,6 +1397,7 @@ class ViewAndExportWidget(QVBoxLayout):
             ),
             resolution_mode = self.resolution_mode_dropdown.currentData(),
             warp_algorithm = self.warp_mode_dropdown.currentData(),
+            resampling_method = self.resamp_mode_dropdown.currentData(),
         )
         georeferencer.process()
         georeferencer = SidescanGeoreferencer(
@@ -1397,6 +1412,8 @@ class ViewAndExportWidget(QVBoxLayout):
             ),
             resolution_mode = self.resolution_mode_dropdown.currentData(),
             warp_algorithm = self.warp_mode_dropdown.currentData(),
+            resampling_method = self.resamp_mode_dropdown.currentData(),
+
         )
         georeferencer.process()
 

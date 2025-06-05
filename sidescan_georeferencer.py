@@ -102,7 +102,6 @@ class SidescanGeoreferencer:
                 raise FileNotFoundError
 
     def prep_data(self):
-
         # Extract metadata for each ping in sonar channel
         PING = self.sidescan_file.packet_no
         LON_ori = self.sidescan_file.longitude
@@ -279,8 +278,20 @@ class SidescanGeoreferencer:
                 im_x_right_nad = np.shape(lo_chunk_ce)[0] -1
                 im_x_left_outer = 1 #-1
                 im_x_right_outer = np.shape(lo_chunk_ce)[0] -1  #-1
-                im_y_nad = 0    #1
-                im_y_outer = -swath_width #-swath_width
+
+                # for .jsf only: channel 0 needs negative sign at outer image coordinate
+                if self.filepath.suffix.casefold() == ".jsf":
+                    if self.channel == 0:
+                        im_y_outer = 0 #-swath_width
+                        im_y_nad = swath_width
+                    else:
+                        im_y_outer = swath_width
+                        im_y_nad = 0
+                else:
+                    im_y_outer = swath_width
+                    im_y_nad = 0
+                    
+        
 
                 gcp = np.array(
                     (
@@ -338,10 +349,11 @@ class SidescanGeoreferencer:
         ch_stack /= np.max(np.abs(ch_stack)) / 254
         ch_stack = np.clip(ch_stack, 1, 255)
 
-        # Flip array
+        # Flip array ---> Note: not for .jsf!
         print(f"ch_stack shape: {np.shape(ch_stack)}")
-        ch_stack = np.flip(ch_stack, axis=1)
-        ch_stack = np.flip(ch_stack, axis=0)
+        if self.filepath.suffix.casefold() == ".xtf":
+            ch_stack = np.flip(ch_stack, axis=1)
+            ch_stack = np.flip(ch_stack, axis=0)
 
         return ch_stack.astype(np.uint8)
 
@@ -411,11 +423,15 @@ class SidescanGeoreferencer:
                     f"{otiff.stem}_{chunk_num}_points_tmp"
                     ).with_suffix(".points")
 
-                # Flip image chunks according to side
+                # Flip image chunks according to side ----> Note: jsf flip only channel 0 (?)
                 if self.channel == 0:
                     ch_chunk_flip = np.flip(ch_chunk, 1)
                 elif self.channel == 1:
-                    ch_chunk_flip = np.flip(ch_chunk, 0)
+                    if self.filepath.suffix.casefold() == ".jsf":
+                        ch_chunk_flip = ch_chunk
+                    else:
+                        ch_chunk_flip = np.flip(ch_chunk, 0)
+
                 alpha = np.ones(np.shape(ch_chunk_flip), dtype=np.uint8) * 255
                 alpha[ch_chunk_flip == 0] = 0
                 data_stack = np.stack(

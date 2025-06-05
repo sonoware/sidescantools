@@ -1373,6 +1373,9 @@ class ViewAndExportWidget(QVBoxLayout):
             )  # remove nans from excluding far/nadir unknown values
             proc_data_1 = preproc.egn_corrected_mat[:, ping_len :]
             proc_data_1 = np.nan_to_num(proc_data_1)
+        else:
+            proc_data_0 = sidescan_file.data[0]
+            proc_data_1 = sidescan_file.data[1]
 
         proc_data_out_0 = copy.copy(proc_data_0)
         proc_data_out_1 = copy.copy(proc_data_1)

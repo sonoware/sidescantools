@@ -502,6 +502,7 @@ class PreProcWorker(QtCore.QRunnable):
         nadir_angle: int,
         active_export_slant_corr_mat: bool,
         active_export_gain_corr_mat: bool,
+        active_downsampling: bool,
         load_slant_data: bool,
         load_gain_data: bool,
         active_pie_slice_filter: bool,
@@ -521,6 +522,7 @@ class PreProcWorker(QtCore.QRunnable):
         self.active_export_gain_corr_mat = active_export_gain_corr_mat
         self.load_slant_data = load_slant_data
         self.load_gain_data = load_gain_data
+        self.active_downsampling = active_downsampling
         self.signals = PreProcWorkerSignals()
         self.active_pie_slice_filter = active_pie_slice_filter
         self.active_gain_norm = active_gain_norm
@@ -543,18 +545,27 @@ class PreProcWorker(QtCore.QRunnable):
             downsampling_factor = bottom_info["downsampling_factor"]
         except:
             downsampling_factor = 1
+        portside_bottom_dist = bottom_info["bottom_info_port"]
+        starboard_bottom_dist = bottom_info["bottom_info_star"]
 
+        if not self.active_downsampling:
+            if downsampling_factor != 1:
+                # rescale bottom info
+                portside_bottom_dist = portside_bottom_dist * downsampling_factor
+                starboard_bottom_dist = starboard_bottom_dist * downsampling_factor
+                downsampling_factor = 1
+            
         preproc = SidescanPreprocessor(
             sidescan_file=sidescan_file,
             chunk_size=self.chunk_size,
             downsampling_factor=downsampling_factor,
         )
 
-        preproc.portside_bottom_dist = bottom_info["bottom_info_port"].flatten()
-        preproc.starboard_bottom_dist = bottom_info["bottom_info_star"].flatten()
-        preproc.napari_portside_bottom = bottom_info["bottom_info_port"]
-        preproc.napari_starboard_bottom = bottom_info["bottom_info_star"]
-        preproc.num_chunk = np.shape(bottom_info["bottom_info_star"])[0]
+        preproc.portside_bottom_dist = portside_bottom_dist.flatten()
+        preproc.starboard_bottom_dist = starboard_bottom_dist.flatten()
+        preproc.napari_portside_bottom = portside_bottom_dist
+        preproc.napari_starboard_bottom = starboard_bottom_dist
+        preproc.num_chunk = np.shape(starboard_bottom_dist)[0]
 
         # slant range correction and EGN data
         if self.active_export_slant_corr_mat:
@@ -573,6 +584,7 @@ class PreProcWorker(QtCore.QRunnable):
             if self.active_pie_slice_filter:
                 print(f"Pie slice filtering {self.filepath}")
                 preproc.apply_pie_slice_filter()
+            print(f"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX {downsampling_factor}")
             preproc.slant_range_correction(
                 active_interpolation=True,
                 nadir_angle=self.nadir_angle,
@@ -676,6 +688,7 @@ class PreProcManager(QWidget):
         nadir_angle: int,
         active_export_slant_corr_mat: bool,
         active_export_gain_corr_mat: bool,
+        active_downsampling: bool,
         load_slant_data: bool,
         load_gain_data: bool,
         active_pie_slice_filter: bool,
@@ -712,6 +725,7 @@ class PreProcManager(QWidget):
                     nadir_angle=nadir_angle,
                     active_export_slant_corr_mat=active_export_slant_corr_mat,
                     active_export_gain_corr_mat=active_export_gain_corr_mat,
+                    active_downsampling=active_downsampling,
                     load_slant_data=load_slant_data,
                     load_gain_data=load_gain_data,
                     active_pie_slice_filter=active_pie_slice_filter,

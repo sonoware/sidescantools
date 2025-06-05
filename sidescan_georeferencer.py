@@ -335,13 +335,11 @@ class SidescanGeoreferencer:
 
 
         # Transpose so that the largest axis is horizontal
-        ch_stack = ch_stack if ch_stack.shape[0] < ch_stack.shape[1] else ch_stack.T
-        if False:
-            if swath_len >= swath_width:
-                ch_stack = ch_stack
-                    #ch_stack = ch_stack if ch_stack.shape[0] < ch_stack.shape[1] else ch_stack.T
-            elif swath_len <= swath_width:
-                ch_stack = ch_stack.T
+        #ch_stack = ch_stack if ch_stack.shape[0] < ch_stack.shape[1] else ch_stack.T
+        if swath_len >= swath_width:
+            ch_stack = ch_stack
+        elif swath_len <= swath_width:
+            ch_stack = ch_stack.T
 
         ch_stack = np.array(ch_stack, dtype=float)
 

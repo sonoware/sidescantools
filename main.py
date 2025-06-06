@@ -273,7 +273,7 @@ class SidescanToolsMain(QWidget):
         file_picker = QFileDialog()
         file_picker.setAcceptMode(QFileDialog.AcceptMode.AcceptOpen)
         file_picker.setFileMode(QFileDialog.FileMode.ExistingFiles)
-        file_picker.setNameFilter("*.xtf;*.jsf")
+        file_picker.setNameFilter("*.xtf *.jsf")
 
         if file_picker.exec_():
             filenames = file_picker.selectedFiles()

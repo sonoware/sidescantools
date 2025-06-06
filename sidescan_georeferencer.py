@@ -332,16 +332,18 @@ class SidescanGeoreferencer:
         swath_len = len(PING)
         swath_width = len(ch_stack[0])
         print(f"swath_len: {swath_len}, swath_width: {swath_width}")
+        print(f"ch_stack.shape[0], ch_stack.shape[1]: {ch_stack.shape[0], ch_stack.shape[1]}")
 
 
         # Transpose so that the largest axis is horizontal
-        ch_stack = ch_stack if ch_stack.shape[0] < ch_stack.shape[1] else ch_stack.T
-        if False:
+        if self.filepath.suffix.casefold() == ".jsf":
             if swath_len >= swath_width:
                 ch_stack = ch_stack
-                    #ch_stack = ch_stack if ch_stack.shape[0] < ch_stack.shape[1] else ch_stack.T
             elif swath_len <= swath_width:
                 ch_stack = ch_stack.T
+        else:
+            ch_stack = ch_stack if ch_stack.shape[0] < ch_stack.shape[1] else ch_stack.T
+
 
         ch_stack = np.array(ch_stack, dtype=float)
 

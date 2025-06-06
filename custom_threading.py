@@ -565,7 +565,6 @@ class PreProcWorker(QtCore.QRunnable):
         preproc.starboard_bottom_dist = starboard_bottom_dist.flatten()
         preproc.napari_portside_bottom = portside_bottom_dist
         preproc.napari_starboard_bottom = starboard_bottom_dist
-        preproc.num_chunk = np.shape(starboard_bottom_dist)[0]
 
         # slant range correction and EGN data
         if self.active_export_slant_corr_mat:
@@ -584,7 +583,6 @@ class PreProcWorker(QtCore.QRunnable):
             if self.active_pie_slice_filter:
                 print(f"Pie slice filtering {self.filepath}")
                 preproc.apply_pie_slice_filter()
-            print(f"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX {downsampling_factor}")
             preproc.slant_range_correction(
                 active_interpolation=True,
                 nadir_angle=self.nadir_angle,

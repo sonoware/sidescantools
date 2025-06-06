@@ -58,7 +58,8 @@ class SidescanPreprocessor:
         self.sonar_data_proc = copy.deepcopy(self.sidescan_file.data)
         self.sonar_data_proc = np.array(self.sonar_data_proc).astype(float)
 
-        self.chunk_size = chunk_size            
+        self.chunk_size = chunk_size
+        self.num_chunk = int(np.ceil(self.sonar_data_proc.shape[1] / self.chunk_size))
         self.ping_len = self.sidescan_file.ping_len
         self.num_ch = num_ch
         self.downsampling_factor = downsampling_factor

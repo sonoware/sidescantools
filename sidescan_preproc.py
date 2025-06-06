@@ -650,7 +650,7 @@ class SidescanPreprocessor:
                     ]
 
                 # apply filter
-                spec = np.fft.fft2(cur_chunk, s=[self.chunk_size, self.ping_len])
+                spec = np.fft.fft2(cur_chunk)
                 spec_r = np.vstack(
                     [spec[int(self.chunk_size / 2) :], spec[: int(self.chunk_size / 2)]]
                 )

@@ -18,7 +18,7 @@ class XTFWrapper:
         # read pings and construct starboard and portside picture
         for ch in range(self.num_ch):
             try:
-                self.sonar_data.append(pyxtf.concatenate_channel(self.packets[pyxtf.XTFHeaderType.sonar], file_header=self.file_header, channel=ch, weighted=False))
+                self.sonar_data.append(np.flipud(pyxtf.concatenate_channel(self.packets[pyxtf.XTFHeaderType.sonar], file_header=self.file_header, channel=ch, weighted=False)))
             except:
                 ch_data = []
                 ch_idx = 0
@@ -29,7 +29,7 @@ class XTFWrapper:
                         ch_data.append(ch_data[-1])
                         print(f"missing ping at position {ch_idx}")
                     ch_idx += 1
-                self.sonar_data.append(np.flipud(np.array(ch_data)))
+                self.sonar_data.append(np.array(ch_data))
 
         # calculate x axis in m for later plotting
         sec_per_ping = self.packets[pyxtf.XTFHeaderType.sonar][1].ping_chan_headers[0].SecondsPerPing

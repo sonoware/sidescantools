@@ -626,6 +626,13 @@ class PreProcWorker(QtCore.QRunnable):
                             preproc.sonar_data_proc[1],
                         )
                     )
+        else:
+            preproc.egn_corrected_mat = np.hstack(
+                (
+                    np.fliplr(preproc.sonar_data_proc[0]),
+                    preproc.sonar_data_proc[1],
+                )
+            )
         if not self.load_gain_data:
             if self.active_sharpening_filter:
                 preproc.apply_sharpening_filter()

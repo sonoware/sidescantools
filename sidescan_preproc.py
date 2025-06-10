@@ -607,6 +607,7 @@ class SidescanPreprocessor:
             angle_sum, angle_hits, out=np.zeros_like(angle_sum), where=angle_hits != 0
         )
         angle_sum[np.where(angle_hits == 0)] = np.nan
+        angle_sum[np.where(angle_sum == 0)] = 1.0
 
         for vector_idx in range(num_ping):
             for ping_idx in range(self.ping_len):

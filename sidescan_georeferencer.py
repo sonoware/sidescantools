@@ -74,7 +74,7 @@ class SidescanGeoreferencer:
         resampling_method: str = "near"
     ):
         self.filepath = Path(filepath)
-        self.sidescan_file = SidescanFile(self.filepath)
+        self.sidescan_file = SidescanFile(self.filepath)        
         self.channel = channel
         self.dynamic_chunking = dynamic_chunking
         self.active_utm = active_utm
@@ -172,14 +172,14 @@ class SidescanGeoreferencer:
             except:
                 ValueError("Values or lon and/or lat must not be 0")
 
-            if UTM:
-                NORTH = [utm_coord[0] for utm_coord in UTM]
-                EAST = [utm_coord[1] for utm_coord in UTM]
-                UTM_ZONE = [utm_coord[2] for utm_coord in UTM]
-                UTM_LET = [utm_coord[3] for utm_coord in UTM]
-                crs = CRS.from_dict({'proj': 'utm', 'zone': UTM_ZONE[0], 'south': False})
-                epsg = crs.to_authority()
-                self.epsg_code = f'{epsg[0]}:{epsg[1]}'
+        if UTM:
+            NORTH = [utm_coord[0] for utm_coord in UTM]
+            EAST = [utm_coord[1] for utm_coord in UTM]
+            UTM_ZONE = [utm_coord[2] for utm_coord in UTM]
+            UTM_LET = [utm_coord[3] for utm_coord in UTM]
+            crs = CRS.from_dict({'proj': 'utm', 'zone': UTM_ZONE[0], 'south': False})
+            epsg = crs.to_authority()
+            self.epsg_code = f'{epsg[0]}:{epsg[1]}'
 
 
         if self.channel == 0:
@@ -279,19 +279,20 @@ class SidescanGeoreferencer:
                 im_x_left_outer = 1 #-1
                 im_x_right_outer = np.shape(lo_chunk_ce)[0] -1  #-1
 
+                im_y_outer = swath_width
+                im_y_nad = 0
+
                 # for .jsf only: channel 0 needs negative sign at outer image coordinate
-                if self.filepath.suffix.casefold() == ".jsf":
-                    if self.channel == 0:
-                        im_y_outer = 0 #-swath_width
-                        im_y_nad = swath_width
-                    else:
-                        im_y_outer = swath_width
-                        im_y_nad = 0
-                else:
-                    im_y_outer = swath_width
-                    im_y_nad = 0
-                    
-        
+                #if self.filepath.suffix.casefold() == ".jsf":
+                #    if self.channel == 0:
+                #        im_y_outer = 0 #-swath_width
+                #        im_y_nad = swath_width
+                #    else:
+                #        im_y_outer = swath_width
+                #        im_y_nad = 0
+                #else:
+                #    im_y_outer = swath_width
+                #    im_y_nad = 0
 
                 gcp = np.array(
                     (
@@ -332,16 +333,21 @@ class SidescanGeoreferencer:
         swath_len = len(PING)
         swath_width = len(ch_stack[0])
         print(f"swath_len: {swath_len}, swath_width: {swath_width}")
+        print(f"ch_stack.shape[0], ch_stack.shape[1]: {ch_stack.shape[0], ch_stack.shape[1]}")
 
 
-        # Transpose so that the largest axis is horizontal
-        ch_stack = ch_stack if ch_stack.shape[0] < ch_stack.shape[1] else ch_stack.T
-        if False:
-            if swath_len >= swath_width:
-                ch_stack = ch_stack
-                    #ch_stack = ch_stack if ch_stack.shape[0] < ch_stack.shape[1] else ch_stack.T
-            elif swath_len <= swath_width:
-                ch_stack = ch_stack.T
+        # Transpose (always!) so that the largest axis is horizontal
+        ch_stack = ch_stack.T
+
+        #if self.filepath.suffix.casefold() == ".jsf":
+        #    ch_stack = ch_stack.T
+            #if swath_len >= swath_width:
+            #    ch_stack = ch_stack
+            #elif swath_len <= swath_width:
+            #    ch_stack = ch_stack.T
+        #else:
+        #    ch_stack = ch_stack if ch_stack.shape[0] < ch_stack.shape[1] else ch_stack.T
+
 
         ch_stack = np.array(ch_stack, dtype=float)
 
@@ -349,10 +355,14 @@ class SidescanGeoreferencer:
         ch_stack /= np.max(np.abs(ch_stack)) / 254
         ch_stack = np.clip(ch_stack, 1, 255)
 
-        # Flip array ---> Note: not for .jsf!
-        print(f"ch_stack shape: {np.shape(ch_stack)}")
+        # Flip array ---> Note: different for .jsf and .xtf!
+        print(f"ch_stack shape after transposing: {np.shape(ch_stack)}")
+
         if self.filepath.suffix.casefold() == ".xtf":
             ch_stack = np.flip(ch_stack, axis=1)
+            ch_stack = np.flip(ch_stack, axis=0)
+
+        elif self.filepath.suffix.casefold() == ".jsf":
             ch_stack = np.flip(ch_stack, axis=0)
 
         return ch_stack.astype(np.uint8)
@@ -423,14 +433,18 @@ class SidescanGeoreferencer:
                     f"{otiff.stem}_{chunk_num}_points_tmp"
                     ).with_suffix(".points")
 
-                # Flip image chunks according to side ----> Note: jsf flip only channel 0 (?)
+                # Flip image chunks according to side 
+
                 if self.channel == 0:
                     ch_chunk_flip = np.flip(ch_chunk, 1)
                 elif self.channel == 1:
-                    if self.filepath.suffix.casefold() == ".jsf":
-                        ch_chunk_flip = ch_chunk
-                    else:
-                        ch_chunk_flip = np.flip(ch_chunk, 0)
+                    ch_chunk_flip = np.flip(ch_chunk, 0)
+
+                #elif self.channel == 1:
+                #    if self.filepath.suffix.casefold() == ".jsf":
+                #        ch_chunk_flip = ch_chunk
+                #    else:
+                #        ch_chunk_flip = np.flip(ch_chunk, 0)
 
                 alpha = np.ones(np.shape(ch_chunk_flip), dtype=np.uint8) * 255
                 alpha[ch_chunk_flip == 0] = 0
@@ -539,15 +553,10 @@ class SidescanGeoreferencer:
                              ]
                     
                 # gdal 3.11 syntax
-                #gdal raster reproject -r near --to SRC_METHOD=GCP_HOMOGRAPHY --co COMPRESS=DEFLATE -d=EPSG:4326 -i 2025-03-17_08-30-44_0_ch0_0_chunk_tmp.tif -o 2025-03-17_08-30-44_0_ch0_0_chunk_tmp_WGS84.tif
                     if self.active_utm:
                         gdal_warp = gdal_warp_utm 
-                        #if self.active_poly:
-                        #    gdal_warp = gdal_warp_utm_poly
                     else:    
                         gdal_warp = gdal_warp_wgs84
-                        #if self.active_poly:
-                        #    gdal_warp = gdal_warp_wgs84_poly
 
 
                 elif not self.dynamic_chunking:
@@ -562,12 +571,8 @@ class SidescanGeoreferencer:
                     # gdal 3.11 syntax
                     if self.active_utm:
                         gdal_warp = gdal_warp_utm 
-                        #if self.active_poly:
-                        #    gdal_warp = gdal_warp_utm_poly
                     else:    
                         gdal_warp = gdal_warp_wgs84
-                        #if self.active_poly:
-                        #    gdal_warp = gdal_warp_wgs84_poly
 
 
                 # optional: append .points header and fist and last center point

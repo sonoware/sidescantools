@@ -293,8 +293,6 @@ class SidescanGeoreferencer:
                 #else:
                 #    im_y_outer = swath_width
                 #    im_y_nad = 0
-                    
-        
 
                 gcp = np.array(
                     (

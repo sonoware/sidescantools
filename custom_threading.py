@@ -551,13 +551,9 @@ class PreProcWorker(QtCore.QRunnable):
         except:
             downsampling_factor = 1
             
-        preproc = SidescanPreprocessor(
-            sidescan_file=sidescan_file,
-            chunk_size=self.chunk_size,
-            downsampling_factor=downsampling_factor,
-        )
         portside_bottom_dist = bottom_info["bottom_info_port"].flatten()[:sidescan_file.num_ping]
         starboard_bottom_dist = bottom_info["bottom_info_star"].flatten()[:sidescan_file.num_ping]
+        
         if not self.active_downsampling:
             if downsampling_factor != 1:
                 # rescale bottom info
@@ -565,6 +561,11 @@ class PreProcWorker(QtCore.QRunnable):
                 starboard_bottom_dist = starboard_bottom_dist * downsampling_factor
                 downsampling_factor = 1
 
+        preproc = SidescanPreprocessor(
+            sidescan_file=sidescan_file,
+            chunk_size=self.chunk_size,
+            downsampling_factor=downsampling_factor,
+        )
         # flip order for xtf files to contain backwards compability
         if self.filepath.suffix.casefold() == ".xtf":
             portside_bottom_dist = np.flip(portside_bottom_dist)

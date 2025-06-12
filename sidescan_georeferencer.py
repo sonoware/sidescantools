@@ -335,7 +335,6 @@ class SidescanGeoreferencer:
         print(f"swath_len: {swath_len}, swath_width: {swath_width}")
         print(f"ch_stack.shape[0], ch_stack.shape[1]: {ch_stack.shape[0], ch_stack.shape[1]}")
 
-
         # Transpose (always!) so that the largest axis is horizontal
         ch_stack = ch_stack.T
 
@@ -348,7 +347,6 @@ class SidescanGeoreferencer:
         #else:
         #    ch_stack = ch_stack if ch_stack.shape[0] < ch_stack.shape[1] else ch_stack.T
 
-
         ch_stack = np.array(ch_stack, dtype=float)
 
         # Hack for alter transparency
@@ -357,13 +355,7 @@ class SidescanGeoreferencer:
 
         # Flip array ---> Note: different for .jsf and .xtf!
         print(f"ch_stack shape after transposing: {np.shape(ch_stack)}")
-
-        if self.filepath.suffix.casefold() == ".xtf":
-            ch_stack = np.flip(ch_stack, axis=1)
-            ch_stack = np.flip(ch_stack, axis=0)
-
-        elif self.filepath.suffix.casefold() == ".jsf":
-            ch_stack = np.flip(ch_stack, axis=0)
+        ch_stack = np.flip(ch_stack, axis=0)
 
         return ch_stack.astype(np.uint8)
 
@@ -371,7 +363,6 @@ class SidescanGeoreferencer:
     def run_command(command):
         """
         Starts a subprocess to run shell commands.
-
         """
         cur_env = copy.copy(os.environ)
         cur_env["PROJ_LIB"] = datadir.get_data_dir()
@@ -434,7 +425,6 @@ class SidescanGeoreferencer:
                     ).with_suffix(".points")
 
                 # Flip image chunks according to side 
-
                 if self.channel == 0:
                     ch_chunk_flip = np.flip(ch_chunk, 1)
                 elif self.channel == 1:

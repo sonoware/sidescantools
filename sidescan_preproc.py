@@ -76,7 +76,9 @@ class SidescanPreprocessor:
             sidescan_file.longitude[start_idx],
             sidescan_file.latitude[start_idx],
         )
-        while sidescan_file.longitude[start_idx] < 0.1:
+        while sidescan_file.longitude[start_idx] == 0:
+            if start_idx >= (len(sidescan_file.longitude)-1):
+                break
             start_idx += 1
             start_coord = (
                 sidescan_file.longitude[start_idx],

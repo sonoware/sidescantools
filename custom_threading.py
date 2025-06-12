@@ -638,7 +638,6 @@ class PreProcWorker(QtCore.QRunnable):
                     self.signals.progress.emit(0.3)
                     preproc.apply_energy_normalization()
                     self.signals.progress.emit(0.1)
-                    # TODO: remove need for this HACK
                     preproc.egn_corrected_mat = np.hstack(
                         (
                             np.fliplr(preproc.sonar_data_proc[0]),
@@ -646,12 +645,7 @@ class PreProcWorker(QtCore.QRunnable):
                         )
                     )
         else:
-            preproc.egn_corrected_mat = np.hstack(
-                (
-                    np.fliplr(preproc.sonar_data_proc[0]),
-                    preproc.sonar_data_proc[1],
-                )
-            )
+            preproc.egn_corrected_mat = preproc.slant_corrected_mat
         if not self.load_gain_data:
             if self.active_sharpening_filter:
                 preproc.apply_sharpening_filter()

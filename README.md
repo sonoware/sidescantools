@@ -1,5 +1,5 @@
 
-<img align="right" width="200" height="200" src="res/sidescantools_logo_rund.png">
+<img align="right" width="200" height="200" src="./res/sidescantools_logo_rund.png">
 <br><br><br><br><br><br><br><br>
 
 # SidescanTools

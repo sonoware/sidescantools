@@ -20,7 +20,7 @@ from qtpy.QtWidgets import (
     QButtonGroup,
     QComboBox,
 )
-from qtpy.QtGui import QPalette, QColor, QShortcut, QKeySequence, QPixmap
+from qtpy.QtGui import QPalette, QColor, QShortcut, QKeySequence
 import qtpy.QtCore as QtCore
 import qtpy.QtGui as QtGui
 import sys, os, pathlib

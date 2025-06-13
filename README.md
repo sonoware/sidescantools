@@ -1,6 +1,9 @@
 
-<img align="left" width="200" height="200" src="./res/sidescantools_logo_rund.png">
-<br><br><br><br><br><br><br><br>
+<p>
+<img align="right" width="200" height="200" src="./res/sidescantools_logo_rund.png" hspace="50">
+
+</p>
+
 
 # SidescanTools
 Welcome to SidescanTools, an open-source software to read and process data from side-scan sonar instruments.

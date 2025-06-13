@@ -1,5 +1,9 @@
+
 # SidescanTools
-Welcome to SidescanTools, an open-source software to read and process data from side-scan sonar instruments.
+
+Welcome to SidescanTools, an open-source software to read and <br /> 
+<img align="right" width="250" height="250" src="./res/sidescantools_logo_rund.png" hspace="25" title="Logo design and artwork by Aili Xue">
+process data from side-scan sonar instruments. <br /> 
 This tool can be used to create high-resolution 2D images of the sea floor.
 The data can be processed to reduce noise, apply slant-range correction and gain normalisation on a set of side-scan files.
 They can then be exported as `.geotiff` or simple `.png` files.
@@ -105,7 +109,6 @@ In the following all GUI elements are explained in more detail.
 - `Generate Geotiff`: Uses gdal reproject (with either homography or polynomial order 1) and ground control points (gcps) to georeference data chunk wise and export as Geotiff
 - `Include raw data in waterfall image`: produces additional png with raw undprocessed data
 - `Generate Waterfall Image`: Generates a non-georeferenced png file from processed data. Adjust chunk size if you need one file instead of several.
-#### Important Note: If the file is shorter than wide (i.e., number of pings < number of samples for both channels) the georeferencing doesn't work!
 
 # About
-SidescanTools is an open-source software project by [GEOMAR](https://www.geomar.de/ghostnetbusters) and [sonoware](https://www.sonoware.de/news/2024-12-06_uebergabe_foerderbescheid/) funded by the AI Fund of the State of Schleswig-Holstein.
+SidescanTools is an open-source software project by [GEOMAR](https://www.geomar.de/ghostnetbusters) and [sonoware](https://www.sonoware.de/news/2024-12-06_uebergabe_foerderbescheid/) funded by the AI Fund of the State of Schleswig-Holstein. The logo design and artwork has been done by Aili Xue.

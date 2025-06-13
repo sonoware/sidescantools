@@ -170,13 +170,6 @@ class SidescanToolsMain(QWidget):
         )
         self.egn_table_picker.dir_changed.connect(self.load_egn_table)
         # Caption
-        # TODO: Remove preliminary logo until we got a final one
-        # self.title_img = QPixmap("./res/sst_256_cut.png")
-        # self.title_img = self.title_img.scaledToWidth(
-        #     350, QtCore.Qt.TransformationMode.SmoothTransformation
-        # )
-        # self.title_label = QLabel()
-        # self.title_label.setPixmap(self.title_img)
         # File Info
         self.file_info_text_box = QTextEdit()
         self.dir_and_path_label = QLabel("Working directory and paths setup")
@@ -197,9 +190,6 @@ class SidescanToolsMain(QWidget):
         self.left_view.addWidget(self.file_pick_btn)
         self.left_view.addWidget(self.file_table)
         # right side widgets: meta info, project settings and all parameter
-        # TODO: Remove preliminary logo until we got a final one
-        #self.right_view.addWidget(self.title_label)
-        #self.right_view.addWidget(QHLine())
         self.right_view.addWidget(self.file_info_text_box)
         self.right_view.addWidget(QHLine())
         self.right_view.addWidget(self.dir_and_path_label)

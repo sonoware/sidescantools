@@ -1,3 +1,7 @@
+
+<img align="right" width="200" height="200" src="res/sidescantools_logo_rund.png">
+<br><br><br><br><br><br><br><br>
+
 # SidescanTools
 Welcome to SidescanTools, an open-source software to read and process data from side-scan sonar instruments.
 This tool can be used to create high-resolution 2D images of the sea floor.

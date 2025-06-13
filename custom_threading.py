@@ -196,8 +196,13 @@ class EGNTableProcessingWorker(QtCore.QRunnable):
         except:
             downsampling_factor = 1
 
-        portside_bottom_dist = bottom_info["bottom_info_port"].flatten()
-        starboard_bottom_dist = bottom_info["bottom_info_star"].flatten()
+        portside_bottom_dist = bottom_info["bottom_info_port"].flatten()[:sidescan_file.num_ping]
+        starboard_bottom_dist = bottom_info["bottom_info_star"].flatten()[:sidescan_file.num_ping]
+        # flip order for xtf files to contain backwards compability
+        filepath = pathlib.Path(self.filename)
+        if filepath.suffix.casefold() == ".xtf":
+            portside_bottom_dist = np.flip(portside_bottom_dist)
+            starboard_bottom_dist = np.flip(starboard_bottom_dist)
 
         # If a bottom line distance value is 0, just use val from other side (solve that bug in bottom line detection)
         num_btm_line = len(portside_bottom_dist)
@@ -545,27 +550,40 @@ class PreProcWorker(QtCore.QRunnable):
             downsampling_factor = bottom_info["downsampling_factor"]
         except:
             downsampling_factor = 1
-        portside_bottom_dist = bottom_info["bottom_info_port"]
-        starboard_bottom_dist = bottom_info["bottom_info_star"]
-
+            
+        portside_bottom_dist = bottom_info["bottom_info_port"].flatten()[:sidescan_file.num_ping]
+        starboard_bottom_dist = bottom_info["bottom_info_star"].flatten()[:sidescan_file.num_ping]
+        
         if not self.active_downsampling:
             if downsampling_factor != 1:
                 # rescale bottom info
                 portside_bottom_dist = portside_bottom_dist * downsampling_factor
                 starboard_bottom_dist = starboard_bottom_dist * downsampling_factor
                 downsampling_factor = 1
-            
+
         preproc = SidescanPreprocessor(
             sidescan_file=sidescan_file,
             chunk_size=self.chunk_size,
             downsampling_factor=downsampling_factor,
         )
+        # flip order for xtf files to contain backwards compability
+        if self.filepath.suffix.casefold() == ".xtf":
+            portside_bottom_dist = np.flip(portside_bottom_dist)
+            starboard_bottom_dist = np.flip(starboard_bottom_dist)
 
-        preproc.portside_bottom_dist = portside_bottom_dist.flatten()
-        preproc.starboard_bottom_dist = starboard_bottom_dist.flatten()
-        preproc.napari_portside_bottom = portside_bottom_dist
-        preproc.napari_starboard_bottom = starboard_bottom_dist
-        preproc.num_chunk = np.shape(starboard_bottom_dist)[0]
+        preproc.portside_bottom_dist = portside_bottom_dist
+        preproc.starboard_bottom_dist = starboard_bottom_dist
+        preproc.napari_portside_bottom = np.zeros(
+            (preproc.num_chunk, preproc.chunk_size), dtype=int
+        )
+        preproc.napari_starboard_bottom = np.zeros(
+            (preproc.num_chunk, preproc.chunk_size), dtype=int
+        )
+        for chunk_idx in range(preproc.num_chunk):
+            port_chunk = portside_bottom_dist[chunk_idx * preproc.chunk_size:(chunk_idx+1) * preproc.chunk_size]
+            preproc.napari_portside_bottom[chunk_idx, :len(port_chunk)] = port_chunk
+            star_chunk = starboard_bottom_dist[chunk_idx * preproc.chunk_size:(chunk_idx+1) * preproc.chunk_size]
+            preproc.napari_starboard_bottom[chunk_idx, :len(star_chunk)] = star_chunk
 
         # slant range correction and EGN data
         if self.active_export_slant_corr_mat:
@@ -584,7 +602,6 @@ class PreProcWorker(QtCore.QRunnable):
             if self.active_pie_slice_filter:
                 print(f"Pie slice filtering {self.filepath}")
                 preproc.apply_pie_slice_filter()
-            print(f"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX {downsampling_factor}")
             preproc.slant_range_correction(
                 active_interpolation=True,
                 nadir_angle=self.nadir_angle,
@@ -621,13 +638,14 @@ class PreProcWorker(QtCore.QRunnable):
                     self.signals.progress.emit(0.3)
                     preproc.apply_energy_normalization()
                     self.signals.progress.emit(0.1)
-                    # TODO: remove need for this HACK
                     preproc.egn_corrected_mat = np.hstack(
                         (
                             np.fliplr(preproc.sonar_data_proc[0]),
                             preproc.sonar_data_proc[1],
                         )
                     )
+        else:
+            preproc.egn_corrected_mat = preproc.slant_corrected_mat
         if not self.load_gain_data:
             if self.active_sharpening_filter:
                 preproc.apply_sharpening_filter()

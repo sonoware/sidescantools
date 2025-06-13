@@ -103,10 +103,17 @@ def run_napari_btm_line(
     def filepicker_save(
         filename=default_bottom_path,
     ):
+        # only save real data information
+        info_port = preproc.napari_portside_bottom.flatten()[:sidescan_file.num_ping]
+        info_star = preproc.napari_starboard_bottom.flatten()[:sidescan_file.num_ping]
+        # flip order for xtf files to contain backwards compability
+        if filepath.suffix.casefold() == ".xtf":
+            info_port = np.flip(info_port)
+            info_star = np.flip(info_star)
         np.savez(
             filename,
-            bottom_info_port=preproc.napari_portside_bottom,
-            bottom_info_star=preproc.napari_starboard_bottom,
+            bottom_info_port=info_port,
+            bottom_info_star=info_star,
             downsampling_factor=preproc.downsampling_factor,
         )
 
@@ -116,10 +123,20 @@ def run_napari_btm_line(
     ):
         if filename.exists() and filename.suffix == ".npz":
             bottom_info = np.load(filename)
-            preproc.napari_portside_bottom = bottom_info["bottom_info_port"]
-            preproc.napari_starboard_bottom = bottom_info["bottom_info_star"]
+            napari_portside_bottom = bottom_info["bottom_info_port"]
+            napari_portside_bottom = napari_portside_bottom.flatten()
+            napari_starboard_bottom = bottom_info["bottom_info_star"]
+            napari_starboard_bottom = napari_starboard_bottom.flatten()
+            # flip order for xtf files to contain backwards compability
+            if filepath.suffix.casefold() == ".xtf":
+                napari_portside_bottom[:sidescan_file.num_ping] = np.flip(napari_portside_bottom[:sidescan_file.num_ping])
+                napari_starboard_bottom[:sidescan_file.num_ping] = np.flip(napari_starboard_bottom[:sidescan_file.num_ping])
 
             for chunk_idx in range(preproc.num_chunk):
+                port_chunk = napari_portside_bottom[chunk_idx * preproc.chunk_size:(chunk_idx+1) * preproc.chunk_size]
+                preproc.napari_portside_bottom[chunk_idx, :len(port_chunk)] = port_chunk
+                star_chunk = napari_starboard_bottom[chunk_idx * preproc.chunk_size:(chunk_idx+1) * preproc.chunk_size]
+                preproc.napari_starboard_bottom[chunk_idx, :len(star_chunk)] = star_chunk
                 preproc.update_bottom_map_napari(
                     chunk_idx, add_line_width=add_line_width
                 )

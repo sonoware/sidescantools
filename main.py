@@ -1514,7 +1514,8 @@ class ViewAndExportWidget(QVBoxLayout):
             raw_data /= np.nanmax(np.abs(raw_data)) / 255
             raw_data = np.array(raw_data, dtype=np.uint8)
             data = np.hstack((raw_data, data))
-
+        # flip data to make first ping be at the bottom of the img
+        data = np.flipud(data)
         if active_chunkify:
             data_shape = np.shape(data)
             num_chunk = int(np.ceil(data_shape[0] / chunk_size))

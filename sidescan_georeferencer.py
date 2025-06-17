@@ -692,6 +692,8 @@ class SidescanGeoreferencer:
 
     @staticmethod
     def write_img(im_path, data, alpha=None):
+        # flip data to show first ping at bottom
+        data = np.flipud(data)
         image_to_write = Image.fromarray(data)
         if alpha is not None:
             alpha = Image.fromarray(alpha)

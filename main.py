@@ -128,7 +128,8 @@ class SidescanToolsMain(QWidget):
         ########
         self.head_plot_widget = pg.PlotWidget()
         self.lola_plot_widget = pg.PlotWidget()
-
+        self.lola_plot_widget.setMaximumHeight(300)
+        self.head_plot_widget.setMaximumHeight(300)
 
 
         ## Right side
@@ -200,7 +201,7 @@ class SidescanToolsMain(QWidget):
             ##############
         self.left_view.addWidget(self.lola_plot_widget)
         self.left_view.addWidget(self.head_plot_widget)
-
+        
         # right side widgets: meta info, project settings and all parameter
         self.right_view.addWidget(self.file_info_text_box)
         self.right_view.addWidget(QHLine())
@@ -1086,9 +1087,6 @@ class ViewAndExportWidget(QVBoxLayout):
         self.show_plot_nav_btn = QPushButton("Plot Navigation")
         self.show_plot_nav_btn.clicked.connect(self.run_nav_plots)
 
-        #self.lola_plot_widget = pg.PlotWidget()
-        #self.head_plot_widget = pg.PlotWidget()
-
 
         self.img_chunk_size_edit = LabeledLineEdit(
             "Chunk Size:",
@@ -1165,9 +1163,6 @@ class ViewAndExportWidget(QVBoxLayout):
         self.addWidget(self.hist_equal_checkbox)
         self.addWidget(self.show_proc_file_btn)
         self.addWidget(self.show_plot_nav_btn)
-        #self.addWidget(self.lola_plot_widget)
-        #self.addWidget(self.head_plot_widget)
-        #######
         self.addWidget(QHLine())
         self.addWidget(self.georef_label)
         self.addWidget(self.active_use_proc_data_checkbox)

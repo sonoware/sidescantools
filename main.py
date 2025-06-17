@@ -1336,16 +1336,25 @@ class ViewAndExportWidget(QVBoxLayout):
             get_nav.prep_data()
             print("Getting navigation data...")
             lola_data = get_nav.LOLA_plt
-            lola_data = lola_data
-            #lola_data = np.column_stack((lola_data[:,0], np.round(lola_data[:,1], 3)))
             head_data = get_nav.HEAD_plt
+            lola_data_ori = get_nav.LOLA_plt_ori
+            head_data_ori = get_nav.HEAD_plt_ori
             head_data = np.column_stack((head_data[:,0], head_data[:,1]*100))
-            print(head_data[:,0],head_data[:,1])
+            head_data_ori = np.column_stack((head_data_ori[:,0], head_data_ori[:,1]*100))
+            print(head_data_ori[:,0],head_data_ori[:,1])
 
-            lola_pen = pg.mkPen(color=(250, 167, 7), width = 10, style = QtCore.Qt.SolidLine)
-            head_pen = pg.mkPen(color=(6, 182, 162), width = 10, style = QtCore.Qt.SolidLine)
-            self.main_ui.lola_plot_widget.plot(lola_data, pen=lola_pen, title='Navigation')
-            self.main_ui.head_plot_widget.plot(head_data, pen=head_pen, title='Heading')
+            lola_pen = pg.mkPen(color=(249, 228, 132), width = 8, style = QtCore.Qt.SolidLine)
+            lola_ori_pen = pg.mkPen(color=(210, 174, 3), width = 5, style = QtCore.Qt.DotLine)
+            head_pen = pg.mkPen(color=(99, 244, 227), width = 8, style = QtCore.Qt.SolidLine)
+            head_ori_pen = pg.mkPen(color=(6, 182, 162), width = 5, style = QtCore.Qt.DotLine)
+
+            self.main_ui.lola_plot_widget.addLegend()
+            self.main_ui.head_plot_widget.addLegend()
+
+            self.main_ui.lola_plot_widget.plot(lola_data_ori, pen=lola_ori_pen, name='original')
+            self.main_ui.lola_plot_widget.plot(lola_data, pen=lola_pen, title='Navigation', name='smoothed')
+            self.main_ui.head_plot_widget.plot(head_data_ori, pen=head_ori_pen, name = 'original')
+            self.main_ui.head_plot_widget.plot(head_data, pen=head_pen, title='Heading', name='Heading')
             self.main_ui.lola_plot_widget.setLabel('left', 'Latitude [°]')
             self.main_ui.lola_plot_widget.setLabel('bottom', 'Longitude [°]')
             self.main_ui.head_plot_widget.setLabel('left', 'Heading [°]')

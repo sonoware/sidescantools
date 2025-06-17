@@ -26,7 +26,8 @@ import qtpy.QtGui as QtGui
 import sys, os, pathlib
 from bottom_detection_napari_ui import run_napari_btm_line
 from sidescan_georeferencer import SidescanGeoreferencer
-from plot_navigation import plot_nav
+from plot_navigation import NavPlotWidget
+import pyqtgraph as pg
 import yaml, copy
 from math import log
 import numpy as np
@@ -125,7 +126,9 @@ class SidescanToolsMain(QWidget):
         self.file_table.cellClicked.connect(self.update_meta_info)
 
         ########
-        #self.plot_nav_show = pg.PlotWidget()
+        self.head_plot_widget = pg.PlotWidget()
+        self.lola_plot_widget = pg.PlotWidget()
+
 
 
         ## Right side
@@ -195,7 +198,8 @@ class SidescanToolsMain(QWidget):
         self.left_view.addWidget(self.file_pick_btn)
         self.left_view.addWidget(self.file_table)
             ##############
-        #self.left_view.addWidget(self.plot_nav_show)
+        self.left_view.addWidget(self.lola_plot_widget)
+        self.left_view.addWidget(self.head_plot_widget)
 
         # right side widgets: meta info, project settings and all parameter
         self.right_view.addWidget(self.file_info_text_box)
@@ -1082,6 +1086,10 @@ class ViewAndExportWidget(QVBoxLayout):
         self.show_plot_nav_btn = QPushButton("Plot Navigation")
         self.show_plot_nav_btn.clicked.connect(self.run_nav_plots)
 
+        #self.lola_plot_widget = pg.PlotWidget()
+        #self.head_plot_widget = pg.PlotWidget()
+
+
         self.img_chunk_size_edit = LabeledLineEdit(
             "Chunk Size:",
             QtGui.QIntValidator(100, 9999, self),
@@ -1157,6 +1165,8 @@ class ViewAndExportWidget(QVBoxLayout):
         self.addWidget(self.hist_equal_checkbox)
         self.addWidget(self.show_proc_file_btn)
         self.addWidget(self.show_plot_nav_btn)
+        #self.addWidget(self.lola_plot_widget)
+        #self.addWidget(self.head_plot_widget)
         #######
         self.addWidget(QHLine())
         self.addWidget(self.georef_label)
@@ -1320,7 +1330,28 @@ class ViewAndExportWidget(QVBoxLayout):
         if len(self.main_ui.file_table.selectedIndexes()) > 0:
             file_idx = self.main_ui.file_table.selectedIndexes()[0].row()
         filepath = pathlib.Path(self.main_ui.file_dict["Path"][file_idx])
-        plot_nav(self.main_ui.file_dict["Path"][file_idx])
+        # get nav data
+        try:
+            get_nav = SidescanGeoreferencer(filepath=filepath)
+            get_nav.prep_data()
+            print("Getting navigation data...")
+            lola_data = get_nav.LOLA_plt
+            lola_data = lola_data
+            #lola_data = np.column_stack((lola_data[:,0], np.round(lola_data[:,1], 3)))
+            head_data = get_nav.HEAD_plt
+            head_data = np.column_stack((head_data[:,0], head_data[:,1]*100))
+            print(head_data[:,0],head_data[:,1])
+
+            lola_pen = pg.mkPen(color=(250, 167, 7), width = 10, style = QtCore.Qt.SolidLine)
+            head_pen = pg.mkPen(color=(6, 182, 162), width = 10, style = QtCore.Qt.SolidLine)
+            self.main_ui.lola_plot_widget.plot(lola_data, pen=lola_pen, title='Navigation')
+            self.main_ui.head_plot_widget.plot(head_data, pen=head_pen, title='Heading')
+            self.main_ui.lola_plot_widget.setLabel('left', 'Latitude [°]')
+            self.main_ui.lola_plot_widget.setLabel('bottom', 'Longitude [°]')
+            self.main_ui.head_plot_widget.setLabel('left', 'Heading [°]')
+            self.main_ui.head_plot_widget.setLabel('bottom', 'Ping number')
+        except Exception as e:
+            print(e)
 
 
     def run_sidescan_georef(self, active_all_files=False):

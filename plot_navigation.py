@@ -8,29 +8,49 @@ from sidescan_file import SidescanFile
 import napari
 from napari.qt import QtViewer
 import qtpy.QtCore as QtCore
-import qtpy.QtWidgets
+from qtpy.QtWidgets import QVBoxLayout, QWidget
 
-#@magicgui
-def plot_nav(filepath: str | os.PathLike):
-    """
-    Plot navigation data and heading. 
 
-    Parameters:
-    ------------------
-    filepath: str | os.PathLike
-        Path to sidescan file
-    """
-    filepath = Path(filepath)
+class NavPlotWidget(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        self.lola_plot_widget = pg.PlotWidget()
+        self.head_plot_widget = pg.PlotWidget()
 
-    # get nav data
-    get_nav = SidescanGeoreferencer(filepath=filepath)
-    get_nav.prep_data()
-    lola_data = get_nav.LOLA_plt
-    head_data = get_nav.HEAD_plt
-    pg.plot(lola_data, pen='r', width=9, style=QtCore.Qt.DashLine, title='Navigation')
-    pg.plot(head_data, pen='y', width=9, title='Heading')
 
-    ########## old #############
+    def plot_nav(self, filepath: str | os.PathLike):
+        """
+        Plot navigation data and heading. 
+
+        Parameters:
+        ------------------
+        filepath: str | os.PathLike
+            Path to sidescan file
+        """
+        filepath = Path(filepath)
+
+        # get nav data
+        try:
+            get_nav = SidescanGeoreferencer(filepath=filepath)
+            get_nav.prep_data()
+            print("Getting navigation data...")
+            lola_data = get_nav.LOLA_plt
+            head_data = get_nav.HEAD_plt
+            print(lola_data)
+
+            print("Plotting and Setting title...")
+            self.lola_plot_widget.plot(lola_data, pen='r', width=9, title='Navigation')
+            self.head_plot_widget.plot(head_data, pen='y', width=9, title='Heading')
+            self.lola_plot_widget.setLabel('left', 'Latitude [°]')
+            self.lola_plot_widget.setLabel('bottom', 'Longitude [°]')
+            self.head_plot_widget.setLabel('left', 'Heading [°]')
+            self.head_plot_widget.setLabel('bottom', 'Ping number')
+        except Exception as e:
+            print(e)
+        #pg.plot(lola_data, pen='r', width=9, style=QtCore.Qt.DashLine, title='Navigation')
+        #pg.plot(head_data, pen='y', width=9, title='Heading')
+
     #print(f"np.shape(head_data) {np.shape(head_data)}")
     #print(f"np.shape(lola_data) {np.shape(lola_data)}")
     #print(lola_data)
@@ -53,16 +73,7 @@ def plot_nav(filepath: str | os.PathLike):
     #nav_plot_window.initGUI()
     #nav_plot_window.plot(lola_data)
     #self.plot_nav_show.plot(lola_data)
-    #viewer = napari.Viewer(axis_labels=['Longitude','Latitude'])
-    #viewer.add_points(lola_data, size=1, name='Navigation', axis_labels=['Longitude','Latitude'])
-    #image_layer_2 = viewer.view_points(head_data, name='Heading')
-    #viewer, image_layer_1 = napari.imshow(
-    #    lola_data, name="Navigation"
-    #)
-    #image_layer_2 = napari.add_image(
-    #    head_data, name="Heading"
-    #)
-    #napari.run(max_loop_level=2)
+
 
 if __name__ == "__main__":
     filepath = Path("add_path_to_file_here")

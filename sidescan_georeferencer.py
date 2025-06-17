@@ -60,6 +60,8 @@ class SidescanGeoreferencer:
     }
     LOLA_plt: np.ndarray
     HEAD_plt: np.ndarray
+    LOLA_plt_ori: np.ndarray
+    HEAD_plt_ori: np.ndarray
 
     def __init__(
         self,
@@ -92,6 +94,8 @@ class SidescanGeoreferencer:
         self.POINTS_SPLIT = []
         self.LOLA_plt = np.empty_like(proc_data)
         self.HEAD_plt = np.empty_like(proc_data)
+        self.LOLA_plt_ori = np.empty_like(proc_data)
+        self.HEAD_plt_ori = np.empty_like(proc_data)
         if proc_data is not None:
             self.proc_data = proc_data
             self.active_proc_data = True
@@ -145,29 +149,12 @@ class SidescanGeoreferencer:
         HEAD = savgol_filter(HEAD_ori, 120, 1)
         x = range(len(HEAD))
         self.HEAD_plt = np.column_stack((x, HEAD))
-        print(f"HEAD_plt: {self.HEAD_plt}")
-        #view_head = napari.Viewer()
-        #view_head.add_image(head_data, name = 'Heading')
-        #layer_head = view_head.layers['Heading']
-        #layer_head.save('./Heading.png')
-        #plt.title("Heading")
-        #plt.plot(x, HEAD_ori, label='Original Heading')
-        #plt.plot(x, HEAD, label='Smoothed Heading')
-        #plt.legend()
-        #plt.show()
+        self.HEAD_plt_ori = np.column_stack((x, HEAD_ori))
 
         LAT = savgol_filter(LAT_ori, 120, 1)
         LON = savgol_filter(LON_ori, 120, 1)
         self.LOLA_plt = np.column_stack((LON, LAT))
-        #view_lola = napari.Viewer()
-        #view_lola.add_image(lola_data, name = 'Navigation')
-        #layer_lola = view_head.layers['Navigation']
-        #layer_lola.save('./Navigation.png')
-        #plt.title("Navigation")
-        #plt.plot(LON_ori, LAT_ori, label='Original Navigation')
-        #plt.plot(LON, LAT, label='Smoothed Navigation')
-        #plt.legend()
-        #plt.show()
+        self.LOLA_plt_ori = np.column_stack((LON_ori, LAT_ori))
 
         UTM = []
         for la, lo in zip(LAT, LON):

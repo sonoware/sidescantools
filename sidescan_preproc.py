@@ -30,6 +30,7 @@ class SidescanPreprocessor:
     ]
     """["Each side individually", "Combine both sides", "Only use portside", "Only use starboard"]"""
     downsampling_factor: int
+    _napari_active_click_pos: bool
 
     def __init__(
         self,
@@ -69,6 +70,9 @@ class SidescanPreprocessor:
                 self.sonar_data_proc, downsampling_factor, axis=2
             )
             self.ping_len = int(np.ceil(self.ping_len / self.downsampling_factor))
+
+        # initialiazation of itnern variables
+        self._napari_active_click_pos = False
 
         ## Print spatial information estimation
         start_idx = 0
@@ -197,6 +201,12 @@ class SidescanPreprocessor:
         self.napari_fullmat = np.zeros(
             (self.num_chunk, self.chunk_size, int(2 * self.ping_len))
         )
+        self.napari_fullmat_bin = np.zeros(
+            (self.num_chunk, self.chunk_size, int(2 * self.ping_len))
+        )
+        self.edges_mat = np.zeros(
+            (self.num_chunk, self.chunk_size, int(2 * self.ping_len)), dtype=bool
+        )
         self.napari_portside_bottom = np.zeros(
             (self.num_chunk, self.chunk_size), dtype=int
         )
@@ -297,6 +307,8 @@ class SidescanPreprocessor:
     ):
         """Do bottom line detection update for a single chunk of given idx"""
 
+        # Apply custom contrast limits
+        
         # edge detection
         combine_both_sides = bottom_strategy_choice == self.bottom_strategy_choices[1]
         portside_edges_chunk, starboard_edges_chunk = self.detect_edges(
@@ -305,6 +317,7 @@ class SidescanPreprocessor:
             threshold_bin,
             combine_both_sides,
             False,
+            chunk_idx=chunk_idx,
         )
         # convert most likely edge to bottom distance
         self.napari_portside_bottom[chunk_idx] = self.edges_to_bottom_dist(
@@ -381,7 +394,6 @@ class SidescanPreprocessor:
         starboard_chunk,
         portside_dep_chunk,
         starboard_dep_chunk,
-        chunk_size,
     ):
         map_shape = np.shape(portside_chunk)
         star_map = np.zeros(map_shape)
@@ -415,7 +427,7 @@ class SidescanPreprocessor:
 
     # wrapper function for edge detection
     def detect_edges(
-        self, portside, starboard, threshold_bin, combine_both_sides, plotting
+        self, portside, starboard, threshold_bin, combine_both_sides, plotting, chunk_idx=-1
     ):
         # make binary and invert
         portside_bin = portside > threshold_bin
@@ -434,8 +446,8 @@ class SidescanPreprocessor:
         remove_small_objects(starboard_bin)
 
         # smoothing
-        portside_bin = skimage.filters.gaussian(portside_bin, sigma=3)
-        starboard_bin = skimage.filters.gaussian(starboard_bin, sigma=3)
+        portside_bin = skimage.filters.gaussian(portside_bin, sigma=1)
+        starboard_bin = skimage.filters.gaussian(starboard_bin, sigma=1)
         portside_bin = np.array(np.round(portside_bin), dtype=bool)
         starboard_bin = np.array(np.round(starboard_bin), dtype=bool)
 
@@ -456,37 +468,50 @@ class SidescanPreprocessor:
             portside_edges = feature.canny(portside_bin, sigma=3)
             starboard_edges = feature.canny(starboard_bin, sigma=3)
 
+        if chunk_idx != -1:
+            self.napari_fullmat_bin[chunk_idx] = np.hstack((portside_bin, starboard_bin))
+            port_edges = np.zeros_like(portside_bin)
+            port_edges[portside_edges] = 1
+            star_edges = np.zeros_like(starboard_bin)
+            star_edges[starboard_edges] = 1
+            self.edges_mat[chunk_idx] = np.array(np.hstack((port_edges, star_edges)), dtype=bool)
+
         return (portside_edges, starboard_edges)
 
     # find depth TODO: is there a better way to do this with skimage?
-    def edges_to_bottom_dist(self, edges, threshold_bin, data_is_port_side):
+    def edges_to_bottom_dist(self, edges, threshold_bin, data_is_port_side, click_pos=None):
         dist_at_ends = 20  # TODO: find a good val
-        cand_start = 0
+        cand_start = 0 
+        # TODO: cand_start von außen einstellbar machen (per Mausclick) -> Loopen von da aus in beide Richtungen, um den den Candidaten zu verfolgen?
         idx = 0
 
-        # find first ping edge result, where only one candidate is present as initial guess
-        ping_len = np.shape(edges)[1]
-        while cand_start == 0 and idx < np.shape(edges)[0]:
-            edge_list = (
-                np.where(edges[idx, dist_at_ends : -1 * dist_at_ends])[0] + dist_at_ends
-            )
-            idx += 1
-            if len(edge_list) == 1:
-                cand_start = edge_list[0]
+        # if a position has been clicked, this shall be our start candidate
+        if click_pos:
+            pass
+        else:
+            # find first ping edge result, where only one candidate is present as initial guess
+            ping_len = np.shape(edges)[1]
+            while cand_start == 0 and idx < np.shape(edges)[0]:
+                edge_list = (
+                    np.where(edges[idx, dist_at_ends : -1 * dist_at_ends])[0] + dist_at_ends
+                )
+                idx += 1
+                if len(edge_list) == 1:
+                    cand_start = edge_list[0]
 
-        candidates = []
-        # if no start idx is found, choose first or last idx, depending on where thresh is closer to
-        if len(edge_list) == 0:
-            if threshold_bin < 0.5:
-                if data_is_port_side:
-                    cand_start = ping_len - 3
+            candidates = []
+            # if no start idx is found, choose first or last idx, depending on where thresh is closer to
+            if len(edge_list) == 0:
+                if threshold_bin < 0.5:
+                    if data_is_port_side:
+                        cand_start = ping_len - 3
+                    else:
+                        cand_start = 2
                 else:
-                    cand_start = 2
-            else:
-                if data_is_port_side:
-                    cand_start = 2
-                else:
-                    cand_start = ping_len - 3
+                    if data_is_port_side:
+                        cand_start = 2
+                    else:
+                        cand_start = ping_len - 3
 
         # iterate over all pings to determine bottom distance for each ping
         last_cand = cand_start

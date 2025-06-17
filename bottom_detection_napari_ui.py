@@ -12,6 +12,7 @@ def run_napari_btm_line(
     chunk_size=1000,
     default_threshold=0.7,
     downsampling_factor=1,
+    contrast_limit=0.0,
     work_dir=None,
     active_dB=False,
     active_hist_equal=False,
@@ -64,11 +65,18 @@ def run_napari_btm_line(
             "widget_type": "RadioButtons",
             "choices": preproc.bottom_strategy_choices,
         },
+        contrast_limits={
+            "widget_type": "FloatSlider",
+            "min": 0,
+            "max": 1.0,
+            "step": 0.01,
+        },
         call_button="Recalculate",
     )
     def widget_thresh(
         viewer: napari.Viewer,
         threshold_bin=default_threshold,
+        contrast_limits=contrast_limit,
         choose_strategy=preproc.bottom_strategy_choices[1],
     ):
 
@@ -85,7 +93,7 @@ def run_napari_btm_line(
 
     # Build widget for aux parameters that shall not trigger a recalculation for the current chunk
     @magicgui(auto_call=True, call_button=None)
-    def manual_annotation_widget(activate_manual_annotation: bool):
+    def manual_annotation_widget(activate_manual_annotation: bool, activate_pos_click: bool):
         for layer in viewer.layers:
             if activate_manual_annotation:
                 layer.mouse_pan = False
@@ -155,7 +163,18 @@ def run_napari_btm_line(
     def press_r(viewer):
         widget_thresh.changed()
 
+    @viewer.bind_key("b")
+    def press_r(viewer):
+        binarized_image_layer.data = preproc.napari_fullmat_bin
+        edges_image_layer.data = preproc.edges_mat
+
     # add image
+    binarized_image_layer = viewer.add_image(
+        preproc.napari_fullmat_bin, name="binarized image"
+    )
+    edges_image_layer = viewer.add_image(
+        preproc.edges_mat, name="edges"
+    )
     sidescan_image_layer = viewer.add_image(
         preproc.napari_fullmat, name="sidescan image", colormap="copper"
     )

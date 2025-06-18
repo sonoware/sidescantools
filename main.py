@@ -1343,6 +1343,8 @@ class ViewAndExportWidget(QVBoxLayout):
             head_pen = pg.mkPen(color=(99, 244, 227), width = 8, style = QtCore.Qt.SolidLine)
             head_ori_pen = pg.mkPen(color=(6, 182, 162), width = 5, style = QtCore.Qt.DotLine)
 
+            self.main_ui.lola_plot_widget.clear()
+            self.main_ui.head_plot_widget.clear()
             self.main_ui.lola_plot_widget.addLegend()
             self.main_ui.head_plot_widget.addLegend()
 

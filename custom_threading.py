@@ -8,9 +8,11 @@ import qtpy.QtCore as QtCore
 import qtpy.QtGui as QtGui
 from sidescan_file import SidescanFile
 from sidescan_preproc import SidescanPreprocessor
+from sidescan_georeferencer import SidescanGeoreferencer
 import numpy as np
 import os
 import pathlib
+import pyqtgraph as pg
 
 
 class ImportThread(QtCore.QThread):
@@ -779,3 +781,70 @@ class PreProcManager(QWidget):
         msg_str = str(err)
         self.aborted_signal.emit(msg_str)
         self.deleteLater()
+
+class NavPlotterSignals(QtCore.QObject):
+    results_signal = QtCore.Signal(tuple)
+
+class NavPlotter(QtCore.QRunnable):
+    def __init__(self, filepath):
+        super().__init__()
+        #self.results_signal = QtCore.Signal(str)
+        self.filepath = filepath
+        self.signals = NavPlotterSignals()
+
+    @QtCore.Slot()
+    def run(self):
+        print("NavPlotter started")
+        get_nav = SidescanGeoreferencer(filepath=self.filepath)
+        get_nav.prep_data()
+        print("Getting navigation data...")
+        lola_data = get_nav.LOLA_plt
+        head_data = get_nav.HEAD_plt
+        lola_data_ori = get_nav.LOLA_plt_ori
+        head_data_ori = get_nav.HEAD_plt_ori
+        head_data = np.column_stack((head_data[:,0], head_data[:,1]*100))
+        head_data_ori = np.column_stack((head_data_ori[:,0], head_data_ori[:,1]*100))
+        self.signals.results_signal.emit((lola_data, lola_data_ori, head_data, head_data_ori))
+
+class NavPlotterManager(QWidget):
+
+    def __init__(self, filepath: pathlib.Path):
+        super().__init__()
+        self.filepath = pathlib.Path(filepath)
+        self.setWindowTitle("Navigation Plots")
+        self.box_layout = QVBoxLayout()
+        self.head_plot_widget = pg.PlotWidget()
+        self.lola_plot_widget = pg.PlotWidget()
+        self.lola_plot_widget.setMaximumHeight(300)
+        self.head_plot_widget.setMaximumHeight(300)
+        self.box_layout.addWidget(self.lola_plot_widget)
+        self.box_layout.addWidget(self.head_plot_widget)
+        self.setLayout(self.box_layout)
+        self.threadpool = QtCore.QThreadPool()
+        self.show()
+
+
+    def process_nav(self):
+        nav_plotter = NavPlotter(self.filepath)
+        nav_plotter.signals.results_signal.connect(self.plot_nav)
+        self.threadpool.start(nav_plotter)
+
+    def plot_nav(self, nav_data):
+        lola_data, lola_data_ori, head_data, head_data_ori = nav_data
+        lola_pen = pg.mkPen(color=(249, 228, 132), width = 8, style = QtCore.Qt.SolidLine)
+        lola_ori_pen = pg.mkPen(color=(210, 174, 3), width = 5, style = QtCore.Qt.DotLine)
+        head_pen = pg.mkPen(color=(99, 244, 227), width = 8, style = QtCore.Qt.SolidLine)
+        head_ori_pen = pg.mkPen(color=(6, 182, 162), width = 5, style = QtCore.Qt.DotLine)
+        self.lola_plot_widget.clear()
+        self.head_plot_widget.clear()
+        self.lola_plot_widget.addLegend()
+        self.head_plot_widget.addLegend()
+        self.lola_plot_widget.plot(lola_data_ori, pen=lola_ori_pen, name='original')
+        self.lola_plot_widget.plot(lola_data, pen=lola_pen, title='Navigation', name='smoothed')
+        self.head_plot_widget.plot(head_data_ori, pen=head_ori_pen, name = 'original')
+        self.head_plot_widget.plot(head_data, pen=head_pen, title='Heading', name='Heading')
+        self.lola_plot_widget.setLabel('left', 'Latitude [°]')
+        self.lola_plot_widget.setLabel('bottom', 'Longitude [°]')
+        self.head_plot_widget.setLabel('left', 'Heading [°]')
+        self.head_plot_widget.setLabel('bottom', 'Ping number')
+        print("finished plotting! Can see something?")

@@ -3,6 +3,7 @@ from qtpy.QtWidgets import (
     QVBoxLayout,
     QProgressBar,
     QWidget,
+    QPushButton,
 )
 import qtpy.QtCore as QtCore
 import qtpy.QtGui as QtGui
@@ -13,6 +14,7 @@ import numpy as np
 import os
 import pathlib
 import pyqtgraph as pg
+import pyqtgraph.exporters as exporters
 
 
 class ImportThread(QtCore.QThread):
@@ -784,15 +786,16 @@ class PreProcManager(QWidget):
 
 class NavPlotterSignals(QtCore.QObject):
     results_signal = QtCore.Signal(tuple)
+    save_signal = QtCore.Signal(tuple)
 
 class NavPlotter(QtCore.QRunnable):
-    def __init__(self, filepath):
+    def __init__(self, filepath: pathlib.Path):
         super().__init__()
-        #self.results_signal = QtCore.Signal(str)
         self.filepath = filepath
         self.signals = NavPlotterSignals()
 
-    @QtCore.Slot()
+
+    #@QtCore.Slot()
     def run(self):
         print("NavPlotter started")
         get_nav = SidescanGeoreferencer(filepath=self.filepath)
@@ -806,35 +809,41 @@ class NavPlotter(QtCore.QRunnable):
         head_data_ori = np.column_stack((head_data_ori[:,0], head_data_ori[:,1]*100))
         self.signals.results_signal.emit((lola_data, lola_data_ori, head_data, head_data_ori))
 
+
 class NavPlotterManager(QWidget):
 
-    def __init__(self, filepath: pathlib.Path):
+    def __init__(self, filepath: pathlib.Path, georef_dir: os.PathLike):
         super().__init__()
         self.filepath = pathlib.Path(filepath)
+        self.georef_dir = pathlib.Path(georef_dir)
         self.setWindowTitle("Navigation Plots")
         self.box_layout = QVBoxLayout()
         self.head_plot_widget = pg.PlotWidget()
         self.lola_plot_widget = pg.PlotWidget()
         self.lola_plot_widget.setMaximumHeight(300)
         self.head_plot_widget.setMaximumHeight(300)
+        self.save_button = QPushButton("Save")
+        self.save_button.clicked.connect(self.save_png)
         self.box_layout.addWidget(self.lola_plot_widget)
         self.box_layout.addWidget(self.head_plot_widget)
+        self.box_layout.addWidget(self.save_button)
         self.setLayout(self.box_layout)
         self.threadpool = QtCore.QThreadPool()
         self.show()
 
 
     def process_nav(self):
-        nav_plotter = NavPlotter(self.filepath)
-        nav_plotter.signals.results_signal.connect(self.plot_nav)
-        self.threadpool.start(nav_plotter)
+        self.nav_plotter = NavPlotter(self.filepath)
+        self.nav_plotter.signals.results_signal.connect(self.plot_nav)
+        self.nav_plotter.signals.save_signal.connect(self.save_png)
+        self.threadpool.start(self.nav_plotter)
 
     def plot_nav(self, nav_data):
         lola_data, lola_data_ori, head_data, head_data_ori = nav_data
-        lola_pen = pg.mkPen(color=(249, 228, 132), width = 8, style = QtCore.Qt.SolidLine)
-        lola_ori_pen = pg.mkPen(color=(210, 174, 3), width = 5, style = QtCore.Qt.DotLine)
-        head_pen = pg.mkPen(color=(99, 244, 227), width = 8, style = QtCore.Qt.SolidLine)
-        head_ori_pen = pg.mkPen(color=(6, 182, 162), width = 5, style = QtCore.Qt.DotLine)
+        lola_pen = pg.mkPen(color=(249, 228, 132), width = 4, style = QtCore.Qt.SolidLine)
+        lola_ori_pen = pg.mkPen(color=(210, 174, 3), width = 2, style = QtCore.Qt.DotLine)
+        head_pen = pg.mkPen(color=(99, 244, 227), width = 4, style = QtCore.Qt.SolidLine)
+        head_ori_pen = pg.mkPen(color=(6, 182, 162), width = 2, style = QtCore.Qt.DotLine)
         self.lola_plot_widget.clear()
         self.head_plot_widget.clear()
         self.lola_plot_widget.addLegend()
@@ -848,3 +857,23 @@ class NavPlotterManager(QWidget):
         self.head_plot_widget.setLabel('left', 'Heading [°]')
         self.head_plot_widget.setLabel('bottom', 'Ping number')
         print("finished plotting! Can see something?")
+
+    def save_png(self):  
+        outpath = str(self.georef_dir / (self.filepath.stem))
+
+        lola_exporter_im = exporters.ImageExporter(self.lola_plot_widget.plotItem)
+        lola_exporter_svg = exporters.SVGExporter(self.lola_plot_widget.plotItem)
+        lola_exporter_im.parameters()['width']=1500
+        lola_exporter_svg.parameters()['width']=1500
+        lola_exporter_svg.export(outpath + "_NavigationPlot.svg")
+        lola_exporter_im.export(outpath + "_NavigationPlot.png")
+
+        head_exporter_im = exporters.ImageExporter(self.head_plot_widget.plotItem)
+        head_exporter_svg = exporters.SVGExporter(self.head_plot_widget.plotItem)
+        head_exporter_im.parameters()['width']=1500
+        head_exporter_svg.parameters()['width']=1500
+        head_exporter_svg.export(outpath + "_HeadingPlot.svg")
+        head_exporter_im.export(outpath + "_HeadingPlot.png")
+        print(f"Saved plot to {self.georef_dir}")
+
+

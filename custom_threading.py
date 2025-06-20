@@ -4,6 +4,7 @@ from qtpy.QtWidgets import (
     QProgressBar,
     QWidget,
     QPushButton,
+    QMessageBox,
 )
 import qtpy.QtCore as QtCore
 import qtpy.QtGui as QtGui
@@ -815,6 +816,7 @@ class NavPlotterManager(QWidget):
     def __init__(self, filepath: pathlib.Path, georef_dir: os.PathLike):
         super().__init__()
         self.filepath = pathlib.Path(filepath)
+        self.nav_plotter = NavPlotter(filepath)
         self.georef_dir = pathlib.Path(georef_dir)
         self.setWindowTitle("Navigation Plots")
         self.box_layout = QVBoxLayout()
@@ -824,6 +826,7 @@ class NavPlotterManager(QWidget):
         self.head_plot_widget.setMaximumHeight(300)
         self.save_button = QPushButton("Save")
         self.save_button.clicked.connect(self.save_png)
+        self.save_button.clicked.connect(self.message)
         self.box_layout.addWidget(self.lola_plot_widget)
         self.box_layout.addWidget(self.head_plot_widget)
         self.box_layout.addWidget(self.save_button)
@@ -833,7 +836,6 @@ class NavPlotterManager(QWidget):
 
 
     def process_nav(self):
-        self.nav_plotter = NavPlotter(self.filepath)
         self.nav_plotter.signals.results_signal.connect(self.plot_nav)
         self.nav_plotter.signals.save_signal.connect(self.save_png)
         self.threadpool.start(self.nav_plotter)
@@ -875,5 +877,13 @@ class NavPlotterManager(QWidget):
         head_exporter_svg.export(outpath + "_HeadingPlot.svg")
         head_exporter_im.export(outpath + "_HeadingPlot.png")
         print(f"Saved plot to {self.georef_dir}")
+
+    def message(self):
+        print("Sucessfully saved plots as png & svg.")
+        msg = QMessageBox()
+        msg.setText('Sucessfully saved plots as png & svg.')
+        msg.setWindowTitle("Save Dialogue")
+        msg.setIcon(QMessageBox.Information)
+        msg.exec_()
 
 

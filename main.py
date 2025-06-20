@@ -26,6 +26,8 @@ import qtpy.QtGui as QtGui
 import sys, os, pathlib
 from bottom_detection_napari_ui import run_napari_btm_line
 from sidescan_georeferencer import SidescanGeoreferencer
+#from plot_navigation import NavPlotWidget
+import pyqtgraph as pg
 import yaml, copy
 from math import log
 import numpy as np
@@ -41,7 +43,7 @@ from custom_widgets import (
     hist_equalization,
     FilePicker,
 )
-from custom_threading import FileImportManager, EGNTableBuilder, PreProcManager
+from custom_threading import FileImportManager, EGNTableBuilder, PreProcManager, NavPlotterManager
 from enum import Enum
 import scipy.signal as scisig
 
@@ -122,6 +124,8 @@ class SidescanToolsMain(QWidget):
         self.file_table.setColumnWidth(1, 150)
         self.file_table.cellClicked.connect(self.always_select_row)
         self.file_table.cellClicked.connect(self.update_meta_info)
+        self.file_table.cellClicked.connect(self.run_nav_plots)
+
 
         ## Right side
         # Choose working directory and save/load project info
@@ -189,6 +193,7 @@ class SidescanToolsMain(QWidget):
         # left side widgets: file picker and table
         self.left_view.addWidget(self.file_pick_btn)
         self.left_view.addWidget(self.file_table)
+        
         # right side widgets: meta info, project settings and all parameter
         self.right_view.addWidget(self.file_info_text_box)
         self.right_view.addWidget(QHLine())
@@ -680,6 +685,15 @@ class SidescanToolsMain(QWidget):
             self.settings_dict["Resampling Method"] 
         )
         self.processing_widget.load_proc_strat()
+
+    def run_nav_plots(self):
+        file_idx = 0
+        if len(self.file_table.selectedIndexes()) > 0:
+            file_idx = self.file_table.selectedIndexes()[0].row()
+        filepath = pathlib.Path(self.file_dict["Path"][file_idx])
+        georef_dir = pathlib.Path(self.settings_dict["Georef dir"])
+        self.nav_plotter = NavPlotterManager(filepath=filepath, georef_dir=georef_dir)
+        self.nav_plotter.process_nav()
 
 
 # Bottom line detection widget

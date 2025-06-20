@@ -691,7 +691,8 @@ class SidescanToolsMain(QWidget):
         if len(self.file_table.selectedIndexes()) > 0:
             file_idx = self.file_table.selectedIndexes()[0].row()
         filepath = pathlib.Path(self.file_dict["Path"][file_idx])
-        self.nav_plotter = NavPlotterManager(filepath=filepath)
+        georef_dir = pathlib.Path(self.settings_dict["Georef dir"])
+        self.nav_plotter = NavPlotterManager(filepath=filepath, georef_dir=georef_dir)
         self.nav_plotter.process_nav()
 
 

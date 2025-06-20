@@ -881,9 +881,12 @@ class NavPlotterManager(QWidget):
     def message(self):
         print("Sucessfully saved plots as png & svg.")
         msg = QMessageBox()
-        msg.setText('Sucessfully saved plots as png & svg.')
+        font = QtGui.QFont('Arial', 12)
+        path = str(self.filepath.stem)
+        msg.setText(f"Sucessfully saved: {path + '_HeadingPlot.png'} \n {path + '_HeadingPlot.svg'} \n {path + '_NavigationPlot.png'} \n {path + '_NavigationPlot.svg'} \n to {str(self.georef_dir.stem) + '/'}")
         msg.setWindowTitle("Save Dialogue")
         msg.setIcon(QMessageBox.Information)
+        msg.setFont(font)
         msg.exec_()
 
 

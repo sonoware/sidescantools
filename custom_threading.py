@@ -5,6 +5,7 @@ from qtpy.QtWidgets import (
     QWidget,
     QPushButton,
     QMessageBox,
+    QFileDialog,
 )
 import qtpy.QtCore as QtCore
 import qtpy.QtGui as QtGui
@@ -824,12 +825,17 @@ class NavPlotterManager(QWidget):
         self.lola_plot_widget = pg.PlotWidget()
         self.lola_plot_widget.setMaximumHeight(300)
         self.head_plot_widget.setMaximumHeight(300)
-        self.save_button = QPushButton("Save")
-        self.save_button.clicked.connect(self.save_png)
-        self.save_button.clicked.connect(self.message)
+        self.save_button_head = QPushButton("Save Heading to .png/.svg")
+        self.save_button_lola = QPushButton("Save Navigation to .png/.svg")
+        self.save_button_head.clicked.connect(self.save_head_file)
+        self.save_button_lola.clicked.connect(self.save_nav_file)
+        self.save_button_head.clicked.connect(self.message)
+        self.save_button_lola.clicked.connect(self.message)
         self.box_layout.addWidget(self.lola_plot_widget)
+        self.box_layout.addWidget(self.save_button_lola)
         self.box_layout.addWidget(self.head_plot_widget)
-        self.box_layout.addWidget(self.save_button)
+        self.box_layout.addWidget(self.save_button_head)
+
         self.setLayout(self.box_layout)
         self.threadpool = QtCore.QThreadPool()
         self.show()
@@ -837,7 +843,8 @@ class NavPlotterManager(QWidget):
 
     def process_nav(self):
         self.nav_plotter.signals.results_signal.connect(self.plot_nav)
-        self.nav_plotter.signals.save_signal.connect(self.save_png)
+        self.nav_plotter.signals.save_signal.connect(self.save_nav_file)
+        self.nav_plotter.signals.save_signal.connect(self.save_head_file)
         self.threadpool.start(self.nav_plotter)
 
     def plot_nav(self, nav_data):
@@ -860,30 +867,38 @@ class NavPlotterManager(QWidget):
         self.head_plot_widget.setLabel('bottom', 'Ping number')
         print("finished plotting! Can see something?")
 
-    def save_png(self):  
-        outpath = str(self.georef_dir / (self.filepath.stem))
-
-        lola_exporter_im = exporters.ImageExporter(self.lola_plot_widget.plotItem)
-        lola_exporter_svg = exporters.SVGExporter(self.lola_plot_widget.plotItem)
-        lola_exporter_im.parameters()['width']=1500
-        lola_exporter_svg.parameters()['width']=1500
-        lola_exporter_svg.export(outpath + "_NavigationPlot.svg")
-        lola_exporter_im.export(outpath + "_NavigationPlot.png")
-
-        head_exporter_im = exporters.ImageExporter(self.head_plot_widget.plotItem)
-        head_exporter_svg = exporters.SVGExporter(self.head_plot_widget.plotItem)
-        head_exporter_im.parameters()['width']=1500
-        head_exporter_svg.parameters()['width']=1500
-        head_exporter_svg.export(outpath + "_HeadingPlot.svg")
-        head_exporter_im.export(outpath + "_HeadingPlot.png")
-        print(f"Saved plot to {self.georef_dir}")
+    def save_nav_file(self):  
+        #outpath = str(self.georef_dir / (self.filepath.stem))
+        self.outpath, file_filter = QFileDialog.getSaveFileName(self, "Save Plot", "", "Images (*.png);;SVG (*.svg)")
+        if self.outpath:
+            print(f"outpath {self.outpath}, filefilter: {file_filter}")
+            if file_filter == "SVG (*.svg)":
+                lola_exporter_svg = exporters.SVGExporter(self.lola_plot_widget.plotItem)
+                lola_exporter_svg.parameters()['width']=1500
+                lola_exporter_svg.export(self.outpath)
+            elif file_filter == "Images (*.png)":
+                lola_exporter_im = exporters.ImageExporter(self.lola_plot_widget.plotItem)
+                lola_exporter_im.parameters()['width']=1500
+                lola_exporter_im.export(self.outpath)
+                
+    def save_head_file(self):  
+        self.outpath, file_filter = QFileDialog.getSaveFileName(self, "Save Plot", "", "Images (*.png);;SVG (*.svg)")
+        if self.outpath:
+            print(f"outpath {self.outpath}, filefilter: {file_filter}")
+            if file_filter == "SVG (*.svg)":
+                head_exporter_svg = exporters.SVGExporter(self.head_plot_widget.plotItem)
+                head_exporter_svg.parameters()['width']=1500
+                head_exporter_svg.export(self.outpath)
+            elif file_filter == "Images (*.png)":
+                head_exporter_im = exporters.ImageExporter(self.head_plot_widget.plotItem)
+                head_exporter_im.parameters()['width']=1500
+                head_exporter_im.export(self.outpath)
 
     def message(self):
         print("Sucessfully saved plots as png & svg.")
         msg = QMessageBox()
         font = QtGui.QFont('Arial', 12)
-        path = str(self.filepath.stem)
-        msg.setText(f"Sucessfully saved: {path + '_HeadingPlot.png'} \n {path + '_HeadingPlot.svg'} \n {path + '_NavigationPlot.png'} \n {path + '_NavigationPlot.svg'} \n to {str(self.georef_dir.stem) + '/'}")
+        msg.setText(f"Sucessfully saved: {self.outpath}")
         msg.setWindowTitle("Save Dialogue")
         msg.setIcon(QMessageBox.Information)
         msg.setFont(font)

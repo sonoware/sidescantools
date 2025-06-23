@@ -103,9 +103,12 @@ class SidescanPreprocessor:
                 f"Resolution in ping direction: {self.sidescan_file.slant_range/self.ping_len} m"
             )
         print("(Estimated from slant range of first ping)")
-        print(
-            f"Resolution in tow/heading direction: {geo_dist.geodesic(end_coord, start_coord).m / self.sidescan_file.num_ping} m"
-        )
+        try:
+            print(
+                f"Resolution in tow/heading direction: {geo_dist.geodesic(end_coord, start_coord).m / self.sidescan_file.num_ping} m"
+            )
+        except:
+            print("Geo Error")
         print("(Estimated from start and end GPS position)")
         print("------------------------------------------------------------")
 
@@ -161,8 +164,10 @@ class SidescanPreprocessor:
             else:
                 initial_guess = False
 
-    def init_napari_bottom_detect(self, default_threshold, active_dB=False,active_hist_equal=False):
+    def init_napari_bottom_detect(self, default_threshold, active_dB=False,active_hist_equal=False,depth_info=None):
 
+        # if depth data is present, this is set here
+        self.napari_depth_info = depth_info
         # normalize each ping individually
         portside = np.array(self.sonar_data_proc[0], dtype=float)
         starboard = np.array(self.sonar_data_proc[1], dtype=float)
@@ -181,7 +186,7 @@ class SidescanPreprocessor:
         if active_hist_equal:
             portside = hist_equalization(portside)
             starboard = hist_equalization(starboard)
-            
+
         # do initial bottom line detection for start values
         self.detect_bottom_line_t(
             threshold_bin=default_threshold,
@@ -338,6 +343,13 @@ class SidescanPreprocessor:
 
         self.update_bottom_map_napari(chunk_idx, add_line_width=add_line_width)
 
+    def set_depth_from_info(self, offset:int):
+        for chunk_idx in range(self.num_chunk):
+            depth_chunk = self.napari_depth_info[chunk_idx * self.chunk_size:(chunk_idx+1) * self.chunk_size] + offset
+            self.napari_portside_bottom[chunk_idx, :len(depth_chunk)] = self.ping_len - depth_chunk
+            self.napari_starboard_bottom[chunk_idx, :len(depth_chunk)] = depth_chunk
+            self.update_bottom_map_napari(chunk_idx, add_line_width=1)
+    
     def update_bottom_map_napari(self, chunk_idx, add_line_width=0):
         # update bottom map
         chunk_shape = (self.chunk_size, self.ping_len)

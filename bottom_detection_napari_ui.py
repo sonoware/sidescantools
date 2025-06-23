@@ -45,11 +45,22 @@ def run_napari_btm_line(
     )
 
     # Init bottom detection by doing an initial guess
+    # check if depth is valid
+    depth_info = sidescan_file.depth
+    if depth_info[0] == 0:
+        depth_info = None
+    else:
+        # convert to ping idx
+        for ping_idx in range(sidescan_file.num_ping):
+            depth_info[ping_idx] = np.round(np.argmin(np.abs(depth_info[ping_idx] - sidescan_file.ping_x_axis)) / downsampling_factor)
+        depth_info = depth_info.astype(int)
+
     print("Initializing napari UI for Bottom Detection")
     preproc.init_napari_bottom_detect(
         default_threshold,
         active_dB=active_dB,
         active_hist_equal=active_hist_equal,
+        depth_info=depth_info,
     )
 
     # build napari GUI
@@ -65,18 +76,11 @@ def run_napari_btm_line(
             "widget_type": "RadioButtons",
             "choices": preproc.bottom_strategy_choices,
         },
-        contrast_limits={
-            "widget_type": "FloatSlider",
-            "min": 0,
-            "max": 1.0,
-            "step": 0.01,
-        },
         call_button="Recalculate",
     )
     def widget_thresh(
         viewer: napari.Viewer,
         threshold_bin=default_threshold,
-        contrast_limits=contrast_limit,
         choose_strategy=preproc.bottom_strategy_choices[1],
     ):
 
@@ -88,6 +92,25 @@ def run_napari_btm_line(
             add_line_width=add_line_width,
         )
 
+        # update bottom plot with new data
+        bottom_image_layer.data = preproc.bottom_map
+
+    # Build widget to load depth data
+    call_button_text = "d: Load depth data from file"
+    if depth_info is None:
+        call_button_text = "No depth data found"
+    @magicgui(
+        auto_call=True,
+        depth_offset={
+        "widget_type": "IntSlider",
+        "min": -1*preproc.ping_len,
+        "max": preproc.ping_len,
+        "step": 1,
+        },
+        call_button=call_button_text,
+        )
+    def widget_depth(viewer: napari.Viewer,depth_offset=0):
+        preproc.set_depth_from_info(offset=depth_offset)
         # update bottom plot with new data
         bottom_image_layer.data = preproc.bottom_map
 
@@ -168,6 +191,10 @@ def run_napari_btm_line(
         binarized_image_layer.data = preproc.napari_fullmat_bin
         edges_image_layer.data = preproc.edges_mat
 
+    @viewer.bind_key("d")
+    def press_d(viewer):
+        widget_depth.changed()
+
     # add image
     binarized_image_layer = viewer.add_image(
         preproc.napari_fullmat_bin, name="binarized image"
@@ -192,6 +219,7 @@ def run_napari_btm_line(
 
     # add widgets to main window
     viewer.window.add_dock_widget(widget_thresh, name="Bottom detection parameters")
+    viewer.window.add_dock_widget(widget_depth, name="Define Bottom Line via intern depth data")
     widget_thresh.visible = False  # HACK to change size policy...
     viewer.window.add_dock_widget(
         manual_annotation_widget, name="Activate manual annotation"
@@ -203,6 +231,10 @@ def run_napari_btm_line(
     widget_thresh.threshold_bin.label = "Threshold binarization [0,1]"
     widget_thresh.choose_strategy.label = "Choose strategy"
     widget_thresh.call_button.text = "r: Recalculate"
+    widget_depth.depth_offset.label = "Depth Offset in samples"
+    if depth_info is None:
+        widget_depth.call_button.enabled = False
+        widget_depth._auto_call = False
     manual_annotation_widget.activate_manual_annotation.text = (
         "m: Activate manual annotation"
     )

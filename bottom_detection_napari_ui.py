@@ -243,10 +243,7 @@ def run_napari_btm_line(
     filepicker_save.filename.label = "File"
     filepicker_load.filename.label = "File"
 
-    # Handle click or drag events separately
-    @bottom_image_layer.mouse_drag_callbacks.append
-    def click_drag(layer, event):
-
+    def custom_mouse_callback(layer, event):
         if (
             manual_annotation_widget.activate_manual_annotation.value
             and event.button == 1
@@ -254,7 +251,7 @@ def run_napari_btm_line(
             and 0 <= np.round(event.position[2]) < layer.data.shape[2]
         ):
 
-            # print('mouse down')
+            print('mouse down')
             dragged = False
             yield
 
@@ -265,6 +262,7 @@ def run_napari_btm_line(
                 and 0 <= np.round(event.position[1]) < layer.data.shape[1]
                 and 0 <= np.round(event.position[2]) < layer.data.shape[2]
             ):
+                print('mouse move')
                 dragged = True
 
                 cur_pos = np.array(np.round(event.position), dtype=int)
@@ -290,7 +288,7 @@ def run_napari_btm_line(
                         )
 
                 # check whether movement skipped points and do linear interpolation
-                if (last_pos > 0).all():
+                if (last_pos[1:] > 0).all():
                     if last_pos[1] - cur_pos[1] > 1:
                         if cur_pos[2] < layer.data.shape[2] / 2:
                             preproc.napari_portside_bottom[
@@ -346,6 +344,7 @@ def run_napari_btm_line(
             # on release
             if dragged:
                 dragged = False
+                print('mouse release')
             elif (
                 0 <= np.round(event.position[1]) < layer.data.shape[1]
                 and 0 <= np.round(event.position[2]) < layer.data.shape[2]
@@ -371,10 +370,26 @@ def run_napari_btm_line(
                         preproc.napari_portside_bottom[cur_pos[0], cur_pos[1]] = (
                             layer.data.shape[2] - cur_pos[2]
                         )
+                print('mouse clicked')
             # set map to trigger drawing
             preproc.update_bottom_map_napari(int(event.position[0]), add_line_width=0)
             bottom_image_layer.data = preproc.bottom_map
+            print('mouse callback ended')
 
+    # Handle click or drag events separately
+    @bottom_image_layer.mouse_drag_callbacks.append
+    def click_drag(layer, event):
+        return custom_mouse_callback(bottom_image_layer, event)
+    # enable the custom callback for all layers
+    @sidescan_image_layer.mouse_drag_callbacks.append
+    def click_drag(layer, event):
+        return custom_mouse_callback(bottom_image_layer, event)
+    @edges_image_layer.mouse_drag_callbacks.append
+    def click_drag(layer, event):
+        return custom_mouse_callback(bottom_image_layer, event)
+    @binarized_image_layer.mouse_drag_callbacks.append
+    def click_drag(layer, event):
+        return custom_mouse_callback(bottom_image_layer, event)
     # run main loop
     viewer.show(block=True)
 

@@ -94,6 +94,8 @@ def run_napari_btm_line(
 
         # update bottom plot with new data
         bottom_image_layer.data = preproc.bottom_map
+        # update edge plot
+        press_b(viewer)
 
     # Build widget to load depth data
     call_button_text = "d: Load depth data from file"
@@ -116,7 +118,7 @@ def run_napari_btm_line(
 
     # Build widget for aux parameters that shall not trigger a recalculation for the current chunk
     @magicgui(auto_call=True, call_button=None)
-    def manual_annotation_widget(activate_manual_annotation: bool, activate_pos_click: bool):
+    def manual_annotation_widget(activate_manual_annotation: bool):
         for layer in viewer.layers:
             if activate_manual_annotation:
                 layer.mouse_pan = False
@@ -187,7 +189,7 @@ def run_napari_btm_line(
         widget_thresh.changed()
 
     @viewer.bind_key("b")
-    def press_r(viewer):
+    def press_b(viewer):
         binarized_image_layer.data = preproc.napari_fullmat_bin
         edges_image_layer.data = preproc.edges_mat
 

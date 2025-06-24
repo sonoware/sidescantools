@@ -142,6 +142,13 @@ class SidescanGeoreferencer:
         LON_ori = LON_ori[MASK]
         LAT_ori = LAT_ori[MASK]
         HEAD_ori = HEAD_ori[MASK]
+        #HEAD_ori = np.where(HEAD_ori > 0, HEAD_ori, np.nan)
+        #HEAD_ori = np.where(HEAD_ori <= 3.6, HEAD_ori, np.nan)
+        for idx, head in enumerate(HEAD_ori):
+            if head < 0 or head > 3.6:
+                HEAD_ori[idx] = HEAD_ori[idx-1]
+                #print(f"idx, HEAD_ori[idx], HEAD_ori[idx-1]: {idx, HEAD_ori[idx], HEAD_ori[idx-1]}")
+
         GROUND_RANGE = GROUND_RANGE[MASK]
         SLANT_RANGE = SLANT_RANGE[MASK]
         PING = PING[MASK]
@@ -156,12 +163,15 @@ class SidescanGeoreferencer:
         self.LOLA_plt = np.column_stack((LON, LAT))
         self.LOLA_plt_ori = np.column_stack((LON_ori, LAT_ori))
 
-        UTM = []
-        for la, lo in zip(LAT, LON):
+        UTM = np.full_like(LAT_ori, np.nan)
+        UTM = UTM.tolist()
+        print(f"UTM: {type(UTM), len(UTM)}")
+        for idx, (la, lo) in enumerate(zip(LAT, LON)):
             try:
-                UTM.append((utm.from_latlon(la, lo)))
+                UTM[idx] = utm.from_latlon(la, lo)
             except:
                 ValueError("Values or lon and/or lat must not be 0")
+        print(f"UTM: {type(UTM), len(UTM)}")
 
         if UTM:
             NORTH = [utm_coord[0] for utm_coord in UTM]
@@ -177,7 +187,7 @@ class SidescanGeoreferencer:
             EAST_OUTER = np.array(
                 [
                     ground_range * math.sin(head) + east
-                    for ground_range, head, east in zip(GROUND_RANGE, HEAD, EAST)
+                    for ground_range, head, east in zip(GROUND_RANGE, HEAD, EAST) 
                 ]
             )
             NORTH_OUTER = np.array(
@@ -193,6 +203,7 @@ class SidescanGeoreferencer:
                 )
             ]
             LA_OUTER, LO_OUTER = map(np.array, zip(*LALO_OUTER))
+
 
         elif self.channel == 1:
             EAST_OUTER = np.array(
@@ -220,7 +231,7 @@ class SidescanGeoreferencer:
             self.chunk_indices = np.where(np.diff(LAT_ori) != 0)[0] + 2
 
         elif not self.dynamic_chunking:
-            chunksize = 5
+            chunksize = 50
             self.chunk_indices = int(swath_len / chunksize)
             print(f"Fixed chunk size: {chunksize} pings.")
 

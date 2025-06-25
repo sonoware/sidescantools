@@ -26,8 +26,9 @@ import qtpy.QtGui as QtGui
 import sys, os, pathlib
 from bottom_detection_napari_ui import run_napari_btm_line
 from sidescan_georeferencer import SidescanGeoreferencer
-#from plot_navigation import NavPlotWidget
 import pyqtgraph as pg
+import pyqtgraph.exporters as exporters
+
 import yaml, copy
 from math import log
 import numpy as np
@@ -43,7 +44,7 @@ from custom_widgets import (
     hist_equalization,
     FilePicker,
 )
-from custom_threading import FileImportManager, EGNTableBuilder, PreProcManager, NavPlotterManager
+from custom_threading import FileImportManager, EGNTableBuilder, PreProcManager, NavPlotter
 from enum import Enum
 import scipy.signal as scisig
 
@@ -124,8 +125,18 @@ class SidescanToolsMain(QWidget):
         self.file_table.setColumnWidth(1, 150)
         self.file_table.cellClicked.connect(self.always_select_row)
         self.file_table.cellClicked.connect(self.update_meta_info)
-        self.file_table.cellClicked.connect(self.run_nav_plots)
 
+        self.plot_button = QPushButton('Plot Navigation')
+        self.plot_button.clicked.connect(self.run_nav_plots)
+
+        self.head_plot_widget = pg.PlotWidget()
+        self.lola_plot_widget = pg.PlotWidget()
+        self.lola_plot_widget.setMaximumHeight(300)
+        self.head_plot_widget.setMaximumHeight(300)
+        self.save_button_head = QPushButton("Save Heading to .png/.svg")
+        self.save_button_lola = QPushButton("Save Navigation to .png/.svg")
+        self.save_button_head.clicked.connect(lambda: self.save_plot(plot_id='plot_head'))
+        self.save_button_lola.clicked.connect(lambda: self.save_plot(plot_id='plot_nav'))
 
         ## Right side
         # Choose working directory and save/load project info
@@ -193,7 +204,11 @@ class SidescanToolsMain(QWidget):
         # left side widgets: file picker and table
         self.left_view.addWidget(self.file_pick_btn)
         self.left_view.addWidget(self.file_table)
-        
+        self.left_view.addWidget(self.lola_plot_widget)
+        self.left_view.addWidget(self.save_button_lola)
+        self.left_view.addWidget(self.head_plot_widget)
+        self.left_view.addWidget(self.save_button_head)
+ 
         # right side widgets: meta info, project settings and all parameter
         self.right_view.addWidget(self.file_info_text_box)
         self.right_view.addWidget(QHLine())
@@ -205,7 +220,9 @@ class SidescanToolsMain(QWidget):
         button_box.addWidget(self.project_save_button)
         button_box.addWidget(self.project_load_button)
         self.right_view.addLayout(button_box)
+        self.right_view.addWidget(self.plot_button)
         self.right_view.addWidget(QHLine())
+
         # Processing steps are ordered in tabs
         proc_tab = QTabWidget(self)
         tab_bottom = QWidget(self)
@@ -230,6 +247,7 @@ class SidescanToolsMain(QWidget):
         self.right_scroll_area.setMaximumWidth(
             self.right_view.minimumSize().width() + 10
         )
+
         # Base layout
         self.base_layout.addLayout(self.left_view)
         self.base_layout.addWidget(self.right_scroll_area)
@@ -686,14 +704,82 @@ class SidescanToolsMain(QWidget):
         )
         self.processing_widget.load_proc_strat()
 
+
     def run_nav_plots(self):
         file_idx = 0
         if len(self.file_table.selectedIndexes()) > 0:
             file_idx = self.file_table.selectedIndexes()[0].row()
         filepath = pathlib.Path(self.file_dict["Path"][file_idx])
-        georef_dir = pathlib.Path(self.settings_dict["Georef dir"])
-        self.nav_plotter = NavPlotterManager(filepath=filepath, georef_dir=georef_dir)
-        self.nav_plotter.process_nav()
+        self.nav_plotter_worker = NavPlotter(filepath=filepath)
+        self.nav_plotter_worker.start()
+        self.nav_plotter_worker.signals.results_signal.connect(self.update_nav_plot)
+
+    def update_nav_plot(self, nav_data):
+        lola_data, lola_data_ori, head_data, head_data_ori = nav_data
+        lola_pen = pg.mkPen(color=(249, 228, 132), width = 4, style = QtCore.Qt.SolidLine)
+        lola_ori_pen = pg.mkPen(color=(210, 174, 3), width = 2, style = QtCore.Qt.DotLine)
+        head_pen = pg.mkPen(color=(99, 244, 227), width = 4, style = QtCore.Qt.SolidLine)
+        head_ori_pen = pg.mkPen(color=(6, 182, 162), width = 2, style = QtCore.Qt.DotLine)
+        self.lola_plot_widget.clear()
+        self.head_plot_widget.clear()
+        self.lola_plot_widget.addLegend()
+        self.head_plot_widget.addLegend()
+        #self.legend_nav = pg.LegendItem(size=(7,7))
+        #self.legend_nav.clear()
+        #self.legend_nav.setParentItem(self.lola_plot_widget.graphicsItem())
+        #self.legend_nav.setOffset([-100,130])
+        #self.legend_nav.setLabelTextSize('10pt')
+
+        #legend_head = pg.LegendItem(size=(7,7))
+        #legend_head.setParentItem(self.head_plot_widget.graphicsItem())
+        #legend_head.setOffset([-100,130])
+        #legend_head.setLabelTextSize('10pt')
+
+        lola_plot_ori = self.lola_plot_widget.plot(lola_data_ori, pen=lola_ori_pen, name='Original Navigation')
+        lola_plot_savgol = self.lola_plot_widget.plot(lola_data, pen=lola_pen, title='Navigation', name='Smoothed Navigation')
+        #self.legend_nav.addItem(lola_plot_ori, 'Original Track')
+        #self.legend_nav.addItem(lola_plot_savgol, 'Smoothed Track')
+
+        head_plot_ori = self.head_plot_widget.plot(head_data_ori, pen=head_ori_pen, name = 'Original Heading')
+        head_plot_savgol = self.head_plot_widget.plot(head_data, pen=head_pen, title='Heading', name='Smoothed Heading')
+        #legend_head.addItem(head_plot_ori, 'Original Heading')
+        #legend_head.addItem(head_plot_savgol, 'Smoothed Heading')
+
+        self.lola_plot_widget.setLabel('left', 'Latitude [°]')
+        self.lola_plot_widget.setLabel('bottom', 'Longitude [°]')
+        self.head_plot_widget.setLabel('left', 'Heading [°]')
+        self.head_plot_widget.setLabel('bottom', 'Ping number')
+        print("finished plotting! Can see something?")
+
+
+    def save_plot(self, plot_id):
+        outpath, file_filter = QFileDialog.getSaveFileName(self, "Save Plot", "", "Images (*.png);;SVG (*.svg)")
+        if plot_id == 'plot_head':
+            plot_item = self.head_plot_widget.plotItem
+        elif plot_id == 'plot_nav':
+            plot_item = self.lola_plot_widget.plotItem
+        if outpath:
+            print(f"outpath {outpath}, filefilter: {file_filter}")
+            if file_filter == "SVG (*.svg)":
+                exporter_svg = exporters.SVGExporter(plot_item)
+                exporter_svg.parameters()['width']=500
+                exporter_svg.parameters()['height']=500
+                exporter_svg.export(outpath)
+            elif file_filter == "Images (*.png)":
+                exporter_im = exporters.ImageExporter(plot_item)
+                exporter_im.parameters()['width']=500
+                exporter_im.parameters()['height']=500
+                exporter_im.export(outpath)
+
+        print("Sucessfully saved plots as png & svg.")
+        msg = QMessageBox()
+        font = QtGui.QFont('Arial', 12)
+        msg.setText(f"Sucessfully saved: {outpath}")
+        msg.setWindowTitle("Save Dialogue")
+        msg.setIcon(QMessageBox.Information)
+        msg.setFont(font)
+        msg.exec_()
+
 
 
 # Bottom line detection widget

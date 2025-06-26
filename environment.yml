@@ -14,5 +14,3 @@ dependencies:
   - pip:
       - pyxtf==1.4.2
       - utm==0.8.1
-	- conda-forge::sqlite=3.50.0
-	- conda-forge::libsqlite=3.50.0

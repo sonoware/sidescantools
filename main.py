@@ -749,7 +749,6 @@ class SidescanToolsMain(QWidget):
         self.lola_plot_widget.setLabel('bottom', 'Longitude [°]')
         self.head_plot_widget.setLabel('left', 'Heading [°]')
         self.head_plot_widget.setLabel('bottom', 'Ping number')
-        print("finished plotting! Can see something?")
 
 
     def save_plot(self, plot_id):

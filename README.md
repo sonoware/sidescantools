@@ -38,6 +38,7 @@ The following features are still under development and will be improved in futur
 - **Georeferencing** currently uses [gdal v3.11](https://gdal.org/) and `homography` or `polynomial 1` as warping algortihm along with ground control points. Usually, homography is more precise but can in some cases produce wavy structures and/or shifts in the data. In this case, use `Polynomial` (preserves parallel lines) -- _custom georeferencing to be implemented_
 - _Implement a standard case per possible imported datatype for **optimal visibility of objects** in the images_
 - **Bottom line detection** sometimes failes, especially when there are a lot of reflections in the water coloumn. Therefore a strategy to counter this should be examined.
+- When creating a docker image, add **- conda-forge::sqlite=3.50.0** & **- conda-forge::libsqlite=3.50.0** to the environment.yaml
 
 # Getting Started
 1. Currently we use Anaconda/Miniconda for platform indepent installation using Python 3.12. This is preferred because the installation of GDAL is essential and often doesn't work using pip. 
@@ -111,4 +112,4 @@ In the following all GUI elements are explained in more detail.
 - `Generate Waterfall Image`: Generates a non-georeferenced png file from processed data. Adjust chunk size if you need one file instead of several.
 
 # About
-SidescanTools is an open-source software project by [GEOMAR](https://www.geomar.de/ghostnetbusters) and [sonoware](https://www.sonoware.de/news/2024-12-06_uebergabe_foerderbescheid/) funded by the AI Fund of the State of Schleswig-Holstein. The logo design and artwork has been done by Aili Xue.
+SidescanTools is an open-source software project by [GEOMAR](https://www.geomar.de/ghostnetbusters) and [sonoware](https://www.sonoware.de/news/2024-12-06_uebergabe_foerderbescheid/) funded by the AI Fund of the State of Schleswig-Holstein. The logo design and artwork has been done by Aili Xue [https://ailixue.myportfolio.com/work].

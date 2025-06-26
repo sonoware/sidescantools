@@ -12,6 +12,7 @@ def run_napari_btm_line(
     chunk_size=1000,
     default_threshold=0.7,
     downsampling_factor=1,
+    contrast_limit=0.0,
     work_dir=None,
     active_dB=False,
     active_hist_equal=False,
@@ -44,11 +45,22 @@ def run_napari_btm_line(
     )
 
     # Init bottom detection by doing an initial guess
+    # check if depth is valid
+    depth_info = sidescan_file.depth
+    if depth_info[0] == 0:
+        depth_info = None
+    else:
+        # convert to ping idx
+        for ping_idx in range(sidescan_file.num_ping):
+            depth_info[ping_idx] = np.round(np.argmin(np.abs(depth_info[ping_idx] - sidescan_file.ping_x_axis)) / downsampling_factor)
+        depth_info = depth_info.astype(int)
+
     print("Initializing napari UI for Bottom Detection")
     preproc.init_napari_bottom_detect(
         default_threshold,
         active_dB=active_dB,
         active_hist_equal=active_hist_equal,
+        depth_info=depth_info,
     )
 
     # build napari GUI
@@ -80,6 +92,27 @@ def run_napari_btm_line(
             add_line_width=add_line_width,
         )
 
+        # update bottom plot with new data
+        bottom_image_layer.data = preproc.bottom_map
+        # update edge plot
+        press_b(viewer)
+
+    # Build widget to load depth data
+    call_button_text = "d: Load depth data from file"
+    if depth_info is None:
+        call_button_text = "No depth data found"
+    @magicgui(
+        auto_call=True,
+        depth_offset={
+        "widget_type": "IntSlider",
+        "min": -1*preproc.ping_len,
+        "max": preproc.ping_len,
+        "step": 1,
+        },
+        call_button=call_button_text,
+        )
+    def widget_depth(viewer: napari.Viewer,depth_offset=0):
+        preproc.set_depth_from_info(offset=depth_offset)
         # update bottom plot with new data
         bottom_image_layer.data = preproc.bottom_map
 
@@ -155,7 +188,22 @@ def run_napari_btm_line(
     def press_r(viewer):
         widget_thresh.changed()
 
+    @viewer.bind_key("b")
+    def press_b(viewer):
+        binarized_image_layer.data = preproc.napari_fullmat_bin
+        edges_image_layer.data = preproc.edges_mat
+
+    @viewer.bind_key("d")
+    def press_d(viewer):
+        widget_depth.changed()
+
     # add image
+    binarized_image_layer = viewer.add_image(
+        preproc.napari_fullmat_bin, name="binarized image"
+    )
+    edges_image_layer = viewer.add_image(
+        preproc.edges_mat, name="edges"
+    )
     sidescan_image_layer = viewer.add_image(
         preproc.napari_fullmat, name="sidescan image", colormap="copper"
     )
@@ -173,6 +221,7 @@ def run_napari_btm_line(
 
     # add widgets to main window
     viewer.window.add_dock_widget(widget_thresh, name="Bottom detection parameters")
+    viewer.window.add_dock_widget(widget_depth, name="Define Bottom Line via intern depth data")
     widget_thresh.visible = False  # HACK to change size policy...
     viewer.window.add_dock_widget(
         manual_annotation_widget, name="Activate manual annotation"
@@ -184,16 +233,17 @@ def run_napari_btm_line(
     widget_thresh.threshold_bin.label = "Threshold binarization [0,1]"
     widget_thresh.choose_strategy.label = "Choose strategy"
     widget_thresh.call_button.text = "r: Recalculate"
+    widget_depth.depth_offset.label = "Depth Offset in samples"
+    if depth_info is None:
+        widget_depth.call_button.enabled = False
+        widget_depth._auto_call = False
     manual_annotation_widget.activate_manual_annotation.text = (
         "m: Activate manual annotation"
     )
     filepicker_save.filename.label = "File"
     filepicker_load.filename.label = "File"
 
-    # Handle click or drag events separately
-    @bottom_image_layer.mouse_drag_callbacks.append
-    def click_drag(layer, event):
-
+    def custom_mouse_callback(layer, event):
         if (
             manual_annotation_widget.activate_manual_annotation.value
             and event.button == 1
@@ -201,7 +251,7 @@ def run_napari_btm_line(
             and 0 <= np.round(event.position[2]) < layer.data.shape[2]
         ):
 
-            # print('mouse down')
+            print('mouse down')
             dragged = False
             yield
 
@@ -212,6 +262,7 @@ def run_napari_btm_line(
                 and 0 <= np.round(event.position[1]) < layer.data.shape[1]
                 and 0 <= np.round(event.position[2]) < layer.data.shape[2]
             ):
+                print('mouse move')
                 dragged = True
 
                 cur_pos = np.array(np.round(event.position), dtype=int)
@@ -237,7 +288,7 @@ def run_napari_btm_line(
                         )
 
                 # check whether movement skipped points and do linear interpolation
-                if (last_pos > 0).all():
+                if (last_pos[1:] > 0).all():
                     if last_pos[1] - cur_pos[1] > 1:
                         if cur_pos[2] < layer.data.shape[2] / 2:
                             preproc.napari_portside_bottom[
@@ -293,6 +344,7 @@ def run_napari_btm_line(
             # on release
             if dragged:
                 dragged = False
+                print('mouse release')
             elif (
                 0 <= np.round(event.position[1]) < layer.data.shape[1]
                 and 0 <= np.round(event.position[2]) < layer.data.shape[2]
@@ -318,10 +370,26 @@ def run_napari_btm_line(
                         preproc.napari_portside_bottom[cur_pos[0], cur_pos[1]] = (
                             layer.data.shape[2] - cur_pos[2]
                         )
+                print('mouse clicked')
             # set map to trigger drawing
             preproc.update_bottom_map_napari(int(event.position[0]), add_line_width=0)
             bottom_image_layer.data = preproc.bottom_map
+            print('mouse callback ended')
 
+    # Handle click or drag events separately
+    @bottom_image_layer.mouse_drag_callbacks.append
+    def click_drag(layer, event):
+        return custom_mouse_callback(bottom_image_layer, event)
+    # enable the custom callback for all layers
+    @sidescan_image_layer.mouse_drag_callbacks.append
+    def click_drag(layer, event):
+        return custom_mouse_callback(bottom_image_layer, event)
+    @edges_image_layer.mouse_drag_callbacks.append
+    def click_drag(layer, event):
+        return custom_mouse_callback(bottom_image_layer, event)
+    @binarized_image_layer.mouse_drag_callbacks.append
+    def click_drag(layer, event):
+        return custom_mouse_callback(bottom_image_layer, event)
     # run main loop
     viewer.show(block=True)
 

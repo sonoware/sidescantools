@@ -255,9 +255,9 @@ class SidescanFile:
                         
                         p_idx += 1
 
-            self.ping_x_axis = np.linspace(0, self.slant_range[0], self.ping_len)
+            self.ping_x_axis = np.linspace(0, self.slant_range[0][0], self.ping_len)
 
         else:
-            print(f"File type {self.filepath.suffix().casefold()} isn't supported.")
+            print(f"File type {self.filepath.suffix.casefold()} isn't supported.")
             # TODO: Byte-weise nach nächstem passenden sync suchen -> Schauen ob header korrekt interpretiert werden kann -> Ja/Nein -> Bisherige Bytes speichern/Weitersuchen
             raise NotImplementedError

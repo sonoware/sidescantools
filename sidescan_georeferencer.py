@@ -142,12 +142,9 @@ class SidescanGeoreferencer:
         LON_ori = LON_ori[MASK]
         LAT_ori = LAT_ori[MASK]
         HEAD_ori = HEAD_ori[MASK]
-        #HEAD_ori = np.where(HEAD_ori > 0, HEAD_ori, np.nan)
-        #HEAD_ori = np.where(HEAD_ori <= 3.6, HEAD_ori, np.nan)
         for idx, head in enumerate(HEAD_ori):
             if head < 0 or head > 3.6:
                 HEAD_ori[idx] = HEAD_ori[idx-1]
-                #print(f"idx, HEAD_ori[idx], HEAD_ori[idx-1]: {idx, HEAD_ori[idx], HEAD_ori[idx-1]}")
 
         GROUND_RANGE = GROUND_RANGE[MASK]
         SLANT_RANGE = SLANT_RANGE[MASK]
@@ -231,7 +228,7 @@ class SidescanGeoreferencer:
             self.chunk_indices = np.where(np.diff(LAT_ori) != 0)[0] + 2
 
         elif not self.dynamic_chunking:
-            chunksize = 50
+            chunksize = 5
             self.chunk_indices = int(swath_len / chunksize)
             print(f"Fixed chunk size: {chunksize} pings.")
 

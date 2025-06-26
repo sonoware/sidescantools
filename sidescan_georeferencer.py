@@ -58,6 +58,10 @@ class SidescanGeoreferencer:
         "3. Quartile": "q3",
         "Weighted Sum": "sum"
     }
+    LOLA_plt: np.ndarray
+    HEAD_plt: np.ndarray
+    LOLA_plt_ori: np.ndarray
+    HEAD_plt_ori: np.ndarray
 
     def __init__(
         self,
@@ -72,6 +76,7 @@ class SidescanGeoreferencer:
         warp_algorithm: str = "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",
         resolution_mode: str = "average",
         resampling_method: str = "near"
+
     ):
         self.filepath = Path(filepath)
         self.sidescan_file = SidescanFile(self.filepath)        
@@ -87,6 +92,10 @@ class SidescanGeoreferencer:
         self.active_proc_data = False
         self.GCP_SPLIT = []
         self.POINTS_SPLIT = []
+        self.LOLA_plt = np.empty_like(proc_data)
+        self.HEAD_plt = np.empty_like(proc_data)
+        self.LOLA_plt_ori = np.empty_like(proc_data)
+        self.HEAD_plt_ori = np.empty_like(proc_data)
         if proc_data is not None:
             self.proc_data = proc_data
             self.active_proc_data = True
@@ -133,44 +142,33 @@ class SidescanGeoreferencer:
         LON_ori = LON_ori[MASK]
         LAT_ori = LAT_ori[MASK]
         HEAD_ori = HEAD_ori[MASK]
+        for idx, head in enumerate(HEAD_ori):
+            if head < 0 or head > 3.6:
+                HEAD_ori[idx] = HEAD_ori[idx-1]
+
         GROUND_RANGE = GROUND_RANGE[MASK]
         SLANT_RANGE = SLANT_RANGE[MASK]
         PING = PING[MASK]
 
         HEAD = savgol_filter(HEAD_ori, 120, 1)
         x = range(len(HEAD))
-        head_data = np.stack([x, HEAD], axis=0)
-        #view_head = napari.Viewer()
-        #view_head.add_image(head_data, name = 'Heading')
-        #layer_head = view_head.layers['Heading']
-        #layer_head.save('./Heading.png')
-        #plt.title("Heading")
-        #plt.plot(x, HEAD_ori, label='Original Heading')
-        #plt.plot(x, HEAD, label='Smoothed Heading')
-        #plt.legend()
-        #plt.show()
+        self.HEAD_plt = np.column_stack((x, HEAD))
+        self.HEAD_plt_ori = np.column_stack((x, HEAD_ori))
 
         LAT = savgol_filter(LAT_ori, 120, 1)
         LON = savgol_filter(LON_ori, 120, 1)
-        lola_data = np.stack([LON, LAT], axis = 0)
-        #view_lola = napari.Viewer()
-        #view_lola.add_image(lola_data, name = 'Navigation')
-        #layer_lola = view_head.layers['Navigation']
-        #layer_lola.save('./Navigation.png')
-        #plt.title("Navigation")
-        #plt.plot(LON_ori, LAT_ori, label='Original Navigation')
-        #plt.plot(LON, LAT, label='Smoothed Navigation')
-        #plt.legend()
-        #plt.show()
+        self.LOLA_plt = np.column_stack((LON, LAT))
+        self.LOLA_plt_ori = np.column_stack((LON_ori, LAT_ori))
 
-        #napari.run()
-
-        UTM = []
-        for la, lo in zip(LAT, LON):
+        UTM = np.full_like(LAT_ori, np.nan)
+        UTM = UTM.tolist()
+        print(f"UTM: {type(UTM), len(UTM)}")
+        for idx, (la, lo) in enumerate(zip(LAT, LON)):
             try:
-                UTM.append((utm.from_latlon(la, lo)))
+                UTM[idx] = utm.from_latlon(la, lo)
             except:
                 ValueError("Values or lon and/or lat must not be 0")
+        print(f"UTM: {type(UTM), len(UTM)}")
 
         if UTM:
             NORTH = [utm_coord[0] for utm_coord in UTM]
@@ -186,7 +184,7 @@ class SidescanGeoreferencer:
             EAST_OUTER = np.array(
                 [
                     ground_range * math.sin(head) + east
-                    for ground_range, head, east in zip(GROUND_RANGE, HEAD, EAST)
+                    for ground_range, head, east in zip(GROUND_RANGE, HEAD, EAST) 
                 ]
             )
             NORTH_OUTER = np.array(
@@ -202,6 +200,7 @@ class SidescanGeoreferencer:
                 )
             ]
             LA_OUTER, LO_OUTER = map(np.array, zip(*LALO_OUTER))
+
 
         elif self.channel == 1:
             EAST_OUTER = np.array(
@@ -282,18 +281,6 @@ class SidescanGeoreferencer:
                 im_y_outer = swath_width
                 im_y_nad = 0
 
-                # for .jsf only: channel 0 needs negative sign at outer image coordinate
-                #if self.filepath.suffix.casefold() == ".jsf":
-                #    if self.channel == 0:
-                #        im_y_outer = 0 #-swath_width
-                #        im_y_nad = swath_width
-                #    else:
-                #        im_y_outer = swath_width
-                #        im_y_nad = 0
-                #else:
-                #    im_y_outer = swath_width
-                #    im_y_nad = 0
-
                 gcp = np.array(
                     (
                         (im_x_left_nad, im_y_nad, lo_ce_ul, la_ce_ul),
@@ -337,15 +324,6 @@ class SidescanGeoreferencer:
 
         # Transpose (always!) so that the largest axis is horizontal
         ch_stack = ch_stack.T
-
-        #if self.filepath.suffix.casefold() == ".jsf":
-        #    ch_stack = ch_stack.T
-            #if swath_len >= swath_width:
-            #    ch_stack = ch_stack
-            #elif swath_len <= swath_width:
-            #    ch_stack = ch_stack.T
-        #else:
-        #    ch_stack = ch_stack if ch_stack.shape[0] < ch_stack.shape[1] else ch_stack.T
 
         ch_stack = np.array(ch_stack, dtype=float)
 

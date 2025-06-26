@@ -3,14 +3,20 @@ from qtpy.QtWidgets import (
     QVBoxLayout,
     QProgressBar,
     QWidget,
+    QPushButton,
+    QMessageBox,
+    QFileDialog,
 )
 import qtpy.QtCore as QtCore
 import qtpy.QtGui as QtGui
 from sidescan_file import SidescanFile
 from sidescan_preproc import SidescanPreprocessor
+from sidescan_georeferencer import SidescanGeoreferencer
 import numpy as np
 import os
 import pathlib
+import pyqtgraph as pg
+import pyqtgraph.exporters as exporters
 
 
 class ImportThread(QtCore.QThread):
@@ -779,3 +785,34 @@ class PreProcManager(QWidget):
         msg_str = str(err)
         self.aborted_signal.emit(msg_str)
         self.deleteLater()
+
+class NavPlotterSignals(QtCore.QObject):
+    results_signal = QtCore.Signal(tuple)
+    save_signal_head = QtCore.Signal(str,str)
+    save_signal_nav = QtCore.Signal(str,str)    #filename, file_filter
+
+class NavPlotter(QtCore.QThread):
+    def __init__(self, filepath: pathlib.Path):
+        super().__init__()
+        self.filepath = filepath
+        self.signals = NavPlotterSignals()
+        self.thread = QtCore.QThread()
+
+
+    #@QtCore.Slot()
+    def run(self):
+        print("NavPlotter started")
+        get_nav = SidescanGeoreferencer(filepath=self.filepath)
+        get_nav.prep_data()
+        print("Getting navigation data...")
+        lola_data = get_nav.LOLA_plt
+        head_data = get_nav.HEAD_plt
+        lola_data_ori = get_nav.LOLA_plt_ori
+        head_data_ori = get_nav.HEAD_plt_ori
+        head_data = np.column_stack((head_data[:,0], head_data[:,1]*100))
+        head_data_ori = np.column_stack((head_data_ori[:,0], head_data_ori[:,1]*100))
+        self.signals.results_signal.emit((lola_data, lola_data_ori, head_data, head_data_ori))
+
+
+
+

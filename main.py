@@ -25,7 +25,7 @@ import qtpy.QtCore as QtCore
 import qtpy.QtGui as QtGui
 import sys, os, pathlib
 from bottom_detection_napari_ui import run_napari_btm_line
-from sidescan_georeferencer import SidescanGeoreferencer
+from georef_thread import Georeferencer
 import pyqtgraph as pg
 import pyqtgraph.exporters as exporters
 
@@ -780,7 +780,6 @@ class SidescanToolsMain(QWidget):
         msg.exec_()
 
 
-
 # Bottom line detection widget
 class BottomLineDetectionWidget(QVBoxLayout):
     data_changed = QtCore.Signal()
@@ -1197,17 +1196,17 @@ class ViewAndExportWidget(QVBoxLayout):
 
         self.resolution_mode_dropdown = QComboBox()
         self.resolution_mode_dropdown.setToolTip("Set mode for final resolution. Chose average, if unsure.")
-        for res_disp, res_int in SidescanGeoreferencer.resolution_options.items():
+        for res_disp, res_int in Georeferencer.resolution_options.items():
             self.resolution_mode_dropdown.addItem(res_disp, res_int)
 
         self.warp_mode_dropdown = QComboBox()
         self.warp_mode_dropdown.setToolTip("Set method for warping algorithm. Leave polynomial 1 if unsure, homography is in expermental state.")
-        for warp_disp, warp_int in SidescanGeoreferencer.warp_options.items():
+        for warp_disp, warp_int in Georeferencer.warp_options.items():
             self.warp_mode_dropdown.addItem(warp_disp, warp_int)
 
         self.resamp_mode_dropdown = QComboBox()
         self.resamp_mode_dropdown.setToolTip("Select resampling method. Leave near neighbour, if unsure (least interpolation).")
-        for resamp_disp, resamp_int in SidescanGeoreferencer.resampling_options.items():
+        for resamp_disp, resamp_int in Georeferencer.resampling_options.items():
             self.resamp_mode_dropdown.addItem(resamp_disp, resamp_int)
 
         self.active_dynamic_chunking_checkbox = QCheckBox("Dynamic Chunking")
@@ -1478,8 +1477,8 @@ class ViewAndExportWidget(QVBoxLayout):
             proc_data_out_0 = hist_equalization(proc_data_out_0)
             proc_data_out_1 = hist_equalization(proc_data_out_1)
 
-        # start georeferencing
-        georeferencer = SidescanGeoreferencer(
+
+        georeferencer_ch0 = Georeferencer(
             filepath=filepath,
             channel=0,
             dynamic_chunking=self.active_dynamic_chunking_checkbox.isChecked(),
@@ -1493,8 +1492,10 @@ class ViewAndExportWidget(QVBoxLayout):
             warp_algorithm = self.warp_mode_dropdown.currentData(),
             resampling_method = self.resamp_mode_dropdown.currentData(),
         )
-        georeferencer.process()
-        georeferencer = SidescanGeoreferencer(
+        self.threadpool_ch0 = QtCore.QThreadPool()
+        self.threadpool_ch0.start(georeferencer_ch0)
+
+        georeferencer_ch1 = Georeferencer(
             filepath=filepath,
             channel=1,
             dynamic_chunking=self.active_dynamic_chunking_checkbox.isChecked(),
@@ -1507,10 +1508,19 @@ class ViewAndExportWidget(QVBoxLayout):
             resolution_mode = self.resolution_mode_dropdown.currentData(),
             warp_algorithm = self.warp_mode_dropdown.currentData(),
             resampling_method = self.resamp_mode_dropdown.currentData(),
-
         )
-        georeferencer.process()
+        self.threadpool_ch1 = QtCore.QThreadPool()
+        self.threadpool_ch1.start(georeferencer_ch1)
+        georeferencer_ch1.signals.finished.connect(self.on_finished)
 
+    def on_finished(self):
+        #sidescan_file = res_list[0]
+        #filepath = sidescan_file.filepath
+        QMessageBox.information(None, 'Info', f'Successfully exported to Geotiff.')
+
+
+
+    
     def generate_wc_img(self, active_generate_all: bool):
         if len(self.main_ui.file_table.selectedIndexes()) > 0:
             filepath = pathlib.Path(
@@ -1627,7 +1637,7 @@ class ViewAndExportWidget(QVBoxLayout):
                     data_out = data_out.astype(float) / 255
                     data_out = cmap.map(data_out)
                     data_out *= 255
-                SidescanGeoreferencer.write_img(im_name, data_out.astype(np.uint8))
+                Georeferencer.write_img(im_name, data_out.astype(np.uint8))
                 print(f"{im_name} written.")
         else:
             im_name = str(work_dir / (sidescan_file.filepath.stem + ".png"))
@@ -1636,7 +1646,7 @@ class ViewAndExportWidget(QVBoxLayout):
                 data_out = data_out.astype(float) / 255
                 data_out = cmap.map(data_out)
                 data_out *= 255
-            SidescanGeoreferencer.write_img(im_name, data)
+            Georeferencer.write_img(im_name, data)
             print(f"{im_name} written.")
 
     def validate_chunk_size(self):

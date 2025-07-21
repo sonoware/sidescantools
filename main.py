@@ -1200,7 +1200,7 @@ class ViewAndExportWidget(QVBoxLayout):
             self.resolution_mode_dropdown.addItem(res_disp, res_int)
 
         self.warp_mode_dropdown = QComboBox()
-        self.warp_mode_dropdown.setToolTip("Set method for warping algorithm. Leave polynomial 1 if unsure, homography is in expermental state.")
+        self.warp_mode_dropdown.setToolTip("Set method for warping algorithm. Leave polynomial 1 if unsure, homography is in experimental state.")
         for warp_disp, warp_int in Georeferencer.warp_options.items():
             self.warp_mode_dropdown.addItem(warp_disp, warp_int)
 

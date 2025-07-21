@@ -453,12 +453,6 @@ class Georeferencer(QtCore.QRunnable):
                 elif self.channel == 1:
                     ch_chunk_flip = np.flip(ch_chunk, 0)
 
-                #elif self.channel == 1:
-                #    if self.filepath.suffix.casefold() == ".jsf":
-                #        ch_chunk_flip = ch_chunk
-                #    else:
-                #        ch_chunk_flip = np.flip(ch_chunk, 0)
-
                 alpha = np.ones(np.shape(ch_chunk_flip), dtype=np.uint8) * 255
                 alpha[ch_chunk_flip == 0] = 0
                 data_stack = np.stack(

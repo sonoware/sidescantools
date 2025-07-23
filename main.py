@@ -1512,13 +1512,31 @@ class ViewAndExportWidget(QVBoxLayout):
         self.threadpool_ch1 = QtCore.QThreadPool()
         self.threadpool_ch1.start(georeferencer_ch1)
         georeferencer_ch1.signals.finished.connect(self.on_finished)
+        georeferencer_ch1.signals.finished.connect(self.cleanup)
 
     def on_finished(self):
-        #sidescan_file = res_list[0]
-        #filepath = sidescan_file.filepath
         QMessageBox.information(None, 'Info', f'Successfully exported to Geotiff.')
 
-
+    def cleanup(self):
+        print(f"Cleaning ...")
+        output_folder = self.main_ui.settings_dict["Georef dir"]
+        for file in os.listdir(output_folder):
+            file_path = os.path.join(output_folder, file)
+            if (
+                str(file_path).endswith(".png")
+                or str(file_path).endswith(".txt")
+                or str(file_path).endswith(".csv")
+                or str(file_path).endswith("_tmp.tif")
+                or str(file_path).endswith(".points")
+                or str(file_path).endswith(".xml")
+                or str(file_path).endswith(".vrt")
+            ):
+                try:
+                    os.remove(file_path)
+                except FileNotFoundError:
+                    print(f"File Not Found: {file_path}")
+                    
+        print("Cleanup done")
 
     
     def generate_wc_img(self, active_generate_all: bool):

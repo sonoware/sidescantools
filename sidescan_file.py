@@ -237,7 +237,8 @@ class SidescanFile:
                         sos = packet.message.SOS
                         if sos == 0:
                             sos = 1500
-                        self.slant_range[:, p_idx] = self.seconds_per_ping[0, p_idx] * self.ping_len * sos / 2
+                        # round to 2 decimals here to avoid potential resampling of data in slant range correction
+                        self.slant_range[:, p_idx] = np.round(self.seconds_per_ping[0, p_idx] * self.ping_len * sos / 2, decimals=2)
                         self.starting_depth[p_idx] = packet.message.starting_depth
                         self.gain_adc[p_idx] = packet.message.gain_adc
 

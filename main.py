@@ -88,7 +88,6 @@ class SidescanToolsMain(QWidget):
         "Img chunk size": 1000,
         "Img include raw data": False,
         "Georef active proc data": True,
-        "Georef active dynamic chunking": False,
         "Georef UTM": True,
         "Resolution Mode": 3,
         "Warp Mode": 0,
@@ -595,9 +594,6 @@ class SidescanToolsMain(QWidget):
         self.settings_dict["Georef active proc data"] = (
             self.view_and_export_widget.active_use_proc_data_checkbox.isChecked()
         )
-        self.settings_dict["Georef active dynamic chunking"] = (
-            self.view_and_export_widget.active_dynamic_chunking_checkbox.isChecked()
-        )
         self.settings_dict["Georef UTM"] = (
             self.view_and_export_widget.active_utm_checkbox.isChecked()
         )
@@ -683,9 +679,6 @@ class SidescanToolsMain(QWidget):
         )
         self.view_and_export_widget.active_use_proc_data_checkbox.setChecked(
             self.settings_dict["Georef active proc data"]
-        )
-        self.view_and_export_widget.active_dynamic_chunking_checkbox.setChecked(
-            self.settings_dict["Georef active dynamic chunking"]
         )
         self.view_and_export_widget.active_utm_checkbox.setChecked(
             self.settings_dict["Georef UTM"]
@@ -1209,8 +1202,6 @@ class ViewAndExportWidget(QVBoxLayout):
         for resamp_disp, resamp_int in Georeferencer.resampling_options.items():
             self.resamp_mode_dropdown.addItem(resamp_disp, resamp_int)
 
-        self.active_dynamic_chunking_checkbox = QCheckBox("Dynamic Chunking")
-        self.active_dynamic_chunking_checkbox.setToolTip("Experimental")
         self.active_utm_checkbox = QCheckBox("UTM")
         self.active_utm_checkbox.setToolTip(
             "Coordinates in UTM (default). WGS84 if unchecked."
@@ -1252,7 +1243,6 @@ class ViewAndExportWidget(QVBoxLayout):
         self.addWidget(self.resamp_mode_dropdown)
         self.addWidget(self.res_mode_label)
         self.addWidget(self.resolution_mode_dropdown)
-        self.addWidget(self.active_dynamic_chunking_checkbox)
         self.addWidget(self.active_utm_checkbox)
         self.addWidget(self.active_colormap_checkbox)
         self.labeled_georef_buttons = Labeled2Buttons(
@@ -1481,7 +1471,6 @@ class ViewAndExportWidget(QVBoxLayout):
         georeferencer_ch0 = Georeferencer(
             filepath=filepath,
             channel=0,
-            dynamic_chunking=self.active_dynamic_chunking_checkbox.isChecked(),
             active_utm=self.active_utm_checkbox.isChecked(),
             output_folder=self.main_ui.settings_dict["Georef dir"],
             proc_data=proc_data_out_0,
@@ -1498,7 +1487,6 @@ class ViewAndExportWidget(QVBoxLayout):
         georeferencer_ch1 = Georeferencer(
             filepath=filepath,
             channel=1,
-            dynamic_chunking=self.active_dynamic_chunking_checkbox.isChecked(),
             active_utm=self.active_utm_checkbox.isChecked(),
             output_folder=self.main_ui.settings_dict["Georef dir"],
             proc_data=proc_data_out_1,

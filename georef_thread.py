@@ -22,7 +22,6 @@ class Georeferencer(QtCore.QRunnable):
     filepath: Path
     sidescan_file: SidescanFile
     channel: int
-    dynamic_chunking: bool
     active_utm: bool
     active_poly: bool
     output_folder: Path
@@ -69,7 +68,6 @@ class Georeferencer(QtCore.QRunnable):
         self,
         filepath: str | os.PathLike,
         channel: int = 0,
-        dynamic_chunking: bool = False,
         active_utm: bool = True,
         active_poly: bool = True,
         proc_data = None,
@@ -84,7 +82,6 @@ class Georeferencer(QtCore.QRunnable):
         self.filepath = Path(filepath)
         self.sidescan_file = SidescanFile(self.filepath)        
         self.channel = channel
-        self.dynamic_chunking = dynamic_chunking
         self.active_utm = active_utm
         self.active_poly = active_poly
         self.output_folder = Path(output_folder)
@@ -249,14 +246,9 @@ class Georeferencer(QtCore.QRunnable):
             ]
             LA_OUTER, LO_OUTER = map(np.array, zip(*LALO_OUTER))
 
-        if self.dynamic_chunking:
-            print("Dynamic chunking active.")
-            self.chunk_indices = np.where(np.diff(LAT_ori) != 0)[0] + 2
-
-        elif not self.dynamic_chunking:
-            chunksize = 5
-            self.chunk_indices = int(swath_len / chunksize)
-            print(f"Fixed chunk size: {chunksize} pings.")
+        chunksize = 5
+        self.chunk_indices = int(swath_len / chunksize)
+        print(f"Fixed chunk size: {chunksize} pings.")
 
         # UTM
         if self.active_utm: 
@@ -393,7 +385,6 @@ class Georeferencer(QtCore.QRunnable):
         """
         array_split: Creates [chunk_size]-ping chunks per channel and extracts corner coordinates for chunks from GCP list. \
         Assigns extracted corner coordinates as GCPs (gdal_translate) and projects them (gdal_warp).
-        Dynamic chunking: chunk_indices = number of pings within one chunk;  \
             find indices where lon/lat change (they are the same for multiple consequitive pings) 
             and add a '1' to obtain correct index (diff-array is one index shorter than original) \
             and another '1' to move one coordinate up, else it would be still the same coordinate
@@ -549,7 +540,6 @@ class Georeferencer(QtCore.QRunnable):
             "gdal", "raster", "mosaic",
             "-i", f"@{txt_path}",
             "-o", str(mosaic_tiff),
-            "--overwrite",
             "--src-nodata", "0",
             "--resolution", self.resolution_mode,
             "--co", "COMPRESS=DEFLATE",

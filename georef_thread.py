@@ -109,8 +109,7 @@ class Georeferencer(QtCore.QRunnable):
     def run(self):
         file_name = self.filepath.stem
         tif_path = self.output_folder / f"{file_name}_ch{self.channel}.tif"
-        mosaic_tif_path = self.output_folder / f"{file_name}_ch{self.channel}_stack.tif"
-        csv_ch = self.output_folder / f"{file_name}_ch{self.channel}.csv"
+        mosaic_tif_path = self.output_folder / f"{file_name}_stack.tif"
 
         self.prep_data()
         ch_stack = self.channel_stack()
@@ -123,17 +122,10 @@ class Georeferencer(QtCore.QRunnable):
             print(f"Mosaicking channel {self.channel} with resolution mode {self.resolution_mode}...")
             self.mosaic(mosaic_tif_path)
 
-            # save GCPs to .csv
-            print(f"Saving GCPs to {csv_ch}")
-            GCP_SPLIT = list(itertools.chain.from_iterable(self.GCP_SPLIT))
-            np.savetxt(csv_ch, GCP_SPLIT, fmt="%s", delimiter=";")
-
         except Exception as e:
             self.signals.error_signal.emit(e)
         finally:
             self.signals.finished.emit()
-
-        self.cleanup()
 
     def setup_output_folder(self):
         if not self.output_folder.exists():
@@ -438,14 +430,6 @@ class Georeferencer(QtCore.QRunnable):
                 warp_path = otiff.with_stem(
                     f"{otiff.stem}_{chunk_num}_georef_chunk_tmp"
                 ).with_suffix(".tif")
-                csv_path = otiff.with_stem(
-                    f"{otiff.stem}_{chunk_num}_tmp"
-                ).with_suffix(".csv")
-
-                # optional: export points
-                points_path = otiff.with_stem(
-                    f"{otiff.stem}_{chunk_num}_points_tmp"
-                    ).with_suffix(".points")
 
                 # Flip image chunks according to side 
                 if self.channel == 0:
@@ -474,13 +458,6 @@ class Georeferencer(QtCore.QRunnable):
                 except Exception as e:
                     print(f"gcp chunk: {np.shape(gcp_chunk)}")
 
-                # optional: export points
-                try:
-                    points = [(lo, la, im_x, im_y) for (lo, la, im_x, im_y) in points_chunk]
-                    np.savetxt(csv_path, points, fmt="%s", delimiter=",")
-                except Exception as e:
-                    print(f'Exception: {e}')
-
                 gdal_translate = ["gdal_translate", "-of", "GTiff"]
 
                 gdal_warp_utm = [
@@ -493,6 +470,7 @@ class Georeferencer(QtCore.QRunnable):
                         self.warp_algorithm,   
                         "--co",
                         "COMPRESS=DEFLATE",
+                        "--overwrite",
                         "-d",
                         self.epsg_code,
                         "-i",
@@ -511,6 +489,7 @@ class Georeferencer(QtCore.QRunnable):
                         self.warp_algorithm,
                         "--co",
                         "COMPRESS=DEFLATE",
+                        "--overwrite",
                         "-d",
                         "EPSG:4326",
                         "-i",
@@ -518,50 +497,19 @@ class Georeferencer(QtCore.QRunnable):
                         "-o",
                         str(warp_path)
                     ]
-                
 
-                if self.dynamic_chunking:
-                    for i in range(4):
-                        gdal_translate.extend(
-                            ["-gcp", str(im_x[i]), str(im_y[i]), str(lo[i]), str(la[i])]
-                        )
-                    gdal_translate.extend([str(im_path), str(chunk_path)])
-                    
+                for i in range(len(gcp_chunk)):
+                    gdal_translate.extend(
+                        ["-gcp", str(im_x[i]), str(im_y[i]), str(lo[i]), str(la[i])]
+                    )
+
+                gdal_translate.extend([str(im_path), str(chunk_path)])
+
                 # gdal 3.11 syntax
-                    if self.active_utm:
-                        gdal_warp = gdal_warp_utm 
-                    else:    
-                        gdal_warp = gdal_warp_wgs84
-
-
-                elif not self.dynamic_chunking:
-                    for i in range(len(gcp_chunk)):
-                        gdal_translate.extend(
-                            ["-gcp", str(im_x[i]), str(im_y[i]), str(lo[i]), str(la[i])]
-                        )
-
-                    gdal_translate.extend([str(im_path), str(chunk_path)])
-
-
-                    # gdal 3.11 syntax
-                    if self.active_utm:
-                        gdal_warp = gdal_warp_utm 
-                    else:    
-                        gdal_warp = gdal_warp_wgs84
-
-
-                # optional: append .points header and fist and last center point
-
-                try:
-                    first_line = '#CRS: GEOGCRS["WGS 84",ENSEMBLE["World Geodetic System 1984 ensemble",MEMBER["World Geodetic System 1984(Transit)"],MEMBER["World Geodetic System 1984 (G730)"],MEMBER["World Geodetic System 1984 (G873)"],MEMBER["World                   Geodetic System 1984 (G1150)"],MEMBER["World Geodetic System 1984 (G1674)"],MEMBER["World Geodetic System 1984 (G1762)"],               ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]],ENSEMBLEACCURACY[2.0]],PRIMEM["Greenwich",0,ANGLEUNIT           ["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.        0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],USAGE[SCOPE             ["Horizontal component of 3D system."],AREA["World."],BBOX[-90,-180,90,180]],ID["EPSG",4326]]'
-                    second_line='mapX,mapY,sourceX,sourceY,enable,dX,dY,residual'
-                    with open(csv_path, 'r') as ori_f:
-                        ori_txt = ori_f.read()
-                        #print(ori_txt)
-                    with open(points_path, 'w') as mod_f:
-                        mod_f.write(first_line + '\n' + second_line + '\n' + ori_txt)
-                except Exception as e:
-                    print(f'Exception: {e}')
+                if self.active_utm:
+                    gdal_warp = gdal_warp_utm 
+                else:    
+                    gdal_warp = gdal_warp_wgs84
 
                 self.run_command(gdal_translate)
                 self.run_command(gdal_warp)
@@ -587,7 +535,7 @@ class Georeferencer(QtCore.QRunnable):
 
         for root, dirs, files in os.walk(self.output_folder):
             for name in files:
-                if name.endswith("_georef_chunk_tmp.tif") and not name.startswith("._"):
+                if name.endswith("_georef_chunk_tmp.tif") and str(self.channel) in name and not name.startswith("._"):
                     TIF.append(os.path.join(root, name))
                     np.savetxt(txt_path, TIF, fmt="%s")
 
@@ -597,40 +545,19 @@ class Georeferencer(QtCore.QRunnable):
 
     
     # gdal 3.11 syntax
-        if True:
-            #resolution_mode = self.resolution_mode == self.resolution_mode[3]
-            gdal_mosaic = [
-                "gdal", "raster", "mosaic",
-                "-i", f"@{txt_path}",
-                "-o", str(mosaic_tiff),
-                "--src-nodata", "0",
-                "--resolution", self.resolution_mode,
-                "--co", "COMPRESS=DEFLATE",
-                "--co", "TILED=YES"
-            ]
-
+        gdal_mosaic = [
+            "gdal", "raster", "mosaic",
+            "-i", f"@{txt_path}",
+            "-o", str(mosaic_tiff),
+            "--overwrite",
+            "--src-nodata", "0",
+            "--resolution", self.resolution_mode,
+            "--co", "COMPRESS=DEFLATE",
+            "--co", "TILED=YES"
+        ]
 
         self.run_command(gdal_mosaic)
 
-    def cleanup(self):
-        print(f"Cleaning ...")
-        for file in os.listdir(self.output_folder):
-            file_path = self.output_folder / file
-            if (
-                str(file_path).endswith("_tmp.png")
-                or str(file_path).endswith("_tmp.txt")
-                or str(file_path).endswith("_tmp.csv")
-                or str(file_path).endswith("_tmp.tif")
-                or str(file_path).endswith("_tmp.points")
-                or str(file_path).endswith(".xml")
-            ):
-                try:
-                    os.remove(file_path)
-                except FileNotFoundError:
-                    pass
-                    #print(f"File Not Found: {file_path}")
-                    
-        print("Cleanup done")
 
 
 

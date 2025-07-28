@@ -11,7 +11,7 @@ import qtpy.QtCore as QtCore
 import qtpy.QtGui as QtGui
 from sidescan_file import SidescanFile
 from sidescan_preproc import SidescanPreprocessor
-from sidescan_georeferencer import SidescanGeoreferencer
+from georef_thread import Georeferencer
 import numpy as np
 import os
 import pathlib
@@ -802,7 +802,7 @@ class NavPlotter(QtCore.QThread):
     #@QtCore.Slot()
     def run(self):
         print("NavPlotter started")
-        get_nav = SidescanGeoreferencer(filepath=self.filepath)
+        get_nav = Georeferencer(filepath=self.filepath)
         get_nav.prep_data()
         print("Getting navigation data...")
         lola_data = get_nav.LOLA_plt

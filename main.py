@@ -23,6 +23,7 @@ from qtpy.QtWidgets import (
 from qtpy.QtGui import QPalette, QColor, QShortcut, QKeySequence
 import qtpy.QtCore as QtCore
 import qtpy.QtGui as QtGui
+from multiprocessing import Queue
 import sys, os, pathlib
 from bottom_detection_napari_ui import run_napari_btm_line
 from georef_thread import Georeferencer
@@ -1467,8 +1468,9 @@ class ViewAndExportWidget(QVBoxLayout):
             proc_data_out_0 = hist_equalization(proc_data_out_0)
             proc_data_out_1 = hist_equalization(proc_data_out_1)
 
-
+        q = Queue()
         georeferencer_ch0 = Georeferencer(
+            q,
             filepath=filepath,
             channel=0,
             active_utm=self.active_utm_checkbox.isChecked(),
@@ -1481,10 +1483,9 @@ class ViewAndExportWidget(QVBoxLayout):
             warp_algorithm = self.warp_mode_dropdown.currentData(),
             resampling_method = self.resamp_mode_dropdown.currentData(),
         )
-        self.threadpool_ch0 = QtCore.QThreadPool()
-        self.threadpool_ch0.start(georeferencer_ch0)
 
         georeferencer_ch1 = Georeferencer(
+            q,
             filepath=filepath,
             channel=1,
             active_utm=self.active_utm_checkbox.isChecked(),
@@ -1497,10 +1498,16 @@ class ViewAndExportWidget(QVBoxLayout):
             warp_algorithm = self.warp_mode_dropdown.currentData(),
             resampling_method = self.resamp_mode_dropdown.currentData(),
         )
-        self.threadpool_ch1 = QtCore.QThreadPool()
-        self.threadpool_ch1.start(georeferencer_ch1)
-        georeferencer_ch1.signals.finished.connect(self.on_finished)
-        georeferencer_ch1.signals.finished.connect(self.cleanup)
+        georeferencer_ch1.start()
+        georeferencer_ch0.start()
+
+        georeferencer_ch0.join()
+        georeferencer_ch1.join()
+        msg = q.get()
+        print(f'{msg}!')
+        
+        self.on_finished()
+        self.cleanup()
 
     def on_finished(self):
         QMessageBox.information(None, 'Info', f'Successfully exported to Geotiff.')

@@ -6,6 +6,7 @@ import math
 from sidescan_file import SidescanFile
 import subprocess
 import itertools
+from multiprocessing import Process, Queue
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 from pyproj import CRS, datadir
@@ -18,7 +19,7 @@ class GeoreferencerSignals(QtCore.QObject):
     progress = QtCore.Signal(float)
     error_signal = QtCore.Signal(Exception)
 
-class Georeferencer(QtCore.QRunnable):
+class Georeferencer(Process):
     filepath: Path
     sidescan_file: SidescanFile
     channel: int
@@ -66,6 +67,7 @@ class Georeferencer(QtCore.QRunnable):
 
     def __init__(
         self,
+        q: Queue,
         filepath: str | os.PathLike,
         channel: int = 0,
         active_utm: bool = True,
@@ -79,6 +81,7 @@ class Georeferencer(QtCore.QRunnable):
 
     ):
         super().__init__()
+        self.q = q
         self.filepath = Path(filepath)
         self.sidescan_file = SidescanFile(self.filepath)        
         self.channel = channel
@@ -100,7 +103,6 @@ class Georeferencer(QtCore.QRunnable):
             self.proc_data = proc_data
             self.active_proc_data = True
         self.setup_output_folder()
-        self.signals = GeoreferencerSignals()
 
     @QtCore.Slot()
     def run(self):
@@ -120,9 +122,10 @@ class Georeferencer(QtCore.QRunnable):
             self.mosaic(mosaic_tif_path)
 
         except Exception as e:
-            self.signals.error_signal.emit(e)
+            print(f'Exception: {e}')
         finally:
-            self.signals.finished.emit()
+            message = 'Finished Georeferencing'
+            self.q.put(message)
 
     def setup_output_folder(self):
         if not self.output_folder.exists():

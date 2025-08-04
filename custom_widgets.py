@@ -30,9 +30,6 @@ def convert_to_dB(array: np.array):
 
 
 def hist_equalization(array: np.array):
-    # p2, p98 = np.percentile(array, (2, 98))
-    # array = exposure.rescale_intensity(array, in_range=(p2, p98))
-    # TODO: clip limit?
     # if negative values are present, shift all values up
     if np.nanmin(array) < 0:
         array -= np.nanmin(array)

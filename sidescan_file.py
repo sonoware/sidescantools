@@ -260,5 +260,4 @@ class SidescanFile:
 
         else:
             print(f"File type {self.filepath.suffix.casefold()} isn't supported.")
-            # TODO: Byte-weise nach nächstem passenden sync suchen -> Schauen ob header korrekt interpretiert werden kann -> Ja/Nein -> Bisherige Bytes speichern/Weitersuchen
             raise NotImplementedError

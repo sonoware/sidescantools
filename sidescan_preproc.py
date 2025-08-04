@@ -65,10 +65,15 @@ class SidescanPreprocessor:
         self.num_ch = num_ch
         self.downsampling_factor = downsampling_factor
 
+        # store old minimal but positive value that might be needed later if filter introduce negative values
+        self.pre_dec_least_val = np.min(self.sonar_data_proc[np.where(self.sonar_data_proc > 0)])
         if downsampling_factor != 1:
+            pre_dec_min = np.min(self.sonar_data_proc)
             self.sonar_data_proc = scisig.decimate(
                 self.sonar_data_proc, downsampling_factor, axis=2
             )
+            # Decimating filter might introduce negative values, avoid these
+            self.sonar_data_proc = np.clip(self.sonar_data_proc, a_min=pre_dec_min, a_max=None)
             self.ping_len = int(np.ceil(self.ping_len / self.downsampling_factor))
 
         # initialiazation of itnern variables
@@ -680,6 +685,8 @@ class SidescanPreprocessor:
             return
         for ch in range(self.num_ch):
             son_dat = self.sonar_data_proc[ch]
+            pre_filt_max = np.max(son_dat)
+            pre_filt_min = np.min(son_dat[son_dat > 0])
             for chunk_idx in range(self.num_chunk):
                 # avoid zero padding
                 if chunk_idx == self.num_chunk - 1:
@@ -722,32 +729,45 @@ class SidescanPreprocessor:
                         np.argmax(np.abs(peak_positions[:, 1] - self.ping_len / 2))
                     ]
 
-                H = SidescanPreprocessor.build_pie_H(
-                    self.chunk_size, self.ping_len, peak_pos=far_peak_pos
-                )
-                spec_filt_r = spec_r * H
+                # Only apply filtering if atleast one peak is present
+                if len(peaks) >= 1:
+                    H = SidescanPreprocessor.build_pie_H(
+                        self.chunk_size, self.ping_len, peak_pos=far_peak_pos
+                    )
+                    spec_filt_r = spec_r * H
 
-                spec_filt = np.vstack(
-                    [
-                        spec_filt_r[int(self.chunk_size / 2) :],
-                        spec_filt_r[: int(self.chunk_size / 2)],
-                    ]
-                )
-                spec_filt = np.hstack(
-                    [
-                        spec_filt[:, int(self.ping_len / 2) :],
-                        spec_filt[:, : int(self.ping_len / 2)],
-                    ]
-                )
-                chunk_filt = np.real(np.fft.ifft2(spec_filt))
+                    spec_filt = np.vstack(
+                        [
+                            spec_filt_r[int(self.chunk_size / 2) :],
+                            spec_filt_r[: int(self.chunk_size / 2)],
+                        ]
+                    )
+                    spec_filt = np.hstack(
+                        [
+                            spec_filt[:, int(self.ping_len / 2) :],
+                            spec_filt[:, : int(self.ping_len / 2)],
+                        ]
+                    )
+                    chunk_filt = np.real(np.fft.ifft2(spec_filt))
 
-                if chunk_idx == self.num_chunk - 1:
-                    son_dat[-1 * self.chunk_size :] = chunk_filt
+                    if chunk_idx == self.num_chunk - 1:
+                        son_dat[-1 * self.chunk_size :] = chunk_filt
+                    else:
+                        son_dat[
+                            chunk_idx * self.chunk_size : (chunk_idx + 1) * self.chunk_size
+                        ] = chunk_filt
                 else:
-                    son_dat[
-                        chunk_idx * self.chunk_size : (chunk_idx + 1) * self.chunk_size
-                    ] = chunk_filt
+                    print("No peak found, pie slice filter skipped")
 
+            # filtering could introduce negative numbers and distortions
+            # rescale the data here to old pre filtering range
+            if not hasattr(self, 'pre_dec_least_val'):
+                self.pre_dec_least_val = pre_filt_min
+            if np.min(son_dat) < 0:
+                son_dat -= np.min(son_dat)
+                son_dat += self.pre_dec_least_val
+                son_dat /= np.max(son_dat)
+                son_dat *= pre_filt_max
             self.sonar_data_proc[ch] = son_dat
 
     @staticmethod

@@ -25,7 +25,7 @@ import qtpy.QtCore as QtCore
 import qtpy.QtGui as QtGui
 import sys, os, pathlib
 from bottom_detection_napari_ui import run_napari_btm_line
-from georef_thread import Georeferencer
+#from georef_thread import Georeferencer
 import pyqtgraph as pg
 import pyqtgraph.exporters as exporters
 
@@ -44,7 +44,7 @@ from custom_widgets import (
     hist_equalization,
     FilePicker,
 )
-from custom_threading import FileImportManager, EGNTableBuilder, PreProcManager, NavPlotter
+from custom_threading import FileImportManager, EGNTableBuilder, PreProcManager, NavPlotter, GeoreferencerWorker, GeoreferencerManager
 from enum import Enum
 import scipy.signal as scisig
 
@@ -717,32 +717,17 @@ class SidescanToolsMain(QWidget):
         self.head_plot_widget.clear()
         self.lola_plot_widget.addLegend()
         self.head_plot_widget.addLegend()
-        #self.legend_nav = pg.LegendItem(size=(7,7))
-        #self.legend_nav.clear()
-        #self.legend_nav.setParentItem(self.lola_plot_widget.graphicsItem())
-        #self.legend_nav.setOffset([-100,130])
-        #self.legend_nav.setLabelTextSize('10pt')
-
-        #legend_head = pg.LegendItem(size=(7,7))
-        #legend_head.setParentItem(self.head_plot_widget.graphicsItem())
-        #legend_head.setOffset([-100,130])
-        #legend_head.setLabelTextSize('10pt')
 
         lola_plot_ori = self.lola_plot_widget.plot(lola_data_ori, pen=lola_ori_pen, name='Original Navigation')
         lola_plot_savgol = self.lola_plot_widget.plot(lola_data, pen=lola_pen, title='Navigation', name='Smoothed Navigation')
-        #self.legend_nav.addItem(lola_plot_ori, 'Original Track')
-        #self.legend_nav.addItem(lola_plot_savgol, 'Smoothed Track')
 
         head_plot_ori = self.head_plot_widget.plot(head_data_ori, pen=head_ori_pen, name = 'Original Heading')
         head_plot_savgol = self.head_plot_widget.plot(head_data, pen=head_pen, title='Heading', name='Smoothed Heading')
-        #legend_head.addItem(head_plot_ori, 'Original Heading')
-        #legend_head.addItem(head_plot_savgol, 'Smoothed Heading')
 
         self.lola_plot_widget.setLabel('left', 'Latitude [°]')
         self.lola_plot_widget.setLabel('bottom', 'Longitude [°]')
         self.head_plot_widget.setLabel('left', 'Heading [°]')
         self.head_plot_widget.setLabel('bottom', 'Ping number')
-
 
     def save_plot(self, plot_id):
         outpath, file_filter = QFileDialog.getSaveFileName(self, "Save Plot", "", "Images (*.png);;SVG (*.svg)")
@@ -1119,7 +1104,6 @@ class ProcessingWidget(QVBoxLayout):
         if val % 2 == 1:
             self.slant_chunk_size_edit.line_edit.setText(str(val - 1))
 
-
 # View and export
 class ViewAndExportWidget(QVBoxLayout):
     data_changed = QtCore.Signal()
@@ -1189,17 +1173,17 @@ class ViewAndExportWidget(QVBoxLayout):
 
         self.resolution_mode_dropdown = QComboBox()
         self.resolution_mode_dropdown.setToolTip("Set mode for final resolution. Chose average, if unsure.")
-        for res_disp, res_int in Georeferencer.resolution_options.items():
+        for res_disp, res_int in GeoreferencerWorker.resolution_options.items():
             self.resolution_mode_dropdown.addItem(res_disp, res_int)
 
         self.warp_mode_dropdown = QComboBox()
         self.warp_mode_dropdown.setToolTip("Set method for warping algorithm. Leave polynomial 1 if unsure, homography is in experimental state.")
-        for warp_disp, warp_int in Georeferencer.warp_options.items():
+        for warp_disp, warp_int in GeoreferencerWorker.warp_options.items():
             self.warp_mode_dropdown.addItem(warp_disp, warp_int)
 
         self.resamp_mode_dropdown = QComboBox()
         self.resamp_mode_dropdown.setToolTip("Select resampling method. Leave near neighbour, if unsure (least interpolation).")
-        for resamp_disp, resamp_int in Georeferencer.resampling_options.items():
+        for resamp_disp, resamp_int in GeoreferencerWorker.resampling_options.items():
             self.resamp_mode_dropdown.addItem(resamp_disp, resamp_int)
 
         self.active_utm_checkbox = QCheckBox("UTM")
@@ -1399,6 +1383,7 @@ class ViewAndExportWidget(QVBoxLayout):
                 file_idx = self.main_ui.file_table.selectedIndexes()[0].row()
             file_list = [pathlib.Path(self.main_ui.file_dict["Path"][file_idx])]
 
+        filepath = pathlib.Path(self.main_ui.file_dict["Path"][file_idx])
         work_dir = pathlib.Path(self.main_ui.settings_dict["Working dir"])
         for filepath in file_list:
             filepath = pathlib.Path(filepath)
@@ -1444,6 +1429,7 @@ class ViewAndExportWidget(QVBoxLayout):
         sidescan_file = res_list[0]
         preproc = res_list[1]
         filepath = sidescan_file.filepath
+        filepath = pathlib.Path(filepath)
         proc_data_0 = None
         proc_data_1 = None
         if self.active_use_proc_data_checkbox.isChecked():
@@ -1467,38 +1453,44 @@ class ViewAndExportWidget(QVBoxLayout):
             proc_data_out_0 = hist_equalization(proc_data_out_0)
             proc_data_out_1 = hist_equalization(proc_data_out_1)
 
+        #file_idx = 0
+        #if len(self.main_ui.file_table.selectedIndexes()) > 0:
+        #    file_idx = self.main_ui.file_table.selectedIndexes()[0].row()
+#
+        #filepath = pathlib.Path(self.main_ui.file_dict["Path"][file_idx])
 
-        georeferencer_ch0 = Georeferencer(
-            filepath=filepath,
-            channel=0,
+        georeferencer_ch0 = GeoreferencerManager()
+        georeferencer_ch0.start_georef(
+            filepath, 
+            0,
             active_utm=self.active_utm_checkbox.isChecked(),
-            output_folder=self.main_ui.settings_dict["Georef dir"],
+            active_poly=True,
+            output_folder=pathlib.Path(self.main_ui.settings_dict["Georef dir"]),
             proc_data=proc_data_out_0,
             vertical_beam_angle=int(
-                self.main_ui.processing_widget.vertical_beam_angle_edit.line_edit.text()
-            ),
-            resolution_mode = self.resolution_mode_dropdown.currentData(),
-            warp_algorithm = self.warp_mode_dropdown.currentData(),
-            resampling_method = self.resamp_mode_dropdown.currentData(),
-        )
-        self.threadpool_ch0 = QtCore.QThreadPool()
-        self.threadpool_ch0.start(georeferencer_ch0)
-
-        georeferencer_ch1 = Georeferencer(
-            filepath=filepath,
-            channel=1,
+                    self.main_ui.processing_widget.vertical_beam_angle_edit.line_edit.text()
+                ),
+            resolution_mode=self.resolution_mode_dropdown.currentData(),
+            warp_algorithm=self.warp_mode_dropdown.currentData(),
+            resampling_method=self.resamp_mode_dropdown.currentData()
+            )
+        
+        georeferencer_ch1 = GeoreferencerManager()
+        georeferencer_ch1.start_georef(
+            filepath, 
+            0,
             active_utm=self.active_utm_checkbox.isChecked(),
-            output_folder=self.main_ui.settings_dict["Georef dir"],
+            active_poly=True,
+            output_folder=pathlib.Path(self.main_ui.settings_dict["Georef dir"]),
             proc_data=proc_data_out_1,
             vertical_beam_angle=int(
-                self.main_ui.processing_widget.vertical_beam_angle_edit.line_edit.text()
-            ),
-            resolution_mode = self.resolution_mode_dropdown.currentData(),
-            warp_algorithm = self.warp_mode_dropdown.currentData(),
-            resampling_method = self.resamp_mode_dropdown.currentData(),
-        )
-        self.threadpool_ch1 = QtCore.QThreadPool()
-        self.threadpool_ch1.start(georeferencer_ch1)
+                    self.main_ui.processing_widget.vertical_beam_angle_edit.line_edit.text()
+                ),
+            resolution_mode=self.resolution_mode_dropdown.currentData(),
+            warp_algorithm=self.warp_mode_dropdown.currentData(),
+            resampling_method=self.resamp_mode_dropdown.currentData()
+            )
+        
         georeferencer_ch1.signals.finished.connect(self.on_finished)
         georeferencer_ch1.signals.finished.connect(self.cleanup)
 

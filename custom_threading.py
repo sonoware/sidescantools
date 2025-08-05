@@ -313,7 +313,6 @@ class EGNTableProcessingWorker(QtCore.QRunnable):
                 np.round(alpha / angle_stepsize) + angle_num / 2, dtype=int
             )
             for ping_idx in range(2 * preproc.ping_len):
-                # TODO: check if neglection of 0 makes sense here
                 if (
                     0 <= r_idx[ping_idx] < r_size
                     and 0 <= alpha_idx[ping_idx] < angle_num

@@ -65,9 +65,18 @@ class SidescanPreprocessor:
         self.num_ch = num_ch
         self.downsampling_factor = downsampling_factor
 
+        # store old minimal but positive value that might be needed later if filter introduce negative values
+        self.pre_dec_least_val = np.min(
+            self.sonar_data_proc[np.where(self.sonar_data_proc > 0)]
+        )
         if downsampling_factor != 1:
+            pre_dec_min = np.min(self.sonar_data_proc)
             self.sonar_data_proc = scisig.decimate(
                 self.sonar_data_proc, downsampling_factor, axis=2
+            )
+            # Decimating filter might introduce negative values, avoid these
+            self.sonar_data_proc = np.clip(
+                self.sonar_data_proc, a_min=pre_dec_min, a_max=None
             )
             self.ping_len = int(np.ceil(self.ping_len / self.downsampling_factor))
 
@@ -81,7 +90,7 @@ class SidescanPreprocessor:
             sidescan_file.latitude[start_idx],
         )
         while sidescan_file.longitude[start_idx] == 0:
-            if start_idx >= (len(sidescan_file.longitude)-1):
+            if start_idx >= (len(sidescan_file.longitude) - 1):
                 break
             start_idx += 1
             start_coord = (
@@ -164,7 +173,13 @@ class SidescanPreprocessor:
             else:
                 initial_guess = False
 
-    def init_napari_bottom_detect(self, default_threshold, active_dB=False,active_hist_equal=False,depth_info=None):
+    def init_napari_bottom_detect(
+        self,
+        default_threshold,
+        active_dB=False,
+        active_hist_equal=False,
+        depth_info=None,
+    ):
 
         # if depth data is present, this is set here
         self.napari_depth_info = depth_info
@@ -313,7 +328,7 @@ class SidescanPreprocessor:
         """Do bottom line detection update for a single chunk of given idx"""
 
         # Apply custom contrast limits
-        
+
         # edge detection
         combine_both_sides = bottom_strategy_choice == self.bottom_strategy_choices[1]
         portside_edges_chunk, starboard_edges_chunk = self.detect_edges(
@@ -343,13 +358,20 @@ class SidescanPreprocessor:
 
         self.update_bottom_map_napari(chunk_idx, add_line_width=add_line_width)
 
-    def set_depth_from_info(self, offset:int):
+    def set_depth_from_info(self, offset: int):
         for chunk_idx in range(self.num_chunk):
-            depth_chunk = self.napari_depth_info[chunk_idx * self.chunk_size:(chunk_idx+1) * self.chunk_size] + offset
-            self.napari_portside_bottom[chunk_idx, :len(depth_chunk)] = self.ping_len - depth_chunk
-            self.napari_starboard_bottom[chunk_idx, :len(depth_chunk)] = depth_chunk
+            depth_chunk = (
+                self.napari_depth_info[
+                    chunk_idx * self.chunk_size : (chunk_idx + 1) * self.chunk_size
+                ]
+                + offset
+            )
+            self.napari_portside_bottom[chunk_idx, : len(depth_chunk)] = (
+                self.ping_len - depth_chunk
+            )
+            self.napari_starboard_bottom[chunk_idx, : len(depth_chunk)] = depth_chunk
             self.update_bottom_map_napari(chunk_idx, add_line_width=1)
-    
+
     def update_bottom_map_napari(self, chunk_idx, add_line_width=0):
         # update bottom map
         chunk_shape = (self.chunk_size, self.ping_len)
@@ -439,7 +461,13 @@ class SidescanPreprocessor:
 
     # wrapper function for edge detection
     def detect_edges(
-        self, portside, starboard, threshold_bin, combine_both_sides, plotting, chunk_idx=-1
+        self,
+        portside,
+        starboard,
+        threshold_bin,
+        combine_both_sides,
+        plotting,
+        chunk_idx=-1,
     ):
         # make binary and invert
         portside_bin = portside > threshold_bin
@@ -481,19 +509,25 @@ class SidescanPreprocessor:
             starboard_edges = feature.canny(starboard_bin, sigma=3)
 
         if chunk_idx != -1:
-            self.napari_fullmat_bin[chunk_idx] = np.hstack((portside_bin, starboard_bin))
+            self.napari_fullmat_bin[chunk_idx] = np.hstack(
+                (portside_bin, starboard_bin)
+            )
             port_edges = np.zeros_like(portside_bin)
             port_edges[portside_edges] = 1
             star_edges = np.zeros_like(starboard_bin)
             star_edges[starboard_edges] = 1
-            self.edges_mat[chunk_idx] = np.array(np.hstack((port_edges, star_edges)), dtype=bool)
+            self.edges_mat[chunk_idx] = np.array(
+                np.hstack((port_edges, star_edges)), dtype=bool
+            )
 
         return (portside_edges, starboard_edges)
 
     # find depth TODO: is there a better way to do this with skimage?
-    def edges_to_bottom_dist(self, edges, threshold_bin, data_is_port_side, click_pos=None):
+    def edges_to_bottom_dist(
+        self, edges, threshold_bin, data_is_port_side, click_pos=None
+    ):
         dist_at_ends = 20  # TODO: find a good val
-        cand_start = 0 
+        cand_start = 0
         # TODO: cand_start von außen einstellbar machen (per Mausclick) -> Loopen von da aus in beide Richtungen, um den den Candidaten zu verfolgen?
         idx = 0
 
@@ -505,7 +539,8 @@ class SidescanPreprocessor:
             ping_len = np.shape(edges)[1]
             while cand_start == 0 and idx < np.shape(edges)[0]:
                 edge_list = (
-                    np.where(edges[idx, dist_at_ends : -1 * dist_at_ends])[0] + dist_at_ends
+                    np.where(edges[idx, dist_at_ends : -1 * dist_at_ends])[0]
+                    + dist_at_ends
                 )
                 idx += 1
                 if len(edge_list) == 1:
@@ -680,6 +715,8 @@ class SidescanPreprocessor:
             return
         for ch in range(self.num_ch):
             son_dat = self.sonar_data_proc[ch]
+            pre_filt_max = np.max(son_dat)
+            pre_filt_min = np.min(son_dat[son_dat > 0])
             for chunk_idx in range(self.num_chunk):
                 # avoid zero padding
                 if chunk_idx == self.num_chunk - 1:
@@ -722,32 +759,47 @@ class SidescanPreprocessor:
                         np.argmax(np.abs(peak_positions[:, 1] - self.ping_len / 2))
                     ]
 
-                H = SidescanPreprocessor.build_pie_H(
-                    self.chunk_size, self.ping_len, peak_pos=far_peak_pos
-                )
-                spec_filt_r = spec_r * H
+                # Only apply filtering if atleast one peak is present
+                if len(peaks) >= 1:
+                    H = SidescanPreprocessor.build_pie_H(
+                        self.chunk_size, self.ping_len, peak_pos=far_peak_pos
+                    )
+                    spec_filt_r = spec_r * H
 
-                spec_filt = np.vstack(
-                    [
-                        spec_filt_r[int(self.chunk_size / 2) :],
-                        spec_filt_r[: int(self.chunk_size / 2)],
-                    ]
-                )
-                spec_filt = np.hstack(
-                    [
-                        spec_filt[:, int(self.ping_len / 2) :],
-                        spec_filt[:, : int(self.ping_len / 2)],
-                    ]
-                )
-                chunk_filt = np.real(np.fft.ifft2(spec_filt))
+                    spec_filt = np.vstack(
+                        [
+                            spec_filt_r[int(self.chunk_size / 2) :],
+                            spec_filt_r[: int(self.chunk_size / 2)],
+                        ]
+                    )
+                    spec_filt = np.hstack(
+                        [
+                            spec_filt[:, int(self.ping_len / 2) :],
+                            spec_filt[:, : int(self.ping_len / 2)],
+                        ]
+                    )
+                    chunk_filt = np.real(np.fft.ifft2(spec_filt))
 
-                if chunk_idx == self.num_chunk - 1:
-                    son_dat[-1 * self.chunk_size :] = chunk_filt
+                    if chunk_idx == self.num_chunk - 1:
+                        son_dat[-1 * self.chunk_size :] = chunk_filt
+                    else:
+                        son_dat[
+                            chunk_idx
+                            * self.chunk_size : (chunk_idx + 1)
+                            * self.chunk_size
+                        ] = chunk_filt
                 else:
-                    son_dat[
-                        chunk_idx * self.chunk_size : (chunk_idx + 1) * self.chunk_size
-                    ] = chunk_filt
+                    print("No peak found, pie slice filter skipped")
 
+            # filtering could introduce negative numbers and distortions
+            # rescale the data here to old pre filtering range
+            if not hasattr(self, "pre_dec_least_val"):
+                self.pre_dec_least_val = pre_filt_min
+            if np.min(son_dat) < 0:
+                son_dat -= np.min(son_dat)
+                son_dat += self.pre_dec_least_val
+                son_dat /= np.max(son_dat)
+                son_dat *= pre_filt_max
             self.sonar_data_proc[ch] = son_dat
 
     @staticmethod

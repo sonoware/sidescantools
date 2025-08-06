@@ -1,3 +1,4 @@
+import argparse
 from pathlib import Path
 import os, copy
 import numpy as np
@@ -10,28 +11,26 @@ from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 from pyproj import CRS, datadir
 from scipy.signal import savgol_filter
-import qtpy.QtCore as QtCore
 
 
-class GeoreferencerSignals(QtCore.QObject):
-    finished = QtCore.Signal()
-    progress = QtCore.Signal(float)
-    error_signal = QtCore.Signal(Exception)
-
-class Georeferencer(QtCore.QRunnable):
-    filepath: Path
+class Georeferencer():
+    filepath: str | os.PathLike
     sidescan_file: SidescanFile
     channel: int
     active_utm: bool
     active_poly: bool
-    output_folder: Path
     proc_data: np.array
+    output_folder: str | os.PathLike
     active_proc_data: bool
     GCP_SPLIT: list
     POINTS_SPLIT: list
     chunk_indices: np.array
     vertical_beam_angle: int
     epsg_code: str
+    warp_options: dict = {
+        "Polynomial 1 (recommended)": "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1", 
+        "Homography (experimental)": "SRC_METHOD=GCP_HOMOGRAPHY"
+    }
     resolution_options: dict = {
         "Same": "same",
         "Highest": "highest", 
@@ -39,11 +38,6 @@ class Georeferencer(QtCore.QRunnable):
         "Average": "average", 
         "Common": "common"
         }
-    warp_options: dict = {
-        "Polynomial 1 (recommended)": "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1", 
-        "Homography (experimental)": "SRC_METHOD=GCP_HOMOGRAPHY"
-    }
-
     resampling_options: dict = {
         "Near": "near",
         "Bilinear": "bilinear",
@@ -63,6 +57,7 @@ class Georeferencer(QtCore.QRunnable):
     HEAD_plt: np.ndarray
     LOLA_plt_ori: np.ndarray
     HEAD_plt_ori: np.ndarray
+    TIF_len: int
 
     def __init__(
         self,
@@ -75,10 +70,10 @@ class Georeferencer(QtCore.QRunnable):
         vertical_beam_angle: int = 60,
         warp_algorithm: str = "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",
         resolution_mode: str = "average",
-        resampling_method: str = "near"
+        resampling_method: str = "near",
+        TIF_len: int = 0
 
     ):
-        super().__init__()
         self.filepath = Path(filepath)
         self.sidescan_file = SidescanFile(self.filepath)        
         self.channel = channel
@@ -86,8 +81,8 @@ class Georeferencer(QtCore.QRunnable):
         self.active_poly = active_poly
         self.output_folder = Path(output_folder)
         self.vertical_beam_angle = vertical_beam_angle
-        self.resolution_mode = resolution_mode
         self.warp_algorithm = warp_algorithm
+        self.resolution_mode = resolution_mode
         self.resampling_method = resampling_method
         self.active_proc_data = False
         self.GCP_SPLIT = []
@@ -96,33 +91,11 @@ class Georeferencer(QtCore.QRunnable):
         self.HEAD_plt = np.empty_like(proc_data)
         self.LOLA_plt_ori = np.empty_like(proc_data)
         self.HEAD_plt_ori = np.empty_like(proc_data)
+        self.TIF_len = TIF_len
         if proc_data is not None:
             self.proc_data = proc_data
             self.active_proc_data = True
         self.setup_output_folder()
-        self.signals = GeoreferencerSignals()
-
-    @QtCore.Slot()
-    def run(self):
-        file_name = self.filepath.stem
-        tif_path = self.output_folder / f"{file_name}_ch{self.channel}.tif"
-        mosaic_tif_path = self.output_folder / f"{file_name}_stack.tif"
-
-        self.prep_data()
-        ch_stack = self.channel_stack()
-
-        try:
-            print(f"Processing chunks in channel {self.channel} with warp method {self.warp_algorithm}...")
-
-            self.georeference(ch_stack=ch_stack, otiff=tif_path)
-
-            print(f"Mosaicking channel {self.channel} with resolution mode {self.resolution_mode}...")
-            self.mosaic(mosaic_tif_path)
-
-        except Exception as e:
-            self.signals.error_signal.emit(e)
-        finally:
-            self.signals.finished.emit()
 
     def setup_output_folder(self):
         if not self.output_folder.exists():
@@ -381,7 +354,7 @@ class Georeferencer(QtCore.QRunnable):
             #print(result.stdout)
             # print(f"Command executed successfully: {' '.join(command)}")
             
-    def georeference(self, ch_stack, otiff):
+    def georeference(self, ch_stack, otiff, progress_signal = None):
         """
         array_split: Creates [chunk_size]-ping chunks per channel and extracts corner coordinates for chunks from GCP list. \
         Assigns extracted corner coordinates as GCPs (gdal_translate) and projects them (gdal_warp).
@@ -502,6 +475,10 @@ class Georeferencer(QtCore.QRunnable):
                 else:    
                     gdal_warp = gdal_warp_wgs84
 
+                if progress_signal is not None:
+                    progress_signal.emit(chunk_num)
+                    print(f'chunk_num: {chunk_num}')
+
                 self.run_command(gdal_translate)
                 self.run_command(gdal_warp)
 
@@ -518,17 +495,27 @@ class Georeferencer(QtCore.QRunnable):
 
         """
         # create list from warped tifs and merge
+        TIF_ch0 = []
+        TIF_ch1 = []
         TIF = []
-        if self.channel == 0:
-            txt_path = os.path.join(self.output_folder, "ch1_tif.txt")
-        elif self.channel == 1:
-            txt_path = os.path.join(self.output_folder, "ch2_tif.txt")
+
+        txt_path = os.path.join(self.output_folder, "chunks_tif.txt")
 
         for root, dirs, files in os.walk(self.output_folder):
             for name in files:
-                if name.endswith("_georef_chunk_tmp.tif") and str(self.channel) in name and not name.startswith("._"):
-                    TIF.append(os.path.join(root, name))
-                    np.savetxt(txt_path, TIF, fmt="%s")
+                if name.endswith("_georef_chunk_tmp.tif") and 'ch0' in name and not name.startswith("._"):
+                    TIF_ch0.append(os.path.join(root, name))
+
+        for root, dirs, files in os.walk(self.output_folder):
+            for name in files:
+                if name.endswith("_georef_chunk_tmp.tif") and 'ch1' in name and not name.startswith("._"):
+                    TIF_ch1.append(os.path.join(root, name))
+        TIF = TIF_ch0 + TIF_ch1
+        self.TIF_len = len(TIF)
+
+
+        np.savetxt(txt_path, TIF, fmt="%s")
+
 
         # delete merged file if it already exists
         if mosaic_tiff.exists():
@@ -548,7 +535,87 @@ class Georeferencer(QtCore.QRunnable):
 
         self.run_command(gdal_mosaic)
 
+    def process(self, progress_signal=None):
+        file_name = self.filepath.stem
+        tif_path = self.output_folder / f"{file_name}_ch{self.channel}.tif"
+        mosaic_tif_path = self.output_folder / f"{file_name}_stack.tif"
 
+        self.prep_data()
+        ch_stack = self.channel_stack()
+
+        try:
+            print(f"Processing chunks in channel {self.channel} with warp method {self.warp_algorithm}...")
+
+            self.georeference(ch_stack=ch_stack, otiff=tif_path)
+            if progress_signal is not None:
+                progress_signal.emit(0.5)
+
+            print(f"Mosaicking channel {self.channel} with resolution mode {self.resolution_mode}...")
+            self.mosaic(mosaic_tif_path)
+
+        except IndexError as i:
+            print(f"Something with indexing went wrong... {str(i)}")
+        except Exception as e:
+            print(f"An error occurred: {str(e)}")
+
+        #self.cleanup()
+
+    #def cleanup(self):
+    #    print(f"Cleaning ...")
+    #    for file in os.listdir(self.output_folder):
+    #        file_path = self.output_folder / file
+    #        if (
+    #            str(file_path).endswith("_tmp.png")
+    #            or str(file_path).endswith("_tmp.txt")
+    #            or str(file_path).endswith("_tmp.csv")
+    #            or str(file_path).endswith("_tmp.tif")
+    #            or str(file_path).endswith("_tmp.points")
+    #            or str(file_path).endswith(".xml")
+    #        ):
+    #            try:
+    #                os.remove(file_path)
+    #            except FileNotFoundError:
+    #                print(f"File Not Found: {file_path}")
+    #    print("Cleanup done")
+
+def main():
+    parser = argparse.ArgumentParser(description="Tool to process sidescan sonar data")
+    parser.add_argument("xtf", metavar="FILE", help="Path to xtf/jsf file")
+    parser.add_argument(
+        "channel",
+        type=int,
+        default=0,
+        help="Channel number (can be 0 or 1, default: 0)",
+    )
+    parser.add_argument(
+        "--dynamic_chunking",
+        type=bool,
+        default=False,
+        help="Implements chunking based on GPS information density; only use for bad/scarce GPS data",
+    )
+    parser.add_argument(
+        "--UTM",
+        type=bool,
+        default=True,
+        help="Uses UTM projection rather than WGS84. Default is UTM",
+    )
+
+    parser.add_argument(
+        "--poly",
+        type=bool,
+        default=True,
+        help="Uses polynomial order 1 transformation (affine) instead of homographic for georeferencing. Default is homographic.",
+    )
+
+    args = parser.parse_args()
+    print("args:", args)
+
+    georeferencer = Georeferencer(args.xtf, args.channel, args.dynamic_chunking, args.UTM, args.poly)
+    georeferencer.process()
+
+
+if __name__ == "__main__":
+    main()
 
 
 

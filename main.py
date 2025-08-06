@@ -25,7 +25,7 @@ import qtpy.QtCore as QtCore
 import qtpy.QtGui as QtGui
 import sys, os, pathlib
 from bottom_detection_napari_ui import run_napari_btm_line
-#from georef_thread import Georeferencer
+from georef_thread import Georeferencer
 import pyqtgraph as pg
 import pyqtgraph.exporters as exporters
 
@@ -1173,17 +1173,17 @@ class ViewAndExportWidget(QVBoxLayout):
 
         self.resolution_mode_dropdown = QComboBox()
         self.resolution_mode_dropdown.setToolTip("Set mode for final resolution. Chose average, if unsure.")
-        for res_disp, res_int in GeoreferencerWorker.resolution_options.items():
+        for res_disp, res_int in Georeferencer.resolution_options.items():
             self.resolution_mode_dropdown.addItem(res_disp, res_int)
 
         self.warp_mode_dropdown = QComboBox()
         self.warp_mode_dropdown.setToolTip("Set method for warping algorithm. Leave polynomial 1 if unsure, homography is in experimental state.")
-        for warp_disp, warp_int in GeoreferencerWorker.warp_options.items():
+        for warp_disp, warp_int in Georeferencer.warp_options.items():
             self.warp_mode_dropdown.addItem(warp_disp, warp_int)
 
         self.resamp_mode_dropdown = QComboBox()
         self.resamp_mode_dropdown.setToolTip("Select resampling method. Leave near neighbour, if unsure (least interpolation).")
-        for resamp_disp, resamp_int in GeoreferencerWorker.resampling_options.items():
+        for resamp_disp, resamp_int in Georeferencer.resampling_options.items():
             self.resamp_mode_dropdown.addItem(resamp_disp, resamp_int)
 
         self.active_utm_checkbox = QCheckBox("UTM")
@@ -1426,6 +1426,7 @@ class ViewAndExportWidget(QVBoxLayout):
         )
 
     def start_georeferencer(self, res_list: list):
+        output_folder = pathlib.Path(self.main_ui.settings_dict["Georef dir"])
         sidescan_file = res_list[0]
         preproc = res_list[1]
         filepath = sidescan_file.filepath
@@ -1453,72 +1454,39 @@ class ViewAndExportWidget(QVBoxLayout):
             proc_data_out_0 = hist_equalization(proc_data_out_0)
             proc_data_out_1 = hist_equalization(proc_data_out_1)
 
-        #file_idx = 0
-        #if len(self.main_ui.file_table.selectedIndexes()) > 0:
-        #    file_idx = self.main_ui.file_table.selectedIndexes()[0].row()
-#
-        #filepath = pathlib.Path(self.main_ui.file_dict["Path"][file_idx])
-
         georeferencer_ch0 = GeoreferencerManager()
         georeferencer_ch0.start_georef(
             filepath, 
             0,
             active_utm=self.active_utm_checkbox.isChecked(),
             active_poly=True,
-            output_folder=pathlib.Path(self.main_ui.settings_dict["Georef dir"]),
             proc_data=proc_data_out_0,
+            output_folder=output_folder,
             vertical_beam_angle=int(
                     self.main_ui.processing_widget.vertical_beam_angle_edit.line_edit.text()
                 ),
-            resolution_mode=self.resolution_mode_dropdown.currentData(),
             warp_algorithm=self.warp_mode_dropdown.currentData(),
-            resampling_method=self.resamp_mode_dropdown.currentData()
+            resolution_mode=self.resolution_mode_dropdown.currentData(),
+            resampling_method=self.resamp_mode_dropdown.currentData(),
             )
         
         georeferencer_ch1 = GeoreferencerManager()
         georeferencer_ch1.start_georef(
             filepath, 
-            0,
+            1,
             active_utm=self.active_utm_checkbox.isChecked(),
             active_poly=True,
-            output_folder=pathlib.Path(self.main_ui.settings_dict["Georef dir"]),
             proc_data=proc_data_out_1,
+            output_folder=output_folder,
             vertical_beam_angle=int(
                     self.main_ui.processing_widget.vertical_beam_angle_edit.line_edit.text()
                 ),
-            resolution_mode=self.resolution_mode_dropdown.currentData(),
             warp_algorithm=self.warp_mode_dropdown.currentData(),
-            resampling_method=self.resamp_mode_dropdown.currentData()
+            resolution_mode=self.resolution_mode_dropdown.currentData(),
+            resampling_method=self.resamp_mode_dropdown.currentData(),
             )
-        
-        georeferencer_ch1.signals.finished.connect(self.on_finished)
-        georeferencer_ch1.signals.finished.connect(self.cleanup)
-
-    def on_finished(self):
-        QMessageBox.information(None, 'Info', f'Successfully exported to Geotiff.')
-
-    def cleanup(self):
-        print(f"Cleaning ...")
-        output_folder = self.main_ui.settings_dict["Georef dir"]
-        for file in os.listdir(output_folder):
-            file_path = os.path.join(output_folder, file)
-            if (
-                str(file_path).endswith(".png")
-                or str(file_path).endswith(".txt")
-                or str(file_path).endswith(".csv")
-                or str(file_path).endswith("_tmp.tif")
-                or str(file_path).endswith(".points")
-                or str(file_path).endswith(".xml")
-                or str(file_path).endswith(".vrt")
-            ):
-                try:
-                    os.remove(file_path)
-                except FileNotFoundError:
-                    print(f"File Not Found: {file_path}")
-                    
-        print("Cleanup done")
-
-    
+            
+   
     def generate_wc_img(self, active_generate_all: bool):
         if len(self.main_ui.file_table.selectedIndexes()) > 0:
             filepath = pathlib.Path(

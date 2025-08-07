@@ -902,19 +902,14 @@ class GeoreferencerWorker(QtCore.QRunnable):
             resampling_method=self.resampling_method,
             TIF_len=self.TIF_len
         ) # from georef.py
+
         processor.prep_data()
         ch_stack = processor.channel_stack()
+        print(f"Processing chunks in channel {self.channel} with warp method {self.warp_algorithm}...")
         processor.georeference(ch_stack, tif_path, progress_signal=self.signals.progress_signal)
+        print(f"Mosaicking channel {self.channel} with resolution mode {self.resolution_mode}...")
         processor.mosaic(mosaic_tif_path)
         self.signals.progress_signal.emit(0.3)
-
-
-        #processor.process(progress_signal=self.signals.progress_signal)
-        #for idx, tif in enumerate(pathlib.Path.iterdir(pathlib.Path(self.output_folder))):
-            #print(f'tif: {tif}')
-        #    self.signals.progress_signal.emit(idx)
-        #self.signals.progress_signal.emit(0.4)
-        #self.signals.result.emit(self.TIF_len)
 
 class GeoreferencerManager(QWidget):
 
@@ -965,7 +960,6 @@ class GeoreferencerManager(QWidget):
                      resampling_method: str,
                      ):
         self.output_folder = pathlib.Path(output_folder)
-        #self.num_files = sum(1 for file in pathlib.Path.iterdir(self.output_folder) if file.is_file)
 
         georef_worker = GeoreferencerWorker(            
                 filepath,
@@ -980,7 +974,6 @@ class GeoreferencerManager(QWidget):
                 resampling_method,
             )
         georef_worker.signals.progress_signal.connect(lambda progress: self.update_pbar(progress))
-        #georef_worker.signals.result.connect(lambda tif: self.update_pbar(tif))
         georef_worker.signals.error_signal.connect(lambda err: self.build_aborted(err))
         georef_worker.signals.finished.connect(self.cleanup)
 

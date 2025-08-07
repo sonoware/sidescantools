@@ -975,6 +975,7 @@ class GeoreferencerManager(QWidget):
             )
         georef_worker.signals.progress_signal.connect(lambda progress: self.update_pbar(progress))
         georef_worker.signals.error_signal.connect(lambda err: self.build_aborted(err))
+        georef_worker.signals.error_signal.connect(self.cleanup)
         georef_worker.signals.finished.connect(self.cleanup)
 
         self.thread_pool.start(georef_worker)

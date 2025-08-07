@@ -476,8 +476,8 @@ class Georeferencer():
                     gdal_warp = gdal_warp_wgs84
 
                 if progress_signal is not None:
-                    progress_signal.emit(chunk_num)
-                    print(f'chunk_num: {chunk_num}')
+                    progress_signal.emit(1000/(len(ch_stack[1])) * 0.005)
+                    #print(f'chunk_num: {chunk_num}')
 
                 self.run_command(gdal_translate)
                 self.run_command(gdal_warp)
@@ -485,7 +485,7 @@ class Georeferencer():
             elif chunk_num == len(ch_split) - 1:
                 pass
 
-    def mosaic(self, mosaic_tiff):
+    def mosaic(self, mosaic_tiff, progress_signal = None):
         """
         Merges tif chunks created in the georef function.
         Args.:
@@ -512,6 +512,9 @@ class Georeferencer():
                     TIF_ch1.append(os.path.join(root, name))
         TIF = TIF_ch0 + TIF_ch1
         self.TIF_len = len(TIF)
+
+        if progress_signal is not None:
+            progress_signal.emit(0.2)
 
 
         np.savetxt(txt_path, TIF, fmt="%s")
@@ -548,35 +551,19 @@ class Georeferencer():
 
             self.georeference(ch_stack=ch_stack, otiff=tif_path)
             if progress_signal is not None:
+                print(f'progress_signal: {progress_signal}')
                 progress_signal.emit(0.5)
 
             print(f"Mosaicking channel {self.channel} with resolution mode {self.resolution_mode}...")
             self.mosaic(mosaic_tif_path)
+            if progress_signal is not None:
+                print(f'progress_signal: {progress_signal}')
+                progress_signal.emit(0.5)
 
         except IndexError as i:
             print(f"Something with indexing went wrong... {str(i)}")
         except Exception as e:
             print(f"An error occurred: {str(e)}")
-
-        #self.cleanup()
-
-    #def cleanup(self):
-    #    print(f"Cleaning ...")
-    #    for file in os.listdir(self.output_folder):
-    #        file_path = self.output_folder / file
-    #        if (
-    #            str(file_path).endswith("_tmp.png")
-    #            or str(file_path).endswith("_tmp.txt")
-    #            or str(file_path).endswith("_tmp.csv")
-    #            or str(file_path).endswith("_tmp.tif")
-    #            or str(file_path).endswith("_tmp.points")
-    #            or str(file_path).endswith(".xml")
-    #        ):
-    #            try:
-    #                os.remove(file_path)
-    #            except FileNotFoundError:
-    #                print(f"File Not Found: {file_path}")
-    #    print("Cleanup done")
 
 def main():
     parser = argparse.ArgumentParser(description="Tool to process sidescan sonar data")

@@ -927,7 +927,7 @@ class GeoreferencerManager(QWidget):
         self.pbar.setGeometry(30, 40, 500, 50)
         self.pbar.setTextVisible(False)
         self.title_label = QLabel()
-        self.title_label.setText("Georeferencing file...")
+        self.title_label.setText("Georeferencing...")
         self.title_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         label_font = QtGui.QFont()
         label_font.setBold(True)
@@ -1002,7 +1002,6 @@ class GeoreferencerManager(QWidget):
                 or str(file_path).endswith(".points")
                 or str(file_path).endswith(".xml")
                 or str(file_path).endswith(".vrt")
-                and not str(file_path).endswith("stack.tif")
             ):
                 try:
                     os.remove(file_path)

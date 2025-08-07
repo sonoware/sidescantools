@@ -885,6 +885,10 @@ class GeoreferencerWorker(QtCore.QRunnable):
             self.signals.finished.emit('Done')
     
     def start_georeferencing(self):
+        file_name = self.filepath.stem
+        tif_path = self.output_folder / f"{file_name}_ch{self.channel}.tif"
+        mosaic_tif_path = self.output_folder / f"{file_name}_stack.tif"
+
         processor = Georeferencer(
             filepath=self.filepath,
             channel=self.channel,
@@ -898,12 +902,19 @@ class GeoreferencerWorker(QtCore.QRunnable):
             resampling_method=self.resampling_method,
             TIF_len=self.TIF_len
         ) # from georef.py
-        processor.process(progress_signal=self.signals.progress_signal)
-        for idx, tif in enumerate(pathlib.Path.iterdir(pathlib.Path(self.output_folder))):
+        processor.prep_data()
+        ch_stack = processor.channel_stack()
+        processor.georeference(ch_stack, tif_path, progress_signal=self.signals.progress_signal)
+        processor.mosaic(mosaic_tif_path)
+        self.signals.progress_signal.emit(0.3)
+
+
+        #processor.process(progress_signal=self.signals.progress_signal)
+        #for idx, tif in enumerate(pathlib.Path.iterdir(pathlib.Path(self.output_folder))):
             #print(f'tif: {tif}')
-            self.signals.progress_signal.emit(idx)
+        #    self.signals.progress_signal.emit(idx)
         #self.signals.progress_signal.emit(0.4)
-        self.signals.result.emit(self.TIF_len)
+        #self.signals.result.emit(self.TIF_len)
 
 class GeoreferencerManager(QWidget):
 

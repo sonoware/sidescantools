@@ -158,13 +158,11 @@ class Georeferencer():
 
         UTM = np.full_like(LAT_ori, np.nan)
         UTM = UTM.tolist()
-        print(f"UTM: {type(UTM), len(UTM)}")
         for idx, (la, lo) in enumerate(zip(LAT, LON)):
             try:
                 UTM[idx] = utm.from_latlon(la, lo)
             except:
                 ValueError("Values or lon and/or lat must not be 0")
-        print(f"UTM: {type(UTM), len(UTM)}")
 
         if UTM:
             NORTH = [utm_coord[0] for utm_coord in UTM]
@@ -310,7 +308,7 @@ class Georeferencer():
         swath_len = len(PING)
         swath_width = len(ch_stack[0])
         print(f"swath_len: {swath_len}, swath_width: {swath_width}")
-        print(f"ch_stack.shape[0], ch_stack.shape[1]: {ch_stack.shape[0], ch_stack.shape[1]}")
+        #print(f"ch_stack.shape[0], ch_stack.shape[1]: {ch_stack.shape[0], ch_stack.shape[1]}")
 
         # Transpose (always!) so that the largest axis is horizontal
         ch_stack = ch_stack.T
@@ -322,7 +320,7 @@ class Georeferencer():
         ch_stack = np.clip(ch_stack, 1, 255)
 
         # Flip array ---> Note: different for .jsf and .xtf!
-        print(f"ch_stack shape after transposing: {np.shape(ch_stack)}")
+        #print(f"ch_stack shape after transposing: {np.shape(ch_stack)}")
         ch_stack = np.flip(ch_stack, axis=0)
 
         return ch_stack.astype(np.uint8)
@@ -477,7 +475,6 @@ class Georeferencer():
 
                 if progress_signal is not None:
                     progress_signal.emit(1000/(len(ch_stack[1])) * 0.005)
-                    #print(f'chunk_num: {chunk_num}')
 
                 self.run_command(gdal_translate)
                 self.run_command(gdal_warp)

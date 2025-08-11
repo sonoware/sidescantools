@@ -10,6 +10,7 @@ dependencies:
   - qtpy
   - pyproj
   - conda-forge::gdal=3.11
+  - pyqtgraph
   - pip
   - pip:
       - pyxtf==1.4.2

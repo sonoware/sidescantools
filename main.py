@@ -44,7 +44,7 @@ from custom_widgets import (
     hist_equalization,
     FilePicker,
 )
-from custom_threading import FileImportManager, EGNTableBuilder, PreProcManager, NavPlotter, GeoreferencerWorker, GeoreferencerManager
+from custom_threading import FileImportManager, EGNTableBuilder, PreProcManager, NavPlotter, GeoreferencerManager
 from enum import Enum
 import scipy.signal as scisig
 
@@ -1454,13 +1454,12 @@ class ViewAndExportWidget(QVBoxLayout):
             proc_data_out_0 = hist_equalization(proc_data_out_0)
             proc_data_out_1 = hist_equalization(proc_data_out_1)
 
-        georeferencer_ch0 = GeoreferencerManager()
-        georeferencer_ch0.start_georef(
+        georeferencer = GeoreferencerManager()
+        georeferencer.start_georef(
             filepath, 
-            0,
             active_utm=self.active_utm_checkbox.isChecked(),
             active_poly=True,
-            proc_data=proc_data_out_0,
+            proc_data=[proc_data_out_0, proc_data_out_1],
             output_folder=output_folder,
             vertical_beam_angle=int(
                     self.main_ui.processing_widget.vertical_beam_angle_edit.line_edit.text()
@@ -1469,22 +1468,7 @@ class ViewAndExportWidget(QVBoxLayout):
             resolution_mode=self.resolution_mode_dropdown.currentData(),
             resampling_method=self.resamp_mode_dropdown.currentData(),
             )
-        
-        georeferencer_ch1 = GeoreferencerManager()
-        georeferencer_ch1.start_georef(
-            filepath, 
-            1,
-            active_utm=self.active_utm_checkbox.isChecked(),
-            active_poly=True,
-            proc_data=proc_data_out_1,
-            output_folder=output_folder,
-            vertical_beam_angle=int(
-                    self.main_ui.processing_widget.vertical_beam_angle_edit.line_edit.text()
-                ),
-            warp_algorithm=self.warp_mode_dropdown.currentData(),
-            resolution_mode=self.resolution_mode_dropdown.currentData(),
-            resampling_method=self.resamp_mode_dropdown.currentData(),
-            )
+        # TODO: signals from manager
             
    
     def generate_wc_img(self, active_generate_all: bool):

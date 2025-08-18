@@ -988,12 +988,12 @@ class GeoreferencerManager(QWidget):
 
     def build_aborted(self, err: Exception):
         msg_str = str(err)
-        print(msg_str) # TODO: what are possible error cases and what shall we do here?
+        print(msg_str)
         self.cleanup()
 
     def cleanup(self):
         self.cleanup_cnt += 1
-        if self.cleanup_cnt > 1: # we need the signal 2 times for both channels to have finished (TODO: Mit Mia besprechen)
+        if self.cleanup_cnt > 1: # we need the signal 2 times for both channels to have finished
             print(f"Cleaning ...")
             for file in os.listdir(self.output_folder):
                 file_path = os.path.join(self.output_folder, file)

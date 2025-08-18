@@ -546,16 +546,10 @@ class Georeferencer():
         try:
             print(f"Processing chunks in channel {self.channel} with warp method {self.warp_algorithm}...")
 
-            self.georeference(ch_stack=ch_stack, otiff=tif_path)
-            if progress_signal is not None:
-                print(f'progress_signal: {progress_signal}')
-                progress_signal.emit(0.5)
+            self.georeference(ch_stack=ch_stack, otiff=tif_path, progress_signal=progress_signal)
 
             print(f"Mosaicking channel {self.channel} with resolution mode {self.resolution_mode}...")
-            self.mosaic(mosaic_tif_path)
-            if progress_signal is not None:
-                print(f'progress_signal: {progress_signal}')
-                progress_signal.emit(0.5)
+            self.mosaic(mosaic_tif_path, progress_signal=progress_signal)
 
         except IndexError as i:
             print(f"Something with indexing went wrong... {str(i)}")

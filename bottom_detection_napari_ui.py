@@ -52,7 +52,10 @@ def run_napari_btm_line(
     else:
         # convert to ping idx
         for ping_idx in range(sidescan_file.num_ping):
-            depth_info[ping_idx] = np.round(np.argmin(np.abs(depth_info[ping_idx] - sidescan_file.ping_x_axis)) / downsampling_factor)
+            depth_info[ping_idx] = np.round(
+                np.argmin(np.abs(depth_info[ping_idx] - sidescan_file.ping_x_axis))
+                / downsampling_factor
+            )
         depth_info = depth_info.astype(int)
 
     print("Initializing napari UI for Bottom Detection")
@@ -101,17 +104,18 @@ def run_napari_btm_line(
     call_button_text = "d: Load depth data from file"
     if depth_info is None:
         call_button_text = "No depth data found"
+
     @magicgui(
         auto_call=True,
         depth_offset={
-        "widget_type": "IntSlider",
-        "min": -1*preproc.ping_len,
-        "max": preproc.ping_len,
-        "step": 1,
+            "widget_type": "IntSlider",
+            "min": -1 * preproc.ping_len,
+            "max": preproc.ping_len,
+            "step": 1,
         },
         call_button=call_button_text,
-        )
-    def widget_depth(viewer: napari.Viewer,depth_offset=0):
+    )
+    def widget_depth(viewer: napari.Viewer, depth_offset=0):
         preproc.set_depth_from_info(offset=depth_offset)
         # update bottom plot with new data
         bottom_image_layer.data = preproc.bottom_map
@@ -137,8 +141,8 @@ def run_napari_btm_line(
         filename=default_bottom_path,
     ):
         # only save real data information
-        info_port = preproc.napari_portside_bottom.flatten()[:sidescan_file.num_ping]
-        info_star = preproc.napari_starboard_bottom.flatten()[:sidescan_file.num_ping]
+        info_port = preproc.napari_portside_bottom.flatten()[: sidescan_file.num_ping]
+        info_star = preproc.napari_starboard_bottom.flatten()[: sidescan_file.num_ping]
         # flip order for xtf files to contain backwards compability
         if filepath.suffix.casefold() == ".xtf":
             info_port = np.flip(info_port)
@@ -162,14 +166,30 @@ def run_napari_btm_line(
             napari_starboard_bottom = napari_starboard_bottom.flatten()
             # flip order for xtf files to contain backwards compability
             if filepath.suffix.casefold() == ".xtf":
-                napari_portside_bottom[:sidescan_file.num_ping] = np.flip(napari_portside_bottom[:sidescan_file.num_ping])
-                napari_starboard_bottom[:sidescan_file.num_ping] = np.flip(napari_starboard_bottom[:sidescan_file.num_ping])
+                napari_portside_bottom[: sidescan_file.num_ping] = np.flip(
+                    napari_portside_bottom[: sidescan_file.num_ping]
+                )
+                napari_starboard_bottom[: sidescan_file.num_ping] = np.flip(
+                    napari_starboard_bottom[: sidescan_file.num_ping]
+                )
 
             for chunk_idx in range(preproc.num_chunk):
-                port_chunk = napari_portside_bottom[chunk_idx * preproc.chunk_size:(chunk_idx+1) * preproc.chunk_size]
-                preproc.napari_portside_bottom[chunk_idx, :len(port_chunk)] = port_chunk
-                star_chunk = napari_starboard_bottom[chunk_idx * preproc.chunk_size:(chunk_idx+1) * preproc.chunk_size]
-                preproc.napari_starboard_bottom[chunk_idx, :len(star_chunk)] = star_chunk
+                port_chunk = napari_portside_bottom[
+                    chunk_idx
+                    * preproc.chunk_size : (chunk_idx + 1)
+                    * preproc.chunk_size
+                ]
+                preproc.napari_portside_bottom[chunk_idx, : len(port_chunk)] = (
+                    port_chunk
+                )
+                star_chunk = napari_starboard_bottom[
+                    chunk_idx
+                    * preproc.chunk_size : (chunk_idx + 1)
+                    * preproc.chunk_size
+                ]
+                preproc.napari_starboard_bottom[chunk_idx, : len(star_chunk)] = (
+                    star_chunk
+                )
                 preproc.update_bottom_map_napari(
                     chunk_idx, add_line_width=add_line_width
                 )
@@ -201,9 +221,7 @@ def run_napari_btm_line(
     binarized_image_layer = viewer.add_image(
         preproc.napari_fullmat_bin, name="binarized image"
     )
-    edges_image_layer = viewer.add_image(
-        preproc.edges_mat, name="edges"
-    )
+    edges_image_layer = viewer.add_image(preproc.edges_mat, name="edges")
     sidescan_image_layer = viewer.add_image(
         preproc.napari_fullmat, name="sidescan image", colormap="copper"
     )
@@ -221,7 +239,9 @@ def run_napari_btm_line(
 
     # add widgets to main window
     viewer.window.add_dock_widget(widget_thresh, name="Bottom detection parameters")
-    viewer.window.add_dock_widget(widget_depth, name="Define Bottom Line via intern depth data")
+    viewer.window.add_dock_widget(
+        widget_depth, name="Define Bottom Line via intern depth data"
+    )
     widget_thresh.visible = False  # HACK to change size policy...
     viewer.window.add_dock_widget(
         manual_annotation_widget, name="Activate manual annotation"
@@ -251,7 +271,7 @@ def run_napari_btm_line(
             and 0 <= np.round(event.position[2]) < layer.data.shape[2]
         ):
 
-            print('mouse down')
+            # print('mouse down')
             dragged = False
             yield
 
@@ -262,7 +282,7 @@ def run_napari_btm_line(
                 and 0 <= np.round(event.position[1]) < layer.data.shape[1]
                 and 0 <= np.round(event.position[2]) < layer.data.shape[2]
             ):
-                print('mouse move')
+                # print('mouse move')
                 dragged = True
 
                 cur_pos = np.array(np.round(event.position), dtype=int)
@@ -344,7 +364,7 @@ def run_napari_btm_line(
             # on release
             if dragged:
                 dragged = False
-                print('mouse release')
+                # print("mouse release")
             elif (
                 0 <= np.round(event.position[1]) < layer.data.shape[1]
                 and 0 <= np.round(event.position[2]) < layer.data.shape[2]
@@ -370,26 +390,30 @@ def run_napari_btm_line(
                         preproc.napari_portside_bottom[cur_pos[0], cur_pos[1]] = (
                             layer.data.shape[2] - cur_pos[2]
                         )
-                print('mouse clicked')
+                # print("mouse clicked")
             # set map to trigger drawing
             preproc.update_bottom_map_napari(int(event.position[0]), add_line_width=0)
             bottom_image_layer.data = preproc.bottom_map
-            print('mouse callback ended')
+            # print("mouse callback ended")
 
     # Handle click or drag events separately
     @bottom_image_layer.mouse_drag_callbacks.append
     def click_drag(layer, event):
         return custom_mouse_callback(bottom_image_layer, event)
+
     # enable the custom callback for all layers
     @sidescan_image_layer.mouse_drag_callbacks.append
     def click_drag(layer, event):
         return custom_mouse_callback(bottom_image_layer, event)
+
     @edges_image_layer.mouse_drag_callbacks.append
     def click_drag(layer, event):
         return custom_mouse_callback(bottom_image_layer, event)
+
     @binarized_image_layer.mouse_drag_callbacks.append
     def click_drag(layer, event):
         return custom_mouse_callback(bottom_image_layer, event)
+
     # run main loop
     viewer.show(block=True)
 

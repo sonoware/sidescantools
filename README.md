@@ -101,9 +101,9 @@ In the following all GUI elements are explained in more detail.
 
 ### Georeferencing and image generation
 - Tick `Use processed Data` if above processing steps should be applied, otherwise a waterfall image based on the raw data will be created
-- Warp Method: Set transformation method for output chunks. Leave `Polynomial 1` if unsure - Sometimes, if e.g. vessel movement is irregular, the polynomial tranformation type works more reliable. If in doubt, compare geotiff with the (ungeoreferenced) waterfall image. Find more infos at [gdal] (https://gdal.org/en/stable/programs/gdal_raster_reproject.html)
-- Resampling Method: Set resampling method for output chunks. Find more infos at [gdal] (https://gdal.org/en/stable/programs/gdal_raster_reproject.html)
-- Resolution Mode: Set output file resolution. Find more infos at [gdal] (https://gdal.org/en/stable/programs/gdal_raster_mosaic.html)
+- Warp Method: Set transformation method for output chunks. Leave `Polynomial 1` if unsure - Sometimes, if e.g. vessel movement is irregular, the polynomial tranformation type works more reliable. If in doubt, compare geotiff with the (ungeoreferenced) waterfall image. Find more infos at [gdal](https://gdal.org/en/stable/programs/gdal_raster_reproject.html)
+- Resampling Method: Set resampling method for output chunks. Find more infos at [gdal](https://gdal.org/en/stable/programs/gdal_raster_reproject.html)
+- Resolution Mode: Set output file resolution. Find more infos at [gdal](https://gdal.org/en/stable/programs/gdal_raster_mosaic.html)
 - `Dynamic Chunking` chooses number of pings within one chunk for georeferencing based on distance between GPS points. Only apply when GPS data are bad! If unticked, chunk size is 5 pings.
 - Untick `UTM` if you prefer WGS84 (unprojected) 
 - `Apply Custom Colormap`: Select from a range of colormaps; if unticked, greyscale values are used
@@ -112,4 +112,4 @@ In the following all GUI elements are explained in more detail.
 - `Generate Waterfall Image`: Generates a non-georeferenced png file from processed data. Adjust chunk size if you need one file instead of several.
 
 # About
-SidescanTools is an open-source software project by [GEOMAR](https://www.geomar.de/ghostnetbusters) and [sonoware](https://www.sonoware.de/news/2024-12-06_uebergabe_foerderbescheid/) funded by the AI Fund of the State of Schleswig-Holstein. The logo design and artwork has been done by Aili Xue [https://ailixue.myportfolio.com/work].
+SidescanTools is an open-source software project by [GEOMAR](https://www.geomar.de/ghostnetbusters) and [sonoware](https://www.sonoware.de/news/2024-12-06_uebergabe_foerderbescheid/) funded by the AI Fund of the State of Schleswig-Holstein. The logo design and artwork has been done by [Aili Xue](https://ailixue.myportfolio.com/work).

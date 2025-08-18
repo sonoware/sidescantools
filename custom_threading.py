@@ -3,21 +3,15 @@ from qtpy.QtWidgets import (
     QVBoxLayout,
     QProgressBar,
     QWidget,
-    QPushButton,
-    QMessageBox,
-    QFileDialog,
 )
 import qtpy.QtCore as QtCore
 import qtpy.QtGui as QtGui
 from sidescan_file import SidescanFile
 from sidescan_preproc import SidescanPreprocessor
-from sidescan_georeferencer import SidescanGeoreferencer
+from georef_thread import Georeferencer
 import numpy as np
 import os
 import pathlib
-import pyqtgraph as pg
-import pyqtgraph.exporters as exporters
-
 
 class ImportThread(QtCore.QThread):
     status_signal = QtCore.Signal(str)
@@ -797,11 +791,10 @@ class NavPlotter(QtCore.QThread):
         self.signals = NavPlotterSignals()
         self.thread = QtCore.QThread()
 
-
     #@QtCore.Slot()
     def run(self):
         print("NavPlotter started")
-        get_nav = SidescanGeoreferencer(filepath=self.filepath)
+        get_nav = Georeferencer(filepath=self.filepath)
         get_nav.prep_data()
         print("Getting navigation data...")
         lola_data = get_nav.LOLA_plt
@@ -812,6 +805,210 @@ class NavPlotter(QtCore.QThread):
         head_data_ori = np.column_stack((head_data_ori[:,0], head_data_ori[:,1]*100))
         self.signals.results_signal.emit((lola_data, lola_data_ori, head_data, head_data_ori))
 
+class GeoreferencerSignals(QtCore.QObject):
+    finished = QtCore.Signal()
+    progress_signal = QtCore.Signal(float)    
+    error_signal = QtCore.Signal(Exception)
 
+class GeoreferencerWorker(QtCore.QRunnable):
+    # class variable declaration (optional)
 
+    error_signal = QtCore.Signal(Exception)
+    filepath: str | os.PathLike
+    sidescan_file: SidescanFile
+    channel: int
+    active_utm: bool
+    active_poly: bool
+    proc_data: np.array
+    output_folder: str | os.PathLike
+    active_proc_data: bool
+    chunk_indices: np.array
+    vertical_beam_angle: int
+    epsg_code: str
+    warp_options: str
+    resolution_options: str
+    resampling_options: str
+    TIF_len: int
 
+    def __init__(
+        self,
+        filepath: str | os.PathLike,
+        channel: int,
+        active_utm: bool = True,
+        active_poly: bool = True,
+        proc_data = None,
+        output_folder: str | os.PathLike = "./georef_out",
+        vertical_beam_angle: int = 60,
+        warp_algorithm: str = "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",
+        resolution_mode: str = "average",
+        resampling_method: str = "near",
+        TIF_len: int = 0,
+
+    ):
+        super().__init__()
+        self.filepath = filepath
+        self.sidescan_file = SidescanFile(self.filepath)        
+        self.channel = channel
+        self.active_utm = active_utm
+        self.active_poly = active_poly
+        self.output_folder = output_folder
+        self.vertical_beam_angle = vertical_beam_angle
+        self.warp_algorithm = warp_algorithm
+        self.resolution_mode = resolution_mode
+        self.resampling_method = resampling_method
+        self.TIF_len = TIF_len
+        self.active_proc_data = False
+        if proc_data is not None:
+            self.proc_data = proc_data
+            self.active_proc_data = True
+        self.signals = GeoreferencerSignals()
+
+    @QtCore.Slot()
+    def run(self):
+        try:
+            self.start_georeferencing()
+        except Exception as e:
+            self.signals.error_signal.emit(e)
+        finally:
+            self.signals.finished.emit()
+    
+    def start_georeferencing(self):
+        file_name = self.filepath.stem
+        tif_path = self.output_folder / f"{file_name}_ch{self.channel}.tif"
+        mosaic_tif_path = self.output_folder / f"{file_name}_stack.tif"
+
+        processor = Georeferencer(
+            filepath=self.filepath,
+            channel=self.channel,
+            active_utm=self.active_utm,
+            active_poly=self.active_poly,
+            output_folder=self.output_folder,
+            proc_data=self.proc_data,
+            vertical_beam_angle=self.vertical_beam_angle,
+            warp_algorithm=self.warp_algorithm,
+            resolution_mode=self.resolution_mode,
+            resampling_method=self.resampling_method,
+            TIF_len=self.TIF_len
+        ) # from georef.py
+
+        processor.process(self.signals.progress_signal)
+
+class GeoreferencerManager(QWidget):
+
+    processing_finished = QtCore.Signal(list)
+    aborted = QtCore.Signal(str)
+    pbar_val: float
+    num_files: int
+    TIF_len: int
+    cleanup_cnt:int # fix for now
+
+    def __init__(self):
+        super().__init__()
+
+        self.pbar_val = 0
+        self.cleanup_cnt = 0
+        self.pbar = QProgressBar(self)
+        self.pbar.setGeometry(30, 40, 500, 50)
+        self.pbar.setTextVisible(False)
+        self.title_label = QLabel()
+        self.title_label.setText("Georeferencing...")
+        self.title_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        label_font = QtGui.QFont()
+        label_font.setBold(True)
+        label_font.setPixelSize(20)
+        self.title_label.setFont(label_font)
+        self.box_layout = QVBoxLayout()
+        self.box_layout.addWidget(self.title_label)
+        self.box_layout.addWidget(self.pbar)
+        self.setLayout(self.box_layout)
+        self.setGeometry(300, 300, 550, 50)
+        self.setWindowTitle("File Georeferencing")
+        self.setWindowFlags(self.windowFlags() | QtCore.Qt.CustomizeWindowHint)
+        self.setWindowFlags(self.windowFlags() & ~QtCore.Qt.WindowCloseButtonHint)
+        self.setStyleSheet(
+            "background-color:black;border-color:darkgrey;border-style:solid;border-width:3px;"
+        )
+        self.thread_pool = QtCore.QThreadPool()
+        self.show()
+
+    def start_georef(self, 
+                     filepath: str | os.PathLike, 
+                     active_utm: bool,
+                     active_poly: bool,
+                     proc_data: list,
+                     output_folder: os.PathLike,
+                     vertical_beam_angle: int,
+                     warp_algorithm: str,
+                     resolution_mode: str,
+                     resampling_method: str,
+                     ):
+        self.output_folder = pathlib.Path(output_folder)
+
+        georef_worker_0 = GeoreferencerWorker(            
+                filepath,
+                0,
+                active_utm,
+                active_poly,
+                proc_data[0],
+                output_folder,
+                vertical_beam_angle,
+                warp_algorithm,
+                resolution_mode,
+                resampling_method,
+            )
+        georef_worker_0.signals.progress_signal.connect(lambda progress: self.update_pbar(progress))
+        georef_worker_0.signals.error_signal.connect(lambda err: self.build_aborted(err))
+        georef_worker_0.signals.error_signal.connect(self.cleanup)
+        georef_worker_0.signals.finished.connect(self.cleanup)
+
+        georef_worker_1 = GeoreferencerWorker(            
+                filepath,
+                1,
+                active_utm,
+                active_poly,
+                proc_data[1],
+                output_folder,
+                vertical_beam_angle,
+                warp_algorithm,
+                resolution_mode,
+                resampling_method,
+            )
+        georef_worker_1.signals.progress_signal.connect(lambda progress: self.update_pbar(progress))
+        georef_worker_1.signals.error_signal.connect(lambda err: self.build_aborted(err))
+        georef_worker_1.signals.finished.connect(self.cleanup)
+
+        self.thread_pool.start(georef_worker_0)
+        self.thread_pool.start(georef_worker_1)
+
+    def update_pbar(self, progress: float):
+        self.pbar_val += progress/2 # for 2 channels
+        disp_var = self.pbar_val 
+        self.pbar.setValue(int(100 * disp_var))
+
+    def build_aborted(self, err: Exception):
+        msg_str = str(err)
+        print(msg_str)
+        self.cleanup()
+
+    def cleanup(self):
+        self.cleanup_cnt += 1
+        if self.cleanup_cnt > 1: # we need the signal 2 times for both channels to have finished
+            print(f"Cleaning ...")
+            for file in os.listdir(self.output_folder):
+                file_path = os.path.join(self.output_folder, file)
+                if (
+                    str(file_path).endswith(".png")
+                    or str(file_path).endswith(".txt")
+                    or str(file_path).endswith(".csv")
+                    or str(file_path).endswith("tmp.tif")
+                    or str(file_path).endswith(".points")
+                    or str(file_path).endswith(".xml")
+                    or str(file_path).endswith(".vrt")
+                ):
+                    try:
+                        os.remove(file_path)
+                    except FileNotFoundError:
+                        print(f"File Not Found: {file_path}")
+                        
+            print("Cleanup done")
+            self.deleteLater()

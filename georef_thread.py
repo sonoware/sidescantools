@@ -1,5 +1,5 @@
 import argparse
-from pathlib import Path, PurePath
+from pathlib import Path
 import os, copy
 import numpy as np
 import utm
@@ -11,26 +11,26 @@ from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 from pyproj import CRS, datadir
 from scipy.signal import savgol_filter
-import napari
 
 
-# TODO: Doc/Type hints
-
-class SidescanGeoreferencer:
-    filepath: Path
+class Georeferencer():
+    filepath: str | os.PathLike
     sidescan_file: SidescanFile
     channel: int
-    dynamic_chunking: bool
     active_utm: bool
     active_poly: bool
-    output_folder: Path
     proc_data: np.array
+    output_folder: str | os.PathLike
     active_proc_data: bool
     GCP_SPLIT: list
     POINTS_SPLIT: list
     chunk_indices: np.array
     vertical_beam_angle: int
     epsg_code: str
+    warp_options: dict = {
+        "Polynomial 1 (recommended)": "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1", 
+        "Homography (experimental)": "SRC_METHOD=GCP_HOMOGRAPHY"
+    }
     resolution_options: dict = {
         "Same": "same",
         "Highest": "highest", 
@@ -38,11 +38,6 @@ class SidescanGeoreferencer:
         "Average": "average", 
         "Common": "common"
         }
-    warp_options: dict = {
-        "Polynomial 1 (recommended)": "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1", 
-        "Homography (experimental)": "SRC_METHOD=GCP_HOMOGRAPHY"
-    }
-
     resampling_options: dict = {
         "Near": "near",
         "Bilinear": "bilinear",
@@ -62,12 +57,12 @@ class SidescanGeoreferencer:
     HEAD_plt: np.ndarray
     LOLA_plt_ori: np.ndarray
     HEAD_plt_ori: np.ndarray
+    TIF_len: int
 
     def __init__(
         self,
         filepath: str | os.PathLike,
         channel: int = 0,
-        dynamic_chunking: bool = False,
         active_utm: bool = True,
         active_poly: bool = True,
         proc_data = None,
@@ -75,19 +70,19 @@ class SidescanGeoreferencer:
         vertical_beam_angle: int = 60,
         warp_algorithm: str = "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",
         resolution_mode: str = "average",
-        resampling_method: str = "near"
+        resampling_method: str = "near",
+        TIF_len: int = 0
 
     ):
         self.filepath = Path(filepath)
         self.sidescan_file = SidescanFile(self.filepath)        
         self.channel = channel
-        self.dynamic_chunking = dynamic_chunking
         self.active_utm = active_utm
         self.active_poly = active_poly
         self.output_folder = Path(output_folder)
         self.vertical_beam_angle = vertical_beam_angle
-        self.resolution_mode = resolution_mode
         self.warp_algorithm = warp_algorithm
+        self.resolution_mode = resolution_mode
         self.resampling_method = resampling_method
         self.active_proc_data = False
         self.GCP_SPLIT = []
@@ -96,6 +91,7 @@ class SidescanGeoreferencer:
         self.HEAD_plt = np.empty_like(proc_data)
         self.LOLA_plt_ori = np.empty_like(proc_data)
         self.HEAD_plt_ori = np.empty_like(proc_data)
+        self.TIF_len = TIF_len
         if proc_data is not None:
             self.proc_data = proc_data
             self.active_proc_data = True
@@ -162,13 +158,11 @@ class SidescanGeoreferencer:
 
         UTM = np.full_like(LAT_ori, np.nan)
         UTM = UTM.tolist()
-        print(f"UTM: {type(UTM), len(UTM)}")
         for idx, (la, lo) in enumerate(zip(LAT, LON)):
             try:
                 UTM[idx] = utm.from_latlon(la, lo)
             except:
                 ValueError("Values or lon and/or lat must not be 0")
-        print(f"UTM: {type(UTM), len(UTM)}")
 
         if UTM:
             NORTH = [utm_coord[0] for utm_coord in UTM]
@@ -223,14 +217,9 @@ class SidescanGeoreferencer:
             ]
             LA_OUTER, LO_OUTER = map(np.array, zip(*LALO_OUTER))
 
-        if self.dynamic_chunking:
-            print("Dynamic chunking active.")
-            self.chunk_indices = np.where(np.diff(LAT_ori) != 0)[0] + 2
-
-        elif not self.dynamic_chunking:
-            chunksize = 5
-            self.chunk_indices = int(swath_len / chunksize)
-            print(f"Fixed chunk size: {chunksize} pings.")
+        chunksize = 5
+        self.chunk_indices = int(swath_len / chunksize)
+        print(f"Fixed chunk size: {chunksize} pings.")
 
         # UTM
         if self.active_utm: 
@@ -302,7 +291,6 @@ class SidescanGeoreferencer:
                 self.GCP_SPLIT.append(gcp)
                 self.POINTS_SPLIT.append(points)      
 
-
     def channel_stack(self):
         """- Work on raw or processed data, depending on `self.active_proc_data`
         - Stack channel so that the largest axis is horizontal
@@ -320,7 +308,7 @@ class SidescanGeoreferencer:
         swath_len = len(PING)
         swath_width = len(ch_stack[0])
         print(f"swath_len: {swath_len}, swath_width: {swath_width}")
-        print(f"ch_stack.shape[0], ch_stack.shape[1]: {ch_stack.shape[0], ch_stack.shape[1]}")
+        #print(f"ch_stack.shape[0], ch_stack.shape[1]: {ch_stack.shape[0], ch_stack.shape[1]}")
 
         # Transpose (always!) so that the largest axis is horizontal
         ch_stack = ch_stack.T
@@ -332,10 +320,23 @@ class SidescanGeoreferencer:
         ch_stack = np.clip(ch_stack, 1, 255)
 
         # Flip array ---> Note: different for .jsf and .xtf!
-        print(f"ch_stack shape after transposing: {np.shape(ch_stack)}")
+        #print(f"ch_stack shape after transposing: {np.shape(ch_stack)}")
         ch_stack = np.flip(ch_stack, axis=0)
 
         return ch_stack.astype(np.uint8)
+
+    @staticmethod
+    def write_img(im_path, data, alpha=None):
+        # flip data to show first ping at bottom
+        data = np.flipud(data)
+        image_to_write = Image.fromarray(data)
+        if alpha is not None:
+            alpha = Image.fromarray(alpha)
+            image_to_write.putalpha(alpha)
+        png_info = PngInfo()
+        png_info.add_text("Info", "Generated by SidescanTools")
+        image_to_write.save(im_path, pnginfo=png_info)
+        image_to_write.save(im_path)
 
     @staticmethod
     def run_command(command):
@@ -351,12 +352,10 @@ class SidescanGeoreferencer:
             #print(result.stdout)
             # print(f"Command executed successfully: {' '.join(command)}")
             
-
-    def georeference(self, ch_stack, otiff):
+    def georeference(self, ch_stack, otiff, progress_signal = None):
         """
         array_split: Creates [chunk_size]-ping chunks per channel and extracts corner coordinates for chunks from GCP list. \
         Assigns extracted corner coordinates as GCPs (gdal_translate) and projects them (gdal_warp).
-        Dynamic chunking: chunk_indices = number of pings within one chunk;  \
             find indices where lon/lat change (they are the same for multiple consequitive pings) 
             and add a '1' to obtain correct index (diff-array is one index shorter than original) \
             and another '1' to move one coordinate up, else it would be still the same coordinate
@@ -364,16 +363,16 @@ class SidescanGeoreferencer:
         gdal GCP format: [map x-coordinate(longitude)], [map y-coordinate (latitude)], [elevation], \
             [image column index(x)], [image row index (y)]
 
-        # X:L; Y:U                   X:R; Y:U
-        # LO,LA(0):CE                LO,LA(chunk):CE
-        #               [       ]
-        #               [       ]
-        #               [       ]
-        #               [       ]
-        # LO,LA(0):E                LO,LA(chunk):E
-        # X:L; Y:L                  X:R; Y:L
+        X:L; Y:U                   X:R; Y:U
+        LO,LA(0):CE                LO,LA(chunk):CE
+                      [       ]
+                      [       ]
+                      [       ]
+                      [       ]
+        LO,LA(0):E                LO,LA(chunk):E
+        X:L; Y:L                  X:R; Y:L
 
-        # new in gdal version 3.11: homography algorithm for warping. Important note: Does not work when gcps are not in right order, i.e. if for example \
+        new in gdal version 3.11: homography algorithm for warping. Important note: Does not work when gcps are not in right order, i.e. if for example \
         lower left and lower right image coorainte are switched. this can sometimes happrns when there is no vessel movement or vessel turns etc. \
         Right now, these chunks are ignored (the data look crappy anyway). 
         """
@@ -393,26 +392,12 @@ class SidescanGeoreferencer:
                 warp_path = otiff.with_stem(
                     f"{otiff.stem}_{chunk_num}_georef_chunk_tmp"
                 ).with_suffix(".tif")
-                csv_path = otiff.with_stem(
-                    f"{otiff.stem}_{chunk_num}_tmp"
-                ).with_suffix(".csv")
-
-                # optional: export points
-                points_path = otiff.with_stem(
-                    f"{otiff.stem}_{chunk_num}_points_tmp"
-                    ).with_suffix(".points")
 
                 # Flip image chunks according to side 
                 if self.channel == 0:
                     ch_chunk_flip = np.flip(ch_chunk, 1)
                 elif self.channel == 1:
                     ch_chunk_flip = np.flip(ch_chunk, 0)
-
-                #elif self.channel == 1:
-                #    if self.filepath.suffix.casefold() == ".jsf":
-                #        ch_chunk_flip = ch_chunk
-                #    else:
-                #        ch_chunk_flip = np.flip(ch_chunk, 0)
 
                 alpha = np.ones(np.shape(ch_chunk_flip), dtype=np.uint8) * 255
                 alpha[ch_chunk_flip == 0] = 0
@@ -435,13 +420,6 @@ class SidescanGeoreferencer:
                 except Exception as e:
                     print(f"gcp chunk: {np.shape(gcp_chunk)}")
 
-                # optional: export points
-                try:
-                    points = [(lo, la, im_x, im_y) for (lo, la, im_x, im_y) in points_chunk]
-                    np.savetxt(csv_path, points, fmt="%s", delimiter=",")
-                except Exception as e:
-                    print(f'Exception: {e}')
-
                 gdal_translate = ["gdal_translate", "-of", "GTiff"]
 
                 gdal_warp_utm = [
@@ -454,6 +432,7 @@ class SidescanGeoreferencer:
                         self.warp_algorithm,   
                         "--co",
                         "COMPRESS=DEFLATE",
+                        "--overwrite",
                         "-d",
                         self.epsg_code,
                         "-i",
@@ -472,6 +451,7 @@ class SidescanGeoreferencer:
                         self.warp_algorithm,
                         "--co",
                         "COMPRESS=DEFLATE",
+                        "--overwrite",
                         "-d",
                         "EPSG:4326",
                         "-i",
@@ -479,82 +459,22 @@ class SidescanGeoreferencer:
                         "-o",
                         str(warp_path)
                     ]
-                
 
-                if self.dynamic_chunking:
-                    for i in range(4):
-                        gdal_translate.extend(
-                            ["-gcp", str(im_x[i]), str(im_y[i]), str(lo[i]), str(la[i])]
-                        )
-                    gdal_translate.extend([str(im_path), str(chunk_path)])
-    
-    
-                    # gdal < 3.11 syntax
-                    if False:
-                        if self.active_utm:
-                             gdal_warp = [
-                                 "gdalwarp",
-                                 "-r",
-                                 "near",
-                                 "-order",
-                                 "1",
-                                 "-co",
-                                 "COMPRESS=DEFLATE",
-                                 "-t_srs",
-                                 self.epsg_code,
-                                 str(chunk_path),
-                                 str(warp_path),
-                             ]
-                        else:
-                             gdal_warp = [
-                                 "gdalwarp",
-                                 "-r",
-                                 "near",
-                                 "-order",
-                                 "1",
-                                 "-co",
-                                 "COMPRESS=DEFLATE",
-                                 "-t_srs",
-                                 "EPSG:4326",
-                                 str(chunk_path),
-                                 str(warp_path),
-                             ]
-                    
+                for i in range(len(gcp_chunk)):
+                    gdal_translate.extend(
+                        ["-gcp", str(im_x[i]), str(im_y[i]), str(lo[i]), str(la[i])]
+                    )
+
+                gdal_translate.extend([str(im_path), str(chunk_path)])
+
                 # gdal 3.11 syntax
-                    if self.active_utm:
-                        gdal_warp = gdal_warp_utm 
-                    else:    
-                        gdal_warp = gdal_warp_wgs84
+                if self.active_utm:
+                    gdal_warp = gdal_warp_utm 
+                else:    
+                    gdal_warp = gdal_warp_wgs84
 
-
-                elif not self.dynamic_chunking:
-                    for i in range(len(gcp_chunk)):
-                        gdal_translate.extend(
-                            ["-gcp", str(im_x[i]), str(im_y[i]), str(lo[i]), str(la[i])]
-                        )
-
-                    gdal_translate.extend([str(im_path), str(chunk_path)])
-
-
-                    # gdal 3.11 syntax
-                    if self.active_utm:
-                        gdal_warp = gdal_warp_utm 
-                    else:    
-                        gdal_warp = gdal_warp_wgs84
-
-
-                # optional: append .points header and fist and last center point
-
-                try:
-                    first_line = '#CRS: GEOGCRS["WGS 84",ENSEMBLE["World Geodetic System 1984 ensemble",MEMBER["World Geodetic System 1984(Transit)"],MEMBER["World Geodetic System 1984 (G730)"],MEMBER["World Geodetic System 1984 (G873)"],MEMBER["World                   Geodetic System 1984 (G1150)"],MEMBER["World Geodetic System 1984 (G1674)"],MEMBER["World Geodetic System 1984 (G1762)"],               ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]],ENSEMBLEACCURACY[2.0]],PRIMEM["Greenwich",0,ANGLEUNIT           ["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.        0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],USAGE[SCOPE             ["Horizontal component of 3D system."],AREA["World."],BBOX[-90,-180,90,180]],ID["EPSG",4326]]'
-                    second_line='mapX,mapY,sourceX,sourceY,enable,dX,dY,residual'
-                    with open(csv_path, 'r') as ori_f:
-                        ori_txt = ori_f.read()
-                        #print(ori_txt)
-                    with open(points_path, 'w') as mod_f:
-                        mod_f.write(first_line + '\n' + second_line + '\n' + ori_txt)
-                except Exception as e:
-                    print(f'Exception: {e}')
+                if progress_signal is not None:
+                    progress_signal.emit(1000/(len(ch_stack[1])) * 0.005)
 
                 self.run_command(gdal_translate)
                 self.run_command(gdal_warp)
@@ -562,7 +482,7 @@ class SidescanGeoreferencer:
             elif chunk_num == len(ch_split) - 1:
                 pass
 
-    def mosaic(self, mosaic_tiff):
+    def mosaic(self, mosaic_tiff, progress_signal = None):
         """
         Merges tif chunks created in the georef function.
         Args.:
@@ -572,60 +492,53 @@ class SidescanGeoreferencer:
 
         """
         # create list from warped tifs and merge
+        TIF_ch0 = []
+        TIF_ch1 = []
         TIF = []
-        if self.channel == 0:
-            txt_path = os.path.join(self.output_folder, "ch1_tif.txt")
-        elif self.channel == 1:
-            txt_path = os.path.join(self.output_folder, "ch2_tif.txt")
+
+        txt_path = os.path.join(self.output_folder, "chunks_tif.txt")
 
         for root, dirs, files in os.walk(self.output_folder):
             for name in files:
-                if name.endswith("_georef_chunk_tmp.tif") and not name.startswith("._"):
-                    TIF.append(os.path.join(root, name))
-                    np.savetxt(txt_path, TIF, fmt="%s")
+                if name.endswith("_georef_chunk_tmp.tif") and 'ch0' in name and not name.startswith("._"):
+                    TIF_ch0.append(os.path.join(root, name))
+
+        for root, dirs, files in os.walk(self.output_folder):
+            for name in files:
+                if name.endswith("_georef_chunk_tmp.tif") and 'ch1' in name and not name.startswith("._"):
+                    TIF_ch1.append(os.path.join(root, name))
+        TIF = TIF_ch0 + TIF_ch1
+        self.TIF_len = len(TIF)
+
+        if progress_signal is not None:
+            progress_signal.emit(0.2)
+
+
+        np.savetxt(txt_path, TIF, fmt="%s")
+
 
         # delete merged file if it already exists
         if mosaic_tiff.exists():
             mosaic_tiff.unlink()
 
-    # gdal < 3.11 syntax - still working fine
-        if False:
-                gdal_mosaic = [
-                "gdal_merge",
-                "-o",
-                str(mosaic_tiff),
-                "-n",
-                "0",
-                "-co",
-                "COMPRESS=DEFLATE",
-                "-co",
-                "TILED=YES",
-                "--optfile",
-                str(txt_path),
-            ]
     
     # gdal 3.11 syntax
-        if True:
-            #resolution_mode = self.resolution_mode == self.resolution_mode[3]
-            gdal_mosaic = [
-                "gdal", "raster", "mosaic",
-                "-i", f"@{txt_path}",
-                "-o", str(mosaic_tiff),
-                "--src-nodata", "0",
-                "--resolution", self.resolution_mode,
-                "--co", "COMPRESS=DEFLATE",
-                "--co", "TILED=YES"
-            ]
-
+        gdal_mosaic = [
+            "gdal", "raster", "mosaic",
+            "-i", f"@{txt_path}",
+            "-o", str(mosaic_tiff),
+            "--src-nodata", "0",
+            "--resolution", self.resolution_mode,
+            "--co", "COMPRESS=DEFLATE",
+            "--co", "TILED=YES"
+        ]
 
         self.run_command(gdal_mosaic)
 
-
-    def process(self):
+    def process(self, progress_signal=None):
         file_name = self.filepath.stem
         tif_path = self.output_folder / f"{file_name}_ch{self.channel}.tif"
-        mosaic_tif_path = self.output_folder / f"{file_name}_ch{self.channel}_stack.tif"
-        csv_ch = self.output_folder / f"{file_name}_ch{self.channel}.csv"
+        mosaic_tif_path = self.output_folder / f"{file_name}_stack.tif"
 
         self.prep_data()
         ch_stack = self.channel_stack()
@@ -633,53 +546,15 @@ class SidescanGeoreferencer:
         try:
             print(f"Processing chunks in channel {self.channel} with warp method {self.warp_algorithm}...")
 
-            self.georeference(ch_stack=ch_stack, otiff=tif_path)
+            self.georeference(ch_stack=ch_stack, otiff=tif_path, progress_signal=progress_signal)
 
             print(f"Mosaicking channel {self.channel} with resolution mode {self.resolution_mode}...")
-            self.mosaic(mosaic_tif_path)
-
-            # save GCPs to .csv
-            print(f"Saving GCPs to {csv_ch}")
-            GCP_SPLIT = list(itertools.chain.from_iterable(self.GCP_SPLIT))
-            np.savetxt(csv_ch, GCP_SPLIT, fmt="%s", delimiter=";")
+            self.mosaic(mosaic_tif_path, progress_signal=progress_signal)
 
         except IndexError as i:
             print(f"Something with indexing went wrong... {str(i)}")
         except Exception as e:
             print(f"An error occurred: {str(e)}")
-
-        self.cleanup()
-
-    def cleanup(self):
-        print(f"Cleaning ...")
-        for file in os.listdir(self.output_folder):
-            file_path = self.output_folder / file
-            if (
-                str(file_path).endswith("_tmp.png")
-                or str(file_path).endswith("_tmp.txt")
-                or str(file_path).endswith("_tmp.csv")
-                or str(file_path).endswith("_tmp.tif")
-                or str(file_path).endswith("_tmp.points")
-                or str(file_path).endswith(".xml")
-            ):
-                try:
-                    os.remove(file_path)
-                except FileNotFoundError:
-                    print(f"File Not Found: {file_path}")
-        print("Cleanup done")
-
-    @staticmethod
-    def write_img(im_path, data, alpha=None):
-        # flip data to show first ping at bottom
-        data = np.flipud(data)
-        image_to_write = Image.fromarray(data)
-        if alpha is not None:
-            alpha = Image.fromarray(alpha)
-            image_to_write.putalpha(alpha)
-        png_info = PngInfo()
-        png_info.add_text("Info", "Generated by SidescanTools")
-        image_to_write.save(im_path, pnginfo=png_info)
-        image_to_write.save(im_path)
 
 def main():
     parser = argparse.ArgumentParser(description="Tool to process sidescan sonar data")
@@ -713,9 +588,14 @@ def main():
     args = parser.parse_args()
     print("args:", args)
 
-    georeferencer = SidescanGeoreferencer(args.xtf, args.channel, args.dynamic_chunking, args.UTM, args.poly)
+    georeferencer = Georeferencer(args.xtf, args.channel, args.dynamic_chunking, args.UTM, args.poly)
     georeferencer.process()
 
 
 if __name__ == "__main__":
     main()
+
+
+
+
+

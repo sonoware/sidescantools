@@ -143,6 +143,31 @@ def run_napari_btm_line(
         # only save real data information
         info_port = preproc.napari_portside_bottom.flatten()[: sidescan_file.num_ping]
         info_star = preproc.napari_starboard_bottom.flatten()[: sidescan_file.num_ping]
+
+        # detect and remove outliers
+        sample_thresh = 5
+        for ping_idx in range(sidescan_file.num_ping):
+            if 0 < ping_idx < sidescan_file.num_ping - 1:
+                dist1 = info_port[ping_idx] - info_port[ping_idx - 1]
+                dist2 = info_port[ping_idx] - info_port[ping_idx + 1]
+                if (
+                    np.abs(dist1) > sample_thresh
+                    and np.abs(dist2) > sample_thresh
+                    and dist1 * dist2 > 0
+                ):
+                    info_port[ping_idx] = int(
+                        (info_port[ping_idx - 1] + info_port[ping_idx + 1]) / 2
+                    )
+                dist1 = info_star[ping_idx] - info_star[ping_idx - 1]
+                dist2 = info_star[ping_idx] - info_star[ping_idx + 1]
+                if (
+                    np.abs(dist1) > sample_thresh
+                    and np.abs(dist2) > sample_thresh
+                    and dist1 * dist2 > 0
+                ):
+                    info_star[ping_idx] = int(
+                        (info_star[ping_idx - 1] + info_star[ping_idx + 1]) / 2
+                    )
         # flip order for xtf files to contain backwards compability
         if filepath.suffix.casefold() == ".xtf":
             info_port = np.flip(info_port)

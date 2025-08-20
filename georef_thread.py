@@ -133,8 +133,6 @@ class Georeferencer():
         GROUND_RANGE = np.ndarray.flatten(np.array(GROUND_RANGE))
 
         MASK = LON_ori != 0
-        print(f"HEAD_ori before cleaning, length: {HEAD_ori, len(HEAD_ori)}")
-
 
         LON_ori = LON_ori[MASK]
         LAT_ori = LAT_ori[MASK]
@@ -149,8 +147,8 @@ class Georeferencer():
         x_head = np.cos(HEAD_ori_rad)
         y_head = np.sin(HEAD_ori_rad)
 
-        x_head_savgol = savgol_filter(x_head, 54, 1)
-        y_head_savgol = savgol_filter(y_head, 54, 1)
+        x_head_savgol = savgol_filter(x_head, 54, 2)
+        y_head_savgol = savgol_filter(y_head, 54, 2)
 
         #convert back to angles -> degree and map from -180/180 -> 0/360
         HEAD = np.arctan2(y_head_savgol, x_head_savgol) 
@@ -160,8 +158,8 @@ class Georeferencer():
         self.HEAD_plt = np.column_stack((x, HEAD))
         self.HEAD_plt_ori = np.column_stack((x, HEAD_ori))
 
-        LAT = savgol_filter(LAT_ori, 54, 1)
-        LON = savgol_filter(LON_ori, 54, 1)
+        LAT = savgol_filter(LAT_ori, 100, 2)
+        LON = savgol_filter(LON_ori, 100, 2)
         self.LOLA_plt = np.column_stack((LON, LAT))
         self.LOLA_plt_ori = np.column_stack((LON_ori, LAT_ori))
 
@@ -226,7 +224,7 @@ class Georeferencer():
             ]
             LA_OUTER, LO_OUTER = map(np.array, zip(*self.LALO_OUTER))
 
-        chunksize = 5
+        chunksize = 2
         self.chunk_indices = int(swath_len / chunksize)
         print(f"Fixed chunk size: {chunksize} pings.")
 
@@ -563,14 +561,14 @@ class Georeferencer():
             np.savetxt(nav_ch, nav,fmt="%s", delimiter=";", header="Outer Longitude; Outer Latitude; Nadir Longitude; Nadir Latitude; Heading")
 
         except Exception as e:
-            print(f"An error occurred: {str(e)}")
+            print(f"An error occurred during georeferencing: {str(e)}")
 
         try:
             print(f"Mosaicking channel {self.channel} with resolution mode {self.resolution_mode}...")
             self.mosaic(mosaic_tif_path, progress_signal=progress_signal)
 
         except Exception as e:
-            print(f"An error occurred: {str(e)}")
+            print(f"An error occurred during mosaicking: {str(e)}")
 
 def main():
     parser = argparse.ArgumentParser(description="Tool to process sidescan sonar data")

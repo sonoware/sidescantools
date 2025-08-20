@@ -558,7 +558,7 @@ class Georeferencer():
             # save Navigation to .csv
             print(f"Saving GCPs to {nav_ch}")
             nav = np.column_stack((self.LALO_OUTER, self.LOLA_plt, self.HEAD_plt[:,1]))
-            np.savetxt(nav_ch, nav,fmt="%s", delimiter=";", header="Outer Longitude; Outer Latitude; Nadir Longitude; Nadir Latitude; Heading")
+            np.savetxt(nav_ch, nav,fmt="%s", delimiter=";", header="Outer Latitude; Outer Longitude; Nadir Longitude; Nadir Latitude; Heading")
 
         except Exception as e:
             print(f"An error occurred during georeferencing: {str(e)}")

@@ -801,8 +801,8 @@ class NavPlotter(QtCore.QThread):
         head_data = get_nav.HEAD_plt
         lola_data_ori = get_nav.LOLA_plt_ori
         head_data_ori = get_nav.HEAD_plt_ori
-        head_data = np.column_stack((head_data[:,0], head_data[:,1]*100))
-        head_data_ori = np.column_stack((head_data_ori[:,0], head_data_ori[:,1]*100))
+        head_data = np.column_stack((head_data[:,0], head_data[:,1]))
+        head_data_ori = np.column_stack((head_data_ori[:,0], head_data_ori[:,1]))
         self.signals.results_signal.emit((lola_data, lola_data_ori, head_data, head_data_ori))
 
 class GeoreferencerSignals(QtCore.QObject):
@@ -828,7 +828,6 @@ class GeoreferencerWorker(QtCore.QRunnable):
     warp_options: str
     resolution_options: str
     resampling_options: str
-    TIF_len: int
 
     def __init__(
         self,
@@ -842,7 +841,6 @@ class GeoreferencerWorker(QtCore.QRunnable):
         warp_algorithm: str = "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",
         resolution_mode: str = "average",
         resampling_method: str = "near",
-        TIF_len: int = 0,
 
     ):
         super().__init__()
@@ -856,7 +854,6 @@ class GeoreferencerWorker(QtCore.QRunnable):
         self.warp_algorithm = warp_algorithm
         self.resolution_mode = resolution_mode
         self.resampling_method = resampling_method
-        self.TIF_len = TIF_len
         self.active_proc_data = False
         if proc_data is not None:
             self.proc_data = proc_data
@@ -888,7 +885,6 @@ class GeoreferencerWorker(QtCore.QRunnable):
             warp_algorithm=self.warp_algorithm,
             resolution_mode=self.resolution_mode,
             resampling_method=self.resampling_method,
-            TIF_len=self.TIF_len
         ) # from georef.py
 
         processor.process(self.signals.progress_signal)
@@ -899,7 +895,6 @@ class GeoreferencerManager(QWidget):
     aborted = QtCore.Signal(str)
     pbar_val: float
     num_files: int
-    TIF_len: int
     cleanup_cnt:int # fix for now
 
     def __init__(self):

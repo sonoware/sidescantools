@@ -160,8 +160,8 @@ class Georeferencer():
         self.HEAD_plt = np.column_stack((x, HEAD))
         self.HEAD_plt_ori = np.column_stack((x, HEAD_ori))
 
-        LAT = savgol_filter(LAT_ori, 120, 1)
-        LON = savgol_filter(LON_ori, 120, 1)
+        LAT = savgol_filter(LAT_ori, 54, 1)
+        LON = savgol_filter(LON_ori, 54, 1)
         self.LOLA_plt = np.column_stack((LON, LAT))
         self.LOLA_plt_ori = np.column_stack((LON_ori, LAT_ori))
 
@@ -557,13 +557,17 @@ class Georeferencer():
 
             self.georeference(ch_stack=ch_stack, otiff=tif_path, progress_signal=progress_signal)
 
-            print(f"Mosaicking channel {self.channel} with resolution mode {self.resolution_mode}...")
-            self.mosaic(mosaic_tif_path, progress_signal=progress_signal)
-
             # save Navigation to .csv
             print(f"Saving GCPs to {nav_ch}")
             nav = np.column_stack((self.LALO_OUTER, self.LOLA_plt, self.HEAD_plt[:,1]))
             np.savetxt(nav_ch, nav,fmt="%s", delimiter=";", header="Outer Longitude; Outer Latitude; Nadir Longitude; Nadir Latitude; Heading")
+
+        except Exception as e:
+            print(f"An error occurred: {str(e)}")
+
+        try:
+            print(f"Mosaicking channel {self.channel} with resolution mode {self.resolution_mode}...")
+            self.mosaic(mosaic_tif_path, progress_signal=progress_signal)
 
         except Exception as e:
             print(f"An error occurred: {str(e)}")

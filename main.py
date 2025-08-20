@@ -44,7 +44,13 @@ from custom_widgets import (
     hist_equalization,
     FilePicker,
 )
-from custom_threading import FileImportManager, EGNTableBuilder, PreProcManager, NavPlotter, GeoreferencerManager
+from custom_threading import (
+    FileImportManager,
+    EGNTableBuilder,
+    PreProcManager,
+    NavPlotter,
+    GeoreferencerManager,
+)
 from enum import Enum
 import scipy.signal as scisig
 
@@ -125,7 +131,7 @@ class SidescanToolsMain(QWidget):
         self.file_table.cellClicked.connect(self.always_select_row)
         self.file_table.cellClicked.connect(self.update_meta_info)
 
-        self.plot_button = QPushButton('Plot Navigation')
+        self.plot_button = QPushButton("Plot Navigation")
         self.plot_button.clicked.connect(self.run_nav_plots)
 
         self.head_plot_widget = pg.PlotWidget()
@@ -134,8 +140,12 @@ class SidescanToolsMain(QWidget):
         self.head_plot_widget.setMaximumHeight(300)
         self.save_button_head = QPushButton("Save Heading to .png/.svg")
         self.save_button_lola = QPushButton("Save Navigation to .png/.svg")
-        self.save_button_head.clicked.connect(lambda: self.save_plot(plot_id='plot_head'))
-        self.save_button_lola.clicked.connect(lambda: self.save_plot(plot_id='plot_nav'))
+        self.save_button_head.clicked.connect(
+            lambda: self.save_plot(plot_id="plot_head")
+        )
+        self.save_button_lola.clicked.connect(
+            lambda: self.save_plot(plot_id="plot_nav")
+        )
 
         ## Right side
         # Choose working directory and save/load project info
@@ -207,7 +217,7 @@ class SidescanToolsMain(QWidget):
         self.left_view.addWidget(self.save_button_lola)
         self.left_view.addWidget(self.head_plot_widget)
         self.left_view.addWidget(self.save_button_head)
- 
+
         # right side widgets: meta info, project settings and all parameter
         self.right_view.addWidget(self.file_info_text_box)
         self.right_view.addWidget(QHLine())
@@ -687,16 +697,15 @@ class SidescanToolsMain(QWidget):
             self.settings_dict["Georef active custom colormap"]
         )
         self.view_and_export_widget.resolution_mode_dropdown.setCurrentIndex(
-            self.settings_dict["Resolution Mode"] 
+            self.settings_dict["Resolution Mode"]
         )
         self.view_and_export_widget.warp_mode_dropdown.setCurrentIndex(
-            self.settings_dict["Warp Mode"] 
+            self.settings_dict["Warp Mode"]
         )
         self.view_and_export_widget.resamp_mode_dropdown.setCurrentIndex(
-            self.settings_dict["Resampling Method"] 
+            self.settings_dict["Resampling Method"]
         )
         self.processing_widget.load_proc_strat()
-
 
     def run_nav_plots(self):
         file_idx = 0
@@ -709,48 +718,58 @@ class SidescanToolsMain(QWidget):
 
     def update_nav_plot(self, nav_data):
         lola_data, lola_data_ori, head_data, head_data_ori = nav_data
-        lola_pen = pg.mkPen(color=(249, 228, 132), width = 4, style = QtCore.Qt.SolidLine)
-        lola_ori_pen = pg.mkPen(color=(210, 174, 3), width = 2, style = QtCore.Qt.DotLine)
-        head_pen = pg.mkPen(color=(99, 244, 227), width = 4, style = QtCore.Qt.SolidLine)
-        head_ori_pen = pg.mkPen(color=(6, 182, 162), width = 2, style = QtCore.Qt.DotLine)
+        lola_pen = pg.mkPen(color=(249, 228, 132), width=4, style=QtCore.Qt.SolidLine)
+        lola_ori_pen = pg.mkPen(color=(210, 174, 3), width=2, style=QtCore.Qt.DotLine)
+        head_pen = pg.mkPen(color=(99, 244, 227), width=4, style=QtCore.Qt.SolidLine)
+        head_ori_pen = pg.mkPen(color=(6, 182, 162), width=2, style=QtCore.Qt.DotLine)
         self.lola_plot_widget.clear()
         self.head_plot_widget.clear()
         self.lola_plot_widget.addLegend()
         self.head_plot_widget.addLegend()
 
-        lola_plot_ori = self.lola_plot_widget.plot(lola_data_ori, pen=lola_ori_pen, name='Original Navigation')
-        lola_plot_savgol = self.lola_plot_widget.plot(lola_data, pen=lola_pen, title='Navigation', name='Smoothed Navigation')
+        lola_plot_ori = self.lola_plot_widget.plot(
+            lola_data_ori, pen=lola_ori_pen, name="Original Navigation"
+        )
+        lola_plot_savgol = self.lola_plot_widget.plot(
+            lola_data, pen=lola_pen, title="Navigation", name="Smoothed Navigation"
+        )
 
-        head_plot_ori = self.head_plot_widget.plot(head_data_ori, pen=head_ori_pen, name = 'Original Heading')
-        head_plot_savgol = self.head_plot_widget.plot(head_data, pen=head_pen, title='Heading', name='Smoothed Heading')
+        head_plot_ori = self.head_plot_widget.plot(
+            head_data_ori, pen=head_ori_pen, name="Original Heading"
+        )
+        head_plot_savgol = self.head_plot_widget.plot(
+            head_data, pen=head_pen, title="Heading", name="Smoothed Heading"
+        )
 
-        self.lola_plot_widget.setLabel('left', 'Latitude [°]')
-        self.lola_plot_widget.setLabel('bottom', 'Longitude [°]')
-        self.head_plot_widget.setLabel('left', 'Heading [°]')
-        self.head_plot_widget.setLabel('bottom', 'Ping number')
+        self.lola_plot_widget.setLabel("left", "Latitude [°]")
+        self.lola_plot_widget.setLabel("bottom", "Longitude [°]")
+        self.head_plot_widget.setLabel("left", "Heading [°]")
+        self.head_plot_widget.setLabel("bottom", "Ping number")
 
     def save_plot(self, plot_id):
-        outpath, file_filter = QFileDialog.getSaveFileName(self, "Save Plot", "", "Images (*.png);;SVG (*.svg)")
-        if plot_id == 'plot_head':
+        outpath, file_filter = QFileDialog.getSaveFileName(
+            self, "Save Plot", "", "Images (*.png);;SVG (*.svg)"
+        )
+        if plot_id == "plot_head":
             plot_item = self.head_plot_widget.plotItem
-        elif plot_id == 'plot_nav':
+        elif plot_id == "plot_nav":
             plot_item = self.lola_plot_widget.plotItem
         if outpath:
             print(f"outpath {outpath}, filefilter: {file_filter}")
             if file_filter == "SVG (*.svg)":
                 exporter_svg = exporters.SVGExporter(plot_item)
-                exporter_svg.parameters()['width']=500
-                exporter_svg.parameters()['height']=500
+                exporter_svg.parameters()["width"] = 500
+                exporter_svg.parameters()["height"] = 500
                 exporter_svg.export(outpath)
             elif file_filter == "Images (*.png)":
                 exporter_im = exporters.ImageExporter(plot_item)
-                exporter_im.parameters()['width']=500
-                exporter_im.parameters()['height']=500
+                exporter_im.parameters()["width"] = 500
+                exporter_im.parameters()["height"] = 500
                 exporter_im.export(outpath)
 
         print("Sucessfully saved plots as png & svg.")
         msg = QMessageBox()
-        font = QtGui.QFont('Arial', 12)
+        font = QtGui.QFont("Arial", 12)
         msg.setText(f"Sucessfully saved: {outpath}")
         msg.setWindowTitle("Save Dialogue")
         msg.setIcon(QMessageBox.Information)
@@ -1104,6 +1123,7 @@ class ProcessingWidget(QVBoxLayout):
         if val % 2 == 1:
             self.slant_chunk_size_edit.line_edit.setText(str(val - 1))
 
+
 # View and export
 class ViewAndExportWidget(QVBoxLayout):
     data_changed = QtCore.Signal()
@@ -1165,24 +1185,36 @@ class ViewAndExportWidget(QVBoxLayout):
             "Export pictures using the processed (filtered and corrected) data. Otherwise raw data is exported."
         )
         self.res_mode_label = QLabel("Resolution Mode")
-        self.res_mode_label.setToolTip("Set mode for final resolution. Leave average, if unsure.")
+        self.res_mode_label.setToolTip(
+            "Set mode for final resolution. Leave average, if unsure."
+        )
         self.warp_mode_label = QLabel("Warp Method")
-        self.warp_mode_label.setToolTip("Set method for warping algorithm. Leave polynomial 1 if unsure, homography is in expermental state.")
+        self.warp_mode_label.setToolTip(
+            "Set method for warping algorithm. Leave polynomial 1 if unsure, homography is in expermental state."
+        )
         self.resamp_mode_label = QLabel("Resampling Method")
-        self.resamp_mode_label.setToolTip("Select resampling method. Leave near neighbour, if unsure (least interpolation).")
+        self.resamp_mode_label.setToolTip(
+            "Select resampling method. Leave near neighbour, if unsure (least interpolation)."
+        )
 
         self.resolution_mode_dropdown = QComboBox()
-        self.resolution_mode_dropdown.setToolTip("Set mode for final resolution. Chose average, if unsure.")
+        self.resolution_mode_dropdown.setToolTip(
+            "Set mode for final resolution. Chose average, if unsure."
+        )
         for res_disp, res_int in Georeferencer.resolution_options.items():
             self.resolution_mode_dropdown.addItem(res_disp, res_int)
 
         self.warp_mode_dropdown = QComboBox()
-        self.warp_mode_dropdown.setToolTip("Set method for warping algorithm. Leave polynomial 1 if unsure, homography is in experimental state.")
+        self.warp_mode_dropdown.setToolTip(
+            "Set method for warping algorithm. Leave polynomial 1 if unsure, homography is in experimental state."
+        )
         for warp_disp, warp_int in Georeferencer.warp_options.items():
             self.warp_mode_dropdown.addItem(warp_disp, warp_int)
 
         self.resamp_mode_dropdown = QComboBox()
-        self.resamp_mode_dropdown.setToolTip("Select resampling method. Leave near neighbour, if unsure (least interpolation).")
+        self.resamp_mode_dropdown.setToolTip(
+            "Select resampling method. Leave near neighbour, if unsure (least interpolation)."
+        )
         for resamp_disp, resamp_int in Georeferencer.resampling_options.items():
             self.resamp_mode_dropdown.addItem(resamp_disp, resamp_int)
 
@@ -1195,12 +1227,10 @@ class ViewAndExportWidget(QVBoxLayout):
         self.active_colormap_checkbox.setToolTip(
             "Applies the colormap used in napari to the exported waterfall images. Otherwise grey scale values are used."
         )
-        self.generate_single_georef_btn = QPushButton("Selected")
-        self.generate_single_georef_btn.clicked.connect(self.run_sidescan_georef)
-        self.generate_all_georef_btn = QPushButton("All")
-        self.generate_all_georef_btn.clicked.connect(
-            lambda: self.run_sidescan_georef(True)
+        self.generate_single_georef_btn = QPushButton(
+            "Generate Geotiff for selected file"
         )
+        self.generate_single_georef_btn.clicked.connect(self.run_sidescan_georef)
         self.include_raw_data_checkbox = QCheckBox(
             "Include raw data in Waterfall Image"
         )
@@ -1229,12 +1259,7 @@ class ViewAndExportWidget(QVBoxLayout):
         self.addWidget(self.resolution_mode_dropdown)
         self.addWidget(self.active_utm_checkbox)
         self.addWidget(self.active_colormap_checkbox)
-        self.labeled_georef_buttons = Labeled2Buttons(
-            "Generate Geotiff:",
-            self.generate_single_georef_btn,
-            self.generate_all_georef_btn,
-        )
-        self.addLayout(self.labeled_georef_buttons)
+        self.addWidget(self.generate_single_georef_btn)
         self.addLayout(self.img_chunk_size_edit)
         self.addWidget(self.include_raw_data_checkbox)
         self.labeled_img_export_buttons = Labeled2Buttons(
@@ -1434,12 +1459,12 @@ class ViewAndExportWidget(QVBoxLayout):
         proc_data_0 = None
         proc_data_1 = None
         if self.active_use_proc_data_checkbox.isChecked():
-            ping_len = int(np.shape(preproc.egn_corrected_mat)[1]/2)
-            proc_data_0 = preproc.egn_corrected_mat[:, 0 : ping_len]
+            ping_len = int(np.shape(preproc.egn_corrected_mat)[1] / 2)
+            proc_data_0 = preproc.egn_corrected_mat[:, 0:ping_len]
             proc_data_0 = np.nan_to_num(
                 proc_data_0
             )  # remove nans from excluding far/nadir unknown values
-            proc_data_1 = preproc.egn_corrected_mat[:, ping_len :]
+            proc_data_1 = preproc.egn_corrected_mat[:, ping_len:]
             proc_data_1 = np.nan_to_num(proc_data_1)
         else:
             proc_data_0 = sidescan_file.data[0]
@@ -1456,21 +1481,20 @@ class ViewAndExportWidget(QVBoxLayout):
 
         georeferencer = GeoreferencerManager()
         georeferencer.start_georef(
-            filepath, 
+            filepath,
             active_utm=self.active_utm_checkbox.isChecked(),
             active_poly=True,
             proc_data=[proc_data_out_0, proc_data_out_1],
             output_folder=output_folder,
             vertical_beam_angle=int(
-                    self.main_ui.processing_widget.vertical_beam_angle_edit.line_edit.text()
-                ),
+                self.main_ui.processing_widget.vertical_beam_angle_edit.line_edit.text()
+            ),
             warp_algorithm=self.warp_mode_dropdown.currentData(),
             resolution_mode=self.resolution_mode_dropdown.currentData(),
             resampling_method=self.resamp_mode_dropdown.currentData(),
-            )
+        )
         # TODO: signals from manager
-            
-   
+
     def generate_wc_img(self, active_generate_all: bool):
         if len(self.main_ui.file_table.selectedIndexes()) > 0:
             filepath = pathlib.Path(

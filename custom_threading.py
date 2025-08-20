@@ -994,7 +994,6 @@ class GeoreferencerManager(QWidget):
                 if (
                     str(file_path).endswith(".png")
                     or str(file_path).endswith(".txt")
-                    or str(file_path).endswith(".csv")
                     or str(file_path).endswith("tmp.tif")
                     or str(file_path).endswith(".points")
                     or str(file_path).endswith(".xml")

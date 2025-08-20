@@ -224,7 +224,7 @@ class Georeferencer():
             ]
             LA_OUTER, LO_OUTER = map(np.array, zip(*self.LALO_OUTER))
 
-        chunksize = 2
+        chunksize = 5
         self.chunk_indices = int(swath_len / chunksize)
         print(f"Fixed chunk size: {chunksize} pings.")
 

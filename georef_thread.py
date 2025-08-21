@@ -24,6 +24,7 @@ class Georeferencer():
     active_proc_data: bool
     GCP_SPLIT: list
     POINTS_SPLIT: list
+    LALO_OUTER: list
     chunk_indices: np.array
     vertical_beam_angle: int
     epsg_code: str
@@ -57,7 +58,6 @@ class Georeferencer():
     HEAD_plt: np.ndarray
     LOLA_plt_ori: np.ndarray
     HEAD_plt_ori: np.ndarray
-    TIF_len: int
 
     def __init__(
         self,
@@ -71,7 +71,6 @@ class Georeferencer():
         warp_algorithm: str = "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",
         resolution_mode: str = "average",
         resampling_method: str = "near",
-        TIF_len: int = 0
 
     ):
         self.filepath = Path(filepath)
@@ -87,11 +86,11 @@ class Georeferencer():
         self.active_proc_data = False
         self.GCP_SPLIT = []
         self.POINTS_SPLIT = []
+        self.LALO_OUTER = []
         self.LOLA_plt = np.empty_like(proc_data)
         self.HEAD_plt = np.empty_like(proc_data)
         self.LOLA_plt_ori = np.empty_like(proc_data)
         self.HEAD_plt_ori = np.empty_like(proc_data)
-        self.TIF_len = TIF_len
         if proc_data is not None:
             self.proc_data = proc_data
             self.active_proc_data = True
@@ -111,7 +110,7 @@ class Georeferencer():
         PING = self.sidescan_file.packet_no
         LON_ori = self.sidescan_file.longitude
         LAT_ori = self.sidescan_file.latitude
-        HEAD_ori = np.radians(self.sidescan_file.sensor_heading)
+        HEAD_ori = self.sidescan_file.sensor_heading
         SLANT_RANGE = self.sidescan_file.slant_range[self.channel]
         GROUND_RANGE = []
         swath_len = len(PING)
@@ -138,21 +137,29 @@ class Georeferencer():
         LON_ori = LON_ori[MASK]
         LAT_ori = LAT_ori[MASK]
         HEAD_ori = HEAD_ori[MASK]
-        for idx, head in enumerate(HEAD_ori):
-            if head < 0 or head > 3.6:
-                HEAD_ori[idx] = HEAD_ori[idx-1]
 
         GROUND_RANGE = GROUND_RANGE[MASK]
         SLANT_RANGE = SLANT_RANGE[MASK]
         PING = PING[MASK]
 
-        HEAD = savgol_filter(HEAD_ori, 120, 1)
+        # convert heading angle to vectors to avoid jumps when crossing 0/360° degree angle
+        HEAD_ori_rad = np.deg2rad(HEAD_ori)
+        x_head = np.cos(HEAD_ori_rad)
+        y_head = np.sin(HEAD_ori_rad)
+
+        x_head_savgol = savgol_filter(x_head, 54, 2)
+        y_head_savgol = savgol_filter(y_head, 54, 2)
+
+        #convert back to angles -> degree and map from -180/180 -> 0/360
+        HEAD = np.arctan2(y_head_savgol, x_head_savgol) 
+        HEAD = np.rad2deg(HEAD) % 360
+
         x = range(len(HEAD))
         self.HEAD_plt = np.column_stack((x, HEAD))
         self.HEAD_plt_ori = np.column_stack((x, HEAD_ori))
 
-        LAT = savgol_filter(LAT_ori, 120, 1)
-        LON = savgol_filter(LON_ori, 120, 1)
+        LAT = savgol_filter(LAT_ori, 100, 2)
+        LON = savgol_filter(LON_ori, 100, 2)
         self.LOLA_plt = np.column_stack((LON, LAT))
         self.LOLA_plt_ori = np.column_stack((LON_ori, LAT_ori))
 
@@ -177,45 +184,45 @@ class Georeferencer():
         if self.channel == 0:
             EAST_OUTER = np.array(
                 [
-                    ground_range * math.sin(head) + east
+                    ground_range * math.sin(np.deg2rad(head)) + east
                     for ground_range, head, east in zip(GROUND_RANGE, HEAD, EAST) 
                 ]
             )
             NORTH_OUTER = np.array(
                 [
-                    (ground_range * math.cos(head) * -1) + north
+                    (ground_range * math.cos(np.deg2rad(head)) * -1) + north
                     for ground_range, head, north in zip(GROUND_RANGE, HEAD, NORTH)
                 ]
             )
-            LALO_OUTER = [
+            self.LALO_OUTER = [
                 utm.to_latlon(north_ch1, east_ch1, utm_zone, utm_let)
                 for (north_ch1, east_ch1, utm_zone, utm_let) in zip(
                     NORTH_OUTER, EAST_OUTER, UTM_ZONE, UTM_LET
                 )
             ]
-            LA_OUTER, LO_OUTER = map(np.array, zip(*LALO_OUTER))
+            LA_OUTER, LO_OUTER = map(np.array, zip(*self.LALO_OUTER))
 
 
         elif self.channel == 1:
             EAST_OUTER = np.array(
                 [
-                    (ground_range * math.sin(head) * -1) + east
+                    (ground_range * math.sin(np.deg2rad(head)) * -1) + east
                     for ground_range, head, east in zip(GROUND_RANGE, HEAD, EAST)
                 ]
             )
             NORTH_OUTER = np.array(
                 [
-                    (ground_range * math.cos(head)) + north
+                    (ground_range * math.cos(np.deg2rad(head))) + north
                     for ground_range, head, north in zip(GROUND_RANGE, HEAD, NORTH)
                 ]
             )
-            LALO_OUTER = [
+            self.LALO_OUTER = [
                 utm.to_latlon(north_ch2, east_ch2, utm_zone, utm_let)
                 for (north_ch2, east_ch2, utm_zone, utm_let) in zip(
                     NORTH_OUTER, EAST_OUTER, UTM_ZONE, UTM_LET
                 )
             ]
-            LA_OUTER, LO_OUTER = map(np.array, zip(*LALO_OUTER))
+            LA_OUTER, LO_OUTER = map(np.array, zip(*self.LALO_OUTER))
 
         chunksize = 5
         self.chunk_indices = int(swath_len / chunksize)
@@ -349,8 +356,7 @@ class Georeferencer():
         result = subprocess.run(command, capture_output=True, text=True, env=cur_env)
         if result.returncode != 0:
             print(f"Error occurred: {result.stderr}")
-            #print(result.stdout)
-            # print(f"Command executed successfully: {' '.join(command)}")
+
             
     def georeference(self, ch_stack, otiff, progress_signal = None):
         """
@@ -539,6 +545,7 @@ class Georeferencer():
         file_name = self.filepath.stem
         tif_path = self.output_folder / f"{file_name}_ch{self.channel}.tif"
         mosaic_tif_path = self.output_folder / f"{file_name}_stack.tif"
+        nav_ch = self.output_folder / f"Navigation_{file_name}_ch{self.channel}.csv"
 
         self.prep_data()
         ch_stack = self.channel_stack()
@@ -548,13 +555,20 @@ class Georeferencer():
 
             self.georeference(ch_stack=ch_stack, otiff=tif_path, progress_signal=progress_signal)
 
+            # save Navigation to .csv
+            print(f"Saving GCPs to {nav_ch}")
+            nav = np.column_stack((self.LALO_OUTER, self.LOLA_plt, self.HEAD_plt[:,1]))
+            np.savetxt(nav_ch, nav,fmt="%s", delimiter=";", header="Outer Latitude; Outer Longitude; Nadir Longitude; Nadir Latitude; Heading")
+
+        except Exception as e:
+            print(f"An error occurred during georeferencing: {str(e)}")
+
+        try:
             print(f"Mosaicking channel {self.channel} with resolution mode {self.resolution_mode}...")
             self.mosaic(mosaic_tif_path, progress_signal=progress_signal)
 
-        except IndexError as i:
-            print(f"Something with indexing went wrong... {str(i)}")
         except Exception as e:
-            print(f"An error occurred: {str(e)}")
+            print(f"An error occurred during mosaicking: {str(e)}")
 
 def main():
     parser = argparse.ArgumentParser(description="Tool to process sidescan sonar data")

@@ -115,8 +115,6 @@ class Georeferencer:
         swath_len = len(PING)
         if self.active_proc_data:
             swath_width = len(self.proc_data[0])
-            # Processed data is rescaled to maximum slant range at every ping
-            SLANT_RANGE = np.full_like(SLANT_RANGE, np.max(SLANT_RANGE))
         else:
             swath_width = len(self.sidescan_file.data[self.channel][0])
 

@@ -278,10 +278,6 @@ class SidescanToolsMain(QWidget):
         self.right_scroll_area.setMaximumWidth(
             self.right_view.minimumSize().width() + 10
         )
-        # TODO: why does this only look as intended when called twice?!
-        self.right_base_widget.setMinimumWidth(
-            self.right_view.minimumSize().width() + 10
-        )
         self.right_base_widget.resize(
             self.right_view.minimumSize().height(),
             self.right_view.minimumSize().width() + 10,

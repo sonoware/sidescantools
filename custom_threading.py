@@ -13,6 +13,7 @@ import numpy as np
 import os
 import pathlib
 
+
 class ImportThread(QtCore.QThread):
     status_signal = QtCore.Signal(str)
     progress_signal = QtCore.Signal(int)
@@ -196,8 +197,12 @@ class EGNTableProcessingWorker(QtCore.QRunnable):
         except:
             downsampling_factor = 1
 
-        portside_bottom_dist = bottom_info["bottom_info_port"].flatten()[:sidescan_file.num_ping]
-        starboard_bottom_dist = bottom_info["bottom_info_star"].flatten()[:sidescan_file.num_ping]
+        portside_bottom_dist = bottom_info["bottom_info_port"].flatten()[
+            : sidescan_file.num_ping
+        ]
+        starboard_bottom_dist = bottom_info["bottom_info_star"].flatten()[
+            : sidescan_file.num_ping
+        ]
         # flip order for xtf files to contain backwards compability
         filepath = pathlib.Path(self.filename)
         if filepath.suffix.casefold() == ".xtf":
@@ -549,10 +554,14 @@ class PreProcWorker(QtCore.QRunnable):
             downsampling_factor = bottom_info["downsampling_factor"]
         except:
             downsampling_factor = 1
-            
-        portside_bottom_dist = bottom_info["bottom_info_port"].flatten()[:sidescan_file.num_ping]
-        starboard_bottom_dist = bottom_info["bottom_info_star"].flatten()[:sidescan_file.num_ping]
-        
+
+        portside_bottom_dist = bottom_info["bottom_info_port"].flatten()[
+            : sidescan_file.num_ping
+        ]
+        starboard_bottom_dist = bottom_info["bottom_info_star"].flatten()[
+            : sidescan_file.num_ping
+        ]
+
         if not self.active_downsampling:
             if downsampling_factor != 1:
                 # rescale bottom info
@@ -579,10 +588,14 @@ class PreProcWorker(QtCore.QRunnable):
             (preproc.num_chunk, preproc.chunk_size), dtype=int
         )
         for chunk_idx in range(preproc.num_chunk):
-            port_chunk = portside_bottom_dist[chunk_idx * preproc.chunk_size:(chunk_idx+1) * preproc.chunk_size]
-            preproc.napari_portside_bottom[chunk_idx, :len(port_chunk)] = port_chunk
-            star_chunk = starboard_bottom_dist[chunk_idx * preproc.chunk_size:(chunk_idx+1) * preproc.chunk_size]
-            preproc.napari_starboard_bottom[chunk_idx, :len(star_chunk)] = star_chunk
+            port_chunk = portside_bottom_dist[
+                chunk_idx * preproc.chunk_size : (chunk_idx + 1) * preproc.chunk_size
+            ]
+            preproc.napari_portside_bottom[chunk_idx, : len(port_chunk)] = port_chunk
+            star_chunk = starboard_bottom_dist[
+                chunk_idx * preproc.chunk_size : (chunk_idx + 1) * preproc.chunk_size
+            ]
+            preproc.napari_starboard_bottom[chunk_idx, : len(star_chunk)] = star_chunk
 
         # slant range correction and EGN data
         if self.active_export_slant_corr_mat:
@@ -605,7 +618,7 @@ class PreProcWorker(QtCore.QRunnable):
                 active_interpolation=True,
                 nadir_angle=self.nadir_angle,
                 save_to=slant_data_path,
-                active_mult_slant_range_resampling=True,
+                active_mult_slant_range_resampling=False,
             )
         self.signals.progress.emit(0.4)
         gain_corrected_path = self.work_dir / (
@@ -751,7 +764,9 @@ class PreProcManager(QWidget):
                     active_bac=active_bac,
                     active_sharpening_filter=active_sharpening_filter,
                 )
-                new_worker.signals.error_signal.connect(lambda err: self.build_aborted(err))
+                new_worker.signals.error_signal.connect(
+                    lambda err: self.build_aborted(err)
+                )
                 new_worker.signals.progress.connect(
                     lambda progress: self.update_pbar(progress)
                 )
@@ -779,10 +794,12 @@ class PreProcManager(QWidget):
         self.aborted_signal.emit(msg_str)
         self.deleteLater()
 
+
 class NavPlotterSignals(QtCore.QObject):
     results_signal = QtCore.Signal(tuple)
-    save_signal_head = QtCore.Signal(str,str)
-    save_signal_nav = QtCore.Signal(str,str)    #filename, file_filter
+    save_signal_head = QtCore.Signal(str, str)
+    save_signal_nav = QtCore.Signal(str, str)  # filename, file_filter
+
 
 class NavPlotter(QtCore.QThread):
     def __init__(self, filepath: pathlib.Path):
@@ -791,7 +808,7 @@ class NavPlotter(QtCore.QThread):
         self.signals = NavPlotterSignals()
         self.thread = QtCore.QThread()
 
-    #@QtCore.Slot()
+    # @QtCore.Slot()
     def run(self):
         print("NavPlotter started")
         get_nav = Georeferencer(filepath=self.filepath)
@@ -801,14 +818,18 @@ class NavPlotter(QtCore.QThread):
         head_data = get_nav.HEAD_plt
         lola_data_ori = get_nav.LOLA_plt_ori
         head_data_ori = get_nav.HEAD_plt_ori
-        head_data = np.column_stack((head_data[:,0], head_data[:,1]))
-        head_data_ori = np.column_stack((head_data_ori[:,0], head_data_ori[:,1]))
-        self.signals.results_signal.emit((lola_data, lola_data_ori, head_data, head_data_ori))
+        head_data = np.column_stack((head_data[:, 0], head_data[:, 1]))
+        head_data_ori = np.column_stack((head_data_ori[:, 0], head_data_ori[:, 1]))
+        self.signals.results_signal.emit(
+            (lola_data, lola_data_ori, head_data, head_data_ori)
+        )
+
 
 class GeoreferencerSignals(QtCore.QObject):
     finished = QtCore.Signal()
-    progress_signal = QtCore.Signal(float)    
+    progress_signal = QtCore.Signal(float)
     error_signal = QtCore.Signal(Exception)
+
 
 class GeoreferencerWorker(QtCore.QRunnable):
     # class variable declaration (optional)
@@ -835,17 +856,16 @@ class GeoreferencerWorker(QtCore.QRunnable):
         channel: int,
         active_utm: bool = True,
         active_poly: bool = True,
-        proc_data = None,
+        proc_data=None,
         output_folder: str | os.PathLike = "./georef_out",
         vertical_beam_angle: int = 60,
         warp_algorithm: str = "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",
         resolution_mode: str = "average",
         resampling_method: str = "near",
-
     ):
         super().__init__()
         self.filepath = filepath
-        self.sidescan_file = SidescanFile(self.filepath)        
+        self.sidescan_file = SidescanFile(self.filepath)
         self.channel = channel
         self.active_utm = active_utm
         self.active_poly = active_poly
@@ -868,7 +888,7 @@ class GeoreferencerWorker(QtCore.QRunnable):
             self.signals.error_signal.emit(e)
         finally:
             self.signals.finished.emit()
-    
+
     def start_georeferencing(self):
         file_name = self.filepath.stem
         tif_path = self.output_folder / f"{file_name}_ch{self.channel}.tif"
@@ -885,9 +905,10 @@ class GeoreferencerWorker(QtCore.QRunnable):
             warp_algorithm=self.warp_algorithm,
             resolution_mode=self.resolution_mode,
             resampling_method=self.resampling_method,
-        ) # from georef.py
+        )  # from georef.py
 
         processor.process(self.signals.progress_signal)
+
 
 class GeoreferencerManager(QWidget):
 
@@ -895,7 +916,7 @@ class GeoreferencerManager(QWidget):
     aborted = QtCore.Signal(str)
     pbar_val: float
     num_files: int
-    cleanup_cnt:int # fix for now
+    cleanup_cnt: int  # fix for now
 
     def __init__(self):
         super().__init__()
@@ -926,58 +947,67 @@ class GeoreferencerManager(QWidget):
         self.thread_pool = QtCore.QThreadPool()
         self.show()
 
-    def start_georef(self, 
-                     filepath: str | os.PathLike, 
-                     active_utm: bool,
-                     active_poly: bool,
-                     proc_data: list,
-                     output_folder: os.PathLike,
-                     vertical_beam_angle: int,
-                     warp_algorithm: str,
-                     resolution_mode: str,
-                     resampling_method: str,
-                     ):
+    def start_georef(
+        self,
+        filepath: str | os.PathLike,
+        active_utm: bool,
+        active_poly: bool,
+        proc_data: list,
+        output_folder: os.PathLike,
+        vertical_beam_angle: int,
+        warp_algorithm: str,
+        resolution_mode: str,
+        resampling_method: str,
+    ):
         self.output_folder = pathlib.Path(output_folder)
 
-        georef_worker_0 = GeoreferencerWorker(            
-                filepath,
-                0,
-                active_utm,
-                active_poly,
-                proc_data[0],
-                output_folder,
-                vertical_beam_angle,
-                warp_algorithm,
-                resolution_mode,
-                resampling_method,
-            )
-        georef_worker_0.signals.progress_signal.connect(lambda progress: self.update_pbar(progress))
-        georef_worker_0.signals.error_signal.connect(lambda err: self.build_aborted(err))
+        georef_worker_0 = GeoreferencerWorker(
+            filepath,
+            0,
+            active_utm,
+            active_poly,
+            proc_data[0],
+            output_folder,
+            vertical_beam_angle,
+            warp_algorithm,
+            resolution_mode,
+            resampling_method,
+        )
+        georef_worker_0.signals.progress_signal.connect(
+            lambda progress: self.update_pbar(progress)
+        )
+        georef_worker_0.signals.error_signal.connect(
+            lambda err: self.build_aborted(err)
+        )
         georef_worker_0.signals.error_signal.connect(self.cleanup)
         georef_worker_0.signals.finished.connect(self.cleanup)
 
-        georef_worker_1 = GeoreferencerWorker(            
-                filepath,
-                1,
-                active_utm,
-                active_poly,
-                proc_data[1],
-                output_folder,
-                vertical_beam_angle,
-                warp_algorithm,
-                resolution_mode,
-                resampling_method,
-            )
-        georef_worker_1.signals.progress_signal.connect(lambda progress: self.update_pbar(progress))
-        georef_worker_1.signals.error_signal.connect(lambda err: self.build_aborted(err))
+        georef_worker_1 = GeoreferencerWorker(
+            filepath,
+            1,
+            active_utm,
+            active_poly,
+            proc_data[1],
+            output_folder,
+            vertical_beam_angle,
+            warp_algorithm,
+            resolution_mode,
+            resampling_method,
+        )
+        georef_worker_1.signals.progress_signal.connect(
+            lambda progress: self.update_pbar(progress)
+        )
+        georef_worker_1.signals.error_signal.connect(
+            lambda err: self.build_aborted(err)
+        )
         georef_worker_1.signals.finished.connect(self.cleanup)
 
         self.thread_pool.start(georef_worker_0)
         self.thread_pool.start(georef_worker_1)
 
     def update_pbar(self, progress: float):
-        self.pbar_val += progress/2 # for 2 channels
-        disp_var = self.pbar_val 
+        self.pbar_val += progress / 2  # for 2 channels
+        disp_var = self.pbar_val
         self.pbar.setValue(int(100 * disp_var))
 
     def build_aborted(self, err: Exception):
@@ -987,7 +1017,9 @@ class GeoreferencerManager(QWidget):
 
     def cleanup(self):
         self.cleanup_cnt += 1
-        if self.cleanup_cnt > 1: # we need the signal 2 times for both channels to have finished
+        if (
+            self.cleanup_cnt > 1
+        ):  # we need the signal 2 times for both channels to have finished
             print(f"Cleaning ...")
             for file in os.listdir(self.output_folder):
                 file_path = os.path.join(self.output_folder, file)
@@ -1003,6 +1035,6 @@ class GeoreferencerManager(QWidget):
                         os.remove(file_path)
                     except FileNotFoundError:
                         print(f"File Not Found: {file_path}")
-                        
+
             print("Cleanup done")
             self.deleteLater()

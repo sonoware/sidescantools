@@ -13,7 +13,7 @@ from pyproj import CRS, datadir
 from scipy.signal import savgol_filter
 
 
-class Georeferencer():
+class Georeferencer:
     filepath: str | os.PathLike
     sidescan_file: SidescanFile
     channel: int
@@ -29,16 +29,16 @@ class Georeferencer():
     vertical_beam_angle: int
     epsg_code: str
     warp_options: dict = {
-        "Polynomial 1 (recommended)": "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1", 
-        "Homography (experimental)": "SRC_METHOD=GCP_HOMOGRAPHY"
+        "Polynomial 1 (recommended)": "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",
+        "Homography (experimental)": "SRC_METHOD=GCP_HOMOGRAPHY",
     }
     resolution_options: dict = {
         "Same": "same",
-        "Highest": "highest", 
-        "Lowest": "lowest", 
-        "Average": "average", 
-        "Common": "common"
-        }
+        "Highest": "highest",
+        "Lowest": "lowest",
+        "Average": "average",
+        "Common": "common",
+    }
     resampling_options: dict = {
         "Near": "near",
         "Bilinear": "bilinear",
@@ -52,7 +52,7 @@ class Georeferencer():
         "Median": "med",
         "1. Quartile": "q1",
         "3. Quartile": "q3",
-        "Weighted Sum": "sum"
+        "Weighted Sum": "sum",
     }
     LOLA_plt: np.ndarray
     HEAD_plt: np.ndarray
@@ -65,16 +65,15 @@ class Georeferencer():
         channel: int = 0,
         active_utm: bool = True,
         active_poly: bool = True,
-        proc_data = None,
+        proc_data=None,
         output_folder: str | os.PathLike = "./georef_out",
         vertical_beam_angle: int = 60,
         warp_algorithm: str = "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",
         resolution_mode: str = "average",
         resampling_method: str = "near",
-
     ):
         self.filepath = Path(filepath)
-        self.sidescan_file = SidescanFile(self.filepath)        
+        self.sidescan_file = SidescanFile(self.filepath)
         self.channel = channel
         self.active_utm = active_utm
         self.active_poly = active_poly
@@ -150,8 +149,8 @@ class Georeferencer():
         x_head_savgol = savgol_filter(x_head, 54, 2)
         y_head_savgol = savgol_filter(y_head, 54, 2)
 
-        #convert back to angles -> degree and map from -180/180 -> 0/360
-        HEAD = np.arctan2(y_head_savgol, x_head_savgol) 
+        # convert back to angles -> degree and map from -180/180 -> 0/360
+        HEAD = np.arctan2(y_head_savgol, x_head_savgol)
         HEAD = np.rad2deg(HEAD) % 360
 
         x = range(len(HEAD))
@@ -176,16 +175,15 @@ class Georeferencer():
             EAST = [utm_coord[1] for utm_coord in UTM]
             UTM_ZONE = [utm_coord[2] for utm_coord in UTM]
             UTM_LET = [utm_coord[3] for utm_coord in UTM]
-            crs = CRS.from_dict({'proj': 'utm', 'zone': UTM_ZONE[0], 'south': False})
+            crs = CRS.from_dict({"proj": "utm", "zone": UTM_ZONE[0], "south": False})
             epsg = crs.to_authority()
-            self.epsg_code = f'{epsg[0]}:{epsg[1]}'
-
+            self.epsg_code = f"{epsg[0]}:{epsg[1]}"
 
         if self.channel == 0:
             EAST_OUTER = np.array(
                 [
                     ground_range * math.sin(np.deg2rad(head)) + east
-                    for ground_range, head, east in zip(GROUND_RANGE, HEAD, EAST) 
+                    for ground_range, head, east in zip(GROUND_RANGE, HEAD, EAST)
                 ]
             )
             NORTH_OUTER = np.array(
@@ -201,7 +199,6 @@ class Georeferencer():
                 )
             ]
             LA_OUTER, LO_OUTER = map(np.array, zip(*self.LALO_OUTER))
-
 
         elif self.channel == 1:
             EAST_OUTER = np.array(
@@ -229,7 +226,7 @@ class Georeferencer():
         print(f"Fixed chunk size: {chunksize} pings.")
 
         # UTM
-        if self.active_utm: 
+        if self.active_utm:
             lo_split_ce = np.array_split(NORTH, self.chunk_indices, axis=0)
             la_split_ce = np.array_split(EAST, self.chunk_indices, axis=0)
             lo_split_e = np.array_split(NORTH_OUTER, self.chunk_indices, axis=0)
@@ -241,7 +238,6 @@ class Georeferencer():
             lo_split_e = np.array_split(LO_OUTER, self.chunk_indices, axis=0)
             la_split_e = np.array_split(LA_OUTER, self.chunk_indices, axis=0)
 
-
         """
         Calculate edge coordinates for first and last coordinates in chunks:
         - Convert to utm, add ground range, convert back to lon/lat
@@ -250,53 +246,53 @@ class Georeferencer():
             zip(lo_split_ce, la_split_ce, lo_split_e, la_split_e)
         ):
 
-                """
-                Define corner coordinates for chunks and set gcps:
-                - ul, ur: upper left/right --> nadir coordinates
-                - ll, lr: lower left/right --> edge coordinates, calculated with ground range & heading
-                - image coordinates: im_x_right = length of chunk
-                """
+            """
+            Define corner coordinates for chunks and set gcps:
+            - ul, ur: upper left/right --> nadir coordinates
+            - ll, lr: lower left/right --> edge coordinates, calculated with ground range & heading
+            - image coordinates: im_x_right = length of chunk
+            """
 
-                lo_ce_ul = lo_chunk_ce[0]
-                lo_ce_ur = lo_chunk_ce[-1]
-                la_ce_ul = la_chunk_ce[0]
-                la_ce_ur = la_chunk_ce[-1]
-                lo_e_ll = lo_chunk_e[0]
-                lo_e_lr = lo_chunk_e[-1]
-                la_e_ll = la_chunk_e[0]
-                la_e_lr = la_chunk_e[-1]
+            lo_ce_ul = lo_chunk_ce[0]
+            lo_ce_ur = lo_chunk_ce[-1]
+            la_ce_ul = la_chunk_ce[0]
+            la_ce_ur = la_chunk_ce[-1]
+            lo_e_ll = lo_chunk_e[0]
+            lo_e_lr = lo_chunk_e[-1]
+            la_e_ll = la_chunk_e[0]
+            la_e_lr = la_chunk_e[-1]
 
-                # add/substract small values to ensure overlap on outer edges (move inwards/outwards at nadir/outer edge)
-                # TODO: make curvature-dependent
+            # add/substract small values to ensure overlap on outer edges (move inwards/outwards at nadir/outer edge)
+            # TODO: make curvature-dependent
 
-                im_x_left_nad = 1   #1
-                im_x_right_nad = np.shape(lo_chunk_ce)[0] -1
-                im_x_left_outer = 1 #-1
-                im_x_right_outer = np.shape(lo_chunk_ce)[0] -1  #-1
+            im_x_left_nad = 1  # 1
+            im_x_right_nad = np.shape(lo_chunk_ce)[0] - 1
+            im_x_left_outer = 1  # -1
+            im_x_right_outer = np.shape(lo_chunk_ce)[0] - 1  # -1
 
-                im_y_outer = swath_width
-                im_y_nad = 0
+            im_y_outer = swath_width
+            im_y_nad = 0
 
-                gcp = np.array(
-                    (
-                        (im_x_left_nad, im_y_nad, lo_ce_ul, la_ce_ul),
-                        (im_x_left_outer, im_y_outer, lo_e_ll, la_e_ll),
-                        (im_x_right_nad, im_y_nad, lo_ce_ur, la_ce_ur),
-                        (im_x_right_outer, im_y_outer, lo_e_lr, la_e_lr),
-                    )
+            gcp = np.array(
+                (
+                    (im_x_left_nad, im_y_nad, lo_ce_ul, la_ce_ul),
+                    (im_x_left_outer, im_y_outer, lo_e_ll, la_e_ll),
+                    (im_x_right_nad, im_y_nad, lo_ce_ur, la_ce_ur),
+                    (im_x_right_outer, im_y_outer, lo_e_lr, la_e_lr),
                 )
+            )
 
-                points = np.array(
-                    (
-                        (lo_ce_ul, la_ce_ul, im_x_left_nad, im_y_nad),
-                        (lo_e_ll, la_e_ll, im_x_left_outer, im_y_outer*(-1)),
-                        (lo_ce_ur, la_ce_ur, im_x_right_nad, im_y_nad),
-                        (lo_e_lr, la_e_lr, im_x_right_outer, im_y_outer*(-1)),
-                    )
+            points = np.array(
+                (
+                    (lo_ce_ul, la_ce_ul, im_x_left_nad, im_y_nad),
+                    (lo_e_ll, la_e_ll, im_x_left_outer, im_y_outer * (-1)),
+                    (lo_ce_ur, la_ce_ur, im_x_right_nad, im_y_nad),
+                    (lo_e_lr, la_e_lr, im_x_right_outer, im_y_outer * (-1)),
                 )
+            )
 
-                self.GCP_SPLIT.append(gcp)
-                self.POINTS_SPLIT.append(points)      
+            self.GCP_SPLIT.append(gcp)
+            self.POINTS_SPLIT.append(points)
 
     def channel_stack(self):
         """- Work on raw or processed data, depending on `self.active_proc_data`
@@ -315,7 +311,7 @@ class Georeferencer():
         swath_len = len(PING)
         swath_width = len(ch_stack[0])
         print(f"swath_len: {swath_len}, swath_width: {swath_width}")
-        #print(f"ch_stack.shape[0], ch_stack.shape[1]: {ch_stack.shape[0], ch_stack.shape[1]}")
+        # print(f"ch_stack.shape[0], ch_stack.shape[1]: {ch_stack.shape[0], ch_stack.shape[1]}")
 
         # Transpose (always!) so that the largest axis is horizontal
         ch_stack = ch_stack.T
@@ -327,7 +323,7 @@ class Georeferencer():
         ch_stack = np.clip(ch_stack, 1, 255)
 
         # Flip array ---> Note: different for .jsf and .xtf!
-        #print(f"ch_stack shape after transposing: {np.shape(ch_stack)}")
+        # print(f"ch_stack shape after transposing: {np.shape(ch_stack)}")
         ch_stack = np.flip(ch_stack, axis=0)
 
         return ch_stack.astype(np.uint8)
@@ -357,8 +353,7 @@ class Georeferencer():
         if result.returncode != 0:
             print(f"Error occurred: {result.stderr}")
 
-            
-    def georeference(self, ch_stack, otiff, progress_signal = None):
+    def georeference(self, ch_stack, otiff, progress_signal=None):
         """
         array_split: Creates [chunk_size]-ping chunks per channel and extracts corner coordinates for chunks from GCP list. \
         Assigns extracted corner coordinates as GCPs (gdal_translate) and projects them (gdal_warp).
@@ -389,9 +384,9 @@ class Georeferencer():
         ):
             if chunk_num < len(ch_split) - 1:
 
-                im_path = otiff.with_stem(
-                    f"{otiff.stem}_{chunk_num}_tmp"
-                ).with_suffix(".png")
+                im_path = otiff.with_stem(f"{otiff.stem}_{chunk_num}_tmp").with_suffix(
+                    ".png"
+                )
                 chunk_path = otiff.with_stem(
                     f"{otiff.stem}_{chunk_num}_chunk_tmp"
                 ).with_suffix(".tif")
@@ -399,7 +394,7 @@ class Georeferencer():
                     f"{otiff.stem}_{chunk_num}_georef_chunk_tmp"
                 ).with_suffix(".tif")
 
-                # Flip image chunks according to side 
+                # Flip image chunks according to side
                 if self.channel == 0:
                     ch_chunk_flip = np.flip(ch_chunk, 1)
                 elif self.channel == 1:
@@ -429,42 +424,42 @@ class Georeferencer():
                 gdal_translate = ["gdal_translate", "-of", "GTiff"]
 
                 gdal_warp_utm = [
-                        "gdal",
-                        "raster",
-                        "reproject",
-                        "-r",
-                        self.resampling_method,
-                        "--to",
-                        self.warp_algorithm,   
-                        "--co",
-                        "COMPRESS=DEFLATE",
-                        "--overwrite",
-                        "-d",
-                        self.epsg_code,
-                        "-i",
-                        str(chunk_path),
-                        "-o",
-                        str(warp_path)
-                    ]
-                
+                    "gdal",
+                    "raster",
+                    "reproject",
+                    "-r",
+                    self.resampling_method,
+                    "--to",
+                    self.warp_algorithm,
+                    "--co",
+                    "COMPRESS=DEFLATE",
+                    "--overwrite",
+                    "-d",
+                    self.epsg_code,
+                    "-i",
+                    str(chunk_path),
+                    "-o",
+                    str(warp_path),
+                ]
+
                 gdal_warp_wgs84 = [
-                        "gdal",
-                        "raster",
-                        "reproject",
-                        "-r",
-                        self.resampling_method,
-                        "--to",
-                        self.warp_algorithm,
-                        "--co",
-                        "COMPRESS=DEFLATE",
-                        "--overwrite",
-                        "-d",
-                        "EPSG:4326",
-                        "-i",
-                        str(chunk_path),
-                        "-o",
-                        str(warp_path)
-                    ]
+                    "gdal",
+                    "raster",
+                    "reproject",
+                    "-r",
+                    self.resampling_method,
+                    "--to",
+                    self.warp_algorithm,
+                    "--co",
+                    "COMPRESS=DEFLATE",
+                    "--overwrite",
+                    "-d",
+                    "EPSG:4326",
+                    "-i",
+                    str(chunk_path),
+                    "-o",
+                    str(warp_path),
+                ]
 
                 for i in range(len(gcp_chunk)):
                     gdal_translate.extend(
@@ -475,12 +470,12 @@ class Georeferencer():
 
                 # gdal 3.11 syntax
                 if self.active_utm:
-                    gdal_warp = gdal_warp_utm 
-                else:    
+                    gdal_warp = gdal_warp_utm
+                else:
                     gdal_warp = gdal_warp_wgs84
 
                 if progress_signal is not None:
-                    progress_signal.emit(1000/(len(ch_stack[1])) * 0.005)
+                    progress_signal.emit(1000 / (len(ch_stack[1])) * 0.005)
 
                 self.run_command(gdal_translate)
                 self.run_command(gdal_warp)
@@ -488,7 +483,7 @@ class Georeferencer():
             elif chunk_num == len(ch_split) - 1:
                 pass
 
-    def mosaic(self, mosaic_tiff, progress_signal = None):
+    def mosaic(self, mosaic_tiff, progress_signal=None):
         """
         Merges tif chunks created in the georef function.
         Args.:
@@ -506,12 +501,20 @@ class Georeferencer():
 
         for root, dirs, files in os.walk(self.output_folder):
             for name in files:
-                if name.endswith("_georef_chunk_tmp.tif") and 'ch0' in name and not name.startswith("._"):
+                if (
+                    name.endswith("_georef_chunk_tmp.tif")
+                    and "ch0" in name
+                    and not name.startswith("._")
+                ):
                     TIF_ch0.append(os.path.join(root, name))
 
         for root, dirs, files in os.walk(self.output_folder):
             for name in files:
-                if name.endswith("_georef_chunk_tmp.tif") and 'ch1' in name and not name.startswith("._"):
+                if (
+                    name.endswith("_georef_chunk_tmp.tif")
+                    and "ch1" in name
+                    and not name.startswith("._")
+                ):
                     TIF_ch1.append(os.path.join(root, name))
         TIF = TIF_ch0 + TIF_ch1
         self.TIF_len = len(TIF)
@@ -519,24 +522,29 @@ class Georeferencer():
         if progress_signal is not None:
             progress_signal.emit(0.2)
 
-
         np.savetxt(txt_path, TIF, fmt="%s")
-
 
         # delete merged file if it already exists
         if mosaic_tiff.exists():
             mosaic_tiff.unlink()
 
-    
-    # gdal 3.11 syntax
+        # gdal 3.11 syntax
         gdal_mosaic = [
-            "gdal", "raster", "mosaic",
-            "-i", f"@{txt_path}",
-            "-o", str(mosaic_tiff),
-            "--src-nodata", "0",
-            "--resolution", self.resolution_mode,
-            "--co", "COMPRESS=DEFLATE",
-            "--co", "TILED=YES"
+            "gdal",
+            "raster",
+            "mosaic",
+            "-i",
+            f"@{txt_path}",
+            "-o",
+            str(mosaic_tiff),
+            "--src-nodata",
+            "0",
+            "--resolution",
+            self.resolution_mode,
+            "--co",
+            "COMPRESS=DEFLATE",
+            "--co",
+            "TILED=YES",
         ]
 
         self.run_command(gdal_mosaic)
@@ -551,24 +559,37 @@ class Georeferencer():
         ch_stack = self.channel_stack()
 
         try:
-            print(f"Processing chunks in channel {self.channel} with warp method {self.warp_algorithm}...")
+            print(
+                f"Processing chunks in channel {self.channel} with warp method {self.warp_algorithm}..."
+            )
 
-            self.georeference(ch_stack=ch_stack, otiff=tif_path, progress_signal=progress_signal)
+            self.georeference(
+                ch_stack=ch_stack, otiff=tif_path, progress_signal=progress_signal
+            )
 
             # save Navigation to .csv
             print(f"Saving GCPs to {nav_ch}")
-            nav = np.column_stack((self.LALO_OUTER, self.LOLA_plt, self.HEAD_plt[:,1]))
-            np.savetxt(nav_ch, nav,fmt="%s", delimiter=";", header="Outer Latitude; Outer Longitude; Nadir Longitude; Nadir Latitude; Heading")
+            nav = np.column_stack((self.LALO_OUTER, self.LOLA_plt, self.HEAD_plt[:, 1]))
+            np.savetxt(
+                nav_ch,
+                nav,
+                fmt="%s",
+                delimiter=";",
+                header="Outer Latitude; Outer Longitude; Nadir Longitude; Nadir Latitude; Heading",
+            )
 
         except Exception as e:
             print(f"An error occurred during georeferencing: {str(e)}")
 
         try:
-            print(f"Mosaicking channel {self.channel} with resolution mode {self.resolution_mode}...")
+            print(
+                f"Mosaicking channel {self.channel} with resolution mode {self.resolution_mode}..."
+            )
             self.mosaic(mosaic_tif_path, progress_signal=progress_signal)
 
         except Exception as e:
             print(f"An error occurred during mosaicking: {str(e)}")
+
 
 def main():
     parser = argparse.ArgumentParser(description="Tool to process sidescan sonar data")
@@ -602,14 +623,11 @@ def main():
     args = parser.parse_args()
     print("args:", args)
 
-    georeferencer = Georeferencer(args.xtf, args.channel, args.dynamic_chunking, args.UTM, args.poly)
+    georeferencer = Georeferencer(
+        args.xtf, args.channel, args.dynamic_chunking, args.UTM, args.poly
+    )
     georeferencer.process()
 
 
 if __name__ == "__main__":
     main()
-
-
-
-
-

@@ -110,7 +110,7 @@ class SidescanFile:
             for p_idx in range(self.num_ping):
                 self.sound_velocity[p_idx] = (
                     xtf.packets[pyxtf.XTFHeaderType.sonar][p_idx].SoundVelocity * 2
-                )  # TODO: this is half SOS in water, right?
+                )  # half SOS in water
                 self.timestamp[p_idx] = datetime(
                     xtf.packets[pyxtf.XTFHeaderType.sonar][p_idx].Year,
                     xtf.packets[pyxtf.XTFHeaderType.sonar][p_idx].Month,
@@ -236,7 +236,7 @@ class SidescanFile:
                         elif packet.header.channel == 1:
                             data_star.append(packet.message.data)
 
-            # TODO: Desired behavior or implement other strategy?
+            # Right now we only support 2 channels
             if self.num_ch != 2:
                 print(f"Expected 2 channels, but found {self.num_ch} channels")
                 raise NotImplementedError
@@ -271,7 +271,7 @@ class SidescanFile:
             # walk through all packets and take meta info from channel 0
             p_idx = 0
 
-            # TODO: check if all values are interpreted correctly
+            # Interpret sonar data packets
             for packet in jsf_file.packets:
                 if type(packet) == JSFSonarDataPacket:
                     if (

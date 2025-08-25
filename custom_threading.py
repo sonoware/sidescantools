@@ -270,7 +270,7 @@ class EGNTableProcessingWorker(QtCore.QRunnable):
         )
         # self.signals.progress.emit(0.5)
 
-        # compute egn info #TODO: check if this params shall be made adjustable
+        # EGN parameters - these are not displayed in the UI to keep it simple
         angle_range = [-1 * np.pi / 2, np.pi / 2]
         angle_num = 360
         r_reduc_factor = 2

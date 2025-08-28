@@ -92,7 +92,7 @@ class Georeferencer:
         self.HEAD_plt_ori = np.empty_like(proc_data)
         if proc_data is not None:
             self.proc_data = proc_data
-            self.active_proc_data = True
+            self.active_proc_data = False
         self.setup_output_folder()
 
     def setup_output_folder(self):
@@ -483,7 +483,7 @@ class Georeferencer:
             elif chunk_num == len(ch_split) - 1:
                 pass
 
-    def mosaic(self, mosaic_tiff, progress_signal=None):
+    def mosaic(self, mosaic_tiff, txt_path, progress_signal=None):
         """
         Merges tif chunks created in the georef function.
         Args.:
@@ -495,9 +495,10 @@ class Georeferencer:
         # create list from warped tifs and merge
         TIF_ch0 = []
         TIF_ch1 = []
-        TIF = []
+        #TIF = []
 
-        txt_path = os.path.join(self.output_folder, "chunks_tif.txt")
+        self.txt_path_ch0 = os.path.join(self.output_folder, "chunks_tif_ch0.txt")
+        self.txt_path_ch1 = os.path.join(self.output_folder, "chunks_tif_ch1.txt")
 
         for root, dirs, files in os.walk(self.output_folder):
             for name in files:
@@ -516,13 +517,14 @@ class Georeferencer:
                     and not name.startswith("._")
                 ):
                     TIF_ch1.append(os.path.join(root, name))
-        TIF = TIF_ch0 + TIF_ch1
-        self.TIF_len = len(TIF)
+        #TIF = TIF_ch0 + TIF_ch1
+        #self.TIF_len = len(TIF)
 
         if progress_signal is not None:
             progress_signal.emit(0.2)
 
-        np.savetxt(txt_path, TIF, fmt="%s")
+        np.savetxt(self.txt_path_ch0, TIF_ch0, fmt="%s")
+        np.savetxt(self.txt_path_ch1, TIF_ch1, fmt="%s")
 
         # delete merged file if it already exists
         if mosaic_tiff.exists():
@@ -552,7 +554,8 @@ class Georeferencer:
     def process(self, progress_signal=None):
         file_name = self.filepath.stem
         tif_path = self.output_folder / f"{file_name}_ch{self.channel}.tif"
-        mosaic_tif_path = self.output_folder / f"{file_name}_stack.tif"
+        mosaic_tif_path_ch0 = self.output_folder / f"{file_name}_ch0_stack.tif"
+        mosaic_tif_path_ch1 = self.output_folder / f"{file_name}_ch1_stack.tif"
         nav_ch = self.output_folder / f"Navigation_{file_name}_ch{self.channel}.csv"
 
         self.prep_data()
@@ -585,7 +588,8 @@ class Georeferencer:
             print(
                 f"Mosaicking channel {self.channel} with resolution mode {self.resolution_mode}..."
             )
-            self.mosaic(mosaic_tif_path, progress_signal=progress_signal)
+            self.mosaic(mosaic_tif_path_ch0, self.txt_path_ch0, progress_signal=progress_signal)
+            self.mosaic(mosaic_tif_path_ch1, self.txt_path_ch1, progress_signal=progress_signal)
 
         except Exception as e:
             print(f"An error occurred during mosaicking: {str(e)}")

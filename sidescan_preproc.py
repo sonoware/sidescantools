@@ -1061,8 +1061,8 @@ class SidescanPreprocessor:
             )
 
     def gen_simple_y_axis(self):
-        # TODO: quick and dirty y-Axis in m build
-        #       this might be useful later and is therefore kept for now
+        # quick and dirty y-Axis in m build
+        # this might be useful later and is therefore kept for now
         stepsize = 1
         num_step = int(self.sidescan_file.num_ping / stepsize)
         y_axis_m = np.zeros(num_step)

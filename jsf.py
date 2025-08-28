@@ -1577,9 +1577,11 @@ class JSFStorageMsgTimestamp:
         ) in zip(self.format_def.keys(), fields):
             setattr(self, var_name, value)
 
+
 # Class to store unknown data
 class JSFUnknownMessage:
     """Wrapper class to store data that couldn't be interpreted"""
+
     size: int
     data: bytes
     type: int
@@ -1589,6 +1591,7 @@ class JSFUnknownMessage:
         self.data = data
         self.type = type
 
+
 class JSFFile:
     """Class for reading JSF files. All header and messages are stored in the packets list."""
 
@@ -1596,7 +1599,9 @@ class JSFFile:
     file_path: Path
     num_channel: int = 0
     sync_number: int = 0
-    expected_msg_no = np.zeros(2)  # assuming 2 channel systems, otherwise ignore for now
+    expected_msg_no = np.zeros(
+        2
+    )  # assuming 2 channel systems, otherwise ignore for now
 
     def __init__(self, path: Path | str):
         if path is str:
@@ -1823,16 +1828,19 @@ class JSFFile:
                             )
                             message_bytes = f.read(cur_header.msg_size)
 
-                            unknown_msg = JSFUnknownMessage(cur_header.msg_size, message_bytes, cur_header.msg_type)
+                            unknown_msg = JSFUnknownMessage(
+                                cur_header.msg_size, message_bytes, cur_header.msg_type
+                            )
                             self.packets.append(cur_header)
                             self.packets.append(unknown_msg)
 
                 else:
                     print(f"File out of sync at {f.tell()}")
-                    # TODO: It would be possible to implement an algorithm to work with files where the header is out of sync:
+                    # It would be possible to implement an algorithm to work with files where the header is out of sync:
                     # - Search per byte for the next fitting sync
                     # - Check if header can be interpreted, if no search for next sync
                     # - If yes -> use normal case loop
+                    # This is not implemented, because there is probably no interest in this and data will be hard to interpret afterwards
                     raise NotImplementedError
 
             f.close()

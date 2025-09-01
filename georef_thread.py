@@ -25,6 +25,7 @@ class Georeferencer:
     GCP_SPLIT: list
     POINTS_SPLIT: list
     LALO_OUTER: list
+    PING_NO: np.ndarray
     chunk_indices: np.array
     vertical_beam_angle: int
     epsg_code: str
@@ -86,13 +87,14 @@ class Georeferencer:
         self.GCP_SPLIT = []
         self.POINTS_SPLIT = []
         self.LALO_OUTER = []
+        #self.PING_NO = np.empty_like(proc_data)
         self.LOLA_plt = np.empty_like(proc_data)
         self.HEAD_plt = np.empty_like(proc_data)
         self.LOLA_plt_ori = np.empty_like(proc_data)
         self.HEAD_plt_ori = np.empty_like(proc_data)
         if proc_data is not None:
             self.proc_data = proc_data
-            self.active_proc_data = True
+            self.active_proc_data = False
         self.setup_output_folder()
 
     def setup_output_folder(self):
@@ -140,6 +142,8 @@ class Georeferencer:
         GROUND_RANGE = GROUND_RANGE[MASK]
         SLANT_RANGE = SLANT_RANGE[MASK]
         PING = PING[MASK]
+        self.PING_NO = PING
+        print(f"shape ping original: {np.shape(PING)}")
 
         # convert heading angle to vectors to avoid jumps when crossing 0/360° degree angle
         HEAD_ori_rad = np.deg2rad(HEAD_ori)
@@ -152,6 +156,44 @@ class Georeferencer:
         # convert back to angles -> degree and map from -180/180 -> 0/360
         HEAD = np.arctan2(y_head_savgol, x_head_savgol)
         HEAD = np.rad2deg(HEAD) % 360
+
+        # filter high turn radii to exclude from data
+        turn_rad = np.gradient(HEAD)
+
+        #TODO: plot ping vs. turnrad
+        from matplotlib import pyplot as plt
+        plt.plot(self.PING_NO, turn_rad)
+        #plt.show()
+
+        mov_win =+ 10
+        for i, rad in enumerate(turn_rad):
+            if rad >= 25 or rad <= -25:
+                turn_rad[i-mov_win:i+mov_win] = np.nan
+
+        plt.plot(self.PING_NO, turn_rad)
+        plt.plot(self.PING_NO, HEAD)
+        plt.show()
+        print(f"shape ping: {np.shape(PING)}, {np.shape(turn_rad)}")
+        print('turn_rad[1820:1870]: ', turn_rad[1820:1870], type(turn_rad[1870]))
+
+        #TURN_MASK = [ True if -25 <= rad <= 25 else False for rad in turn_rad ]
+        TURN_MASK = [ False if np.isnan(rad) else True for rad in turn_rad ]
+        print('TURN_MASK[1820:1870]: ', TURN_MASK[1820:1870])
+        print('PING[1820:1870]: ', PING[1820:1870])
+
+        LON_ori = LON_ori[TURN_MASK]
+        LAT_ori = LAT_ori[TURN_MASK]
+        HEAD_ori = HEAD_ori[TURN_MASK]
+        HEAD = HEAD[TURN_MASK]
+
+        GROUND_RANGE = GROUND_RANGE[TURN_MASK]
+        SLANT_RANGE = SLANT_RANGE[TURN_MASK]
+        PING = PING[TURN_MASK]
+        self.PING_NO = PING
+        print('self.PING[1820:1870]: ', self.PING_NO[1820:1870])
+
+
+        print('np.shape(TURN_MASK): ', np.shape(TURN_MASK), np.shape(HEAD))
 
         x = range(len(HEAD))
         self.HEAD_plt = np.column_stack((x, HEAD))
@@ -263,7 +305,6 @@ class Georeferencer:
             la_e_lr = la_chunk_e[-1]
 
             # add/substract small values to ensure overlap on outer edges (move inwards/outwards at nadir/outer edge)
-            # TODO: make curvature-dependent
 
             im_x_left_nad = 1  # 1
             im_x_right_nad = np.shape(lo_chunk_ce)[0] - 1
@@ -527,11 +568,6 @@ class Georeferencer:
         if mosaic_tiff.exists():
             mosaic_tiff.unlink()
 
-        #if self.channel == 0:
-        #    txt_path = txt_path_ch0
-        #elif self.channel == 1:
-        #    txt_path = txt_path_ch1
-
         # gdal 3.11 syntax
         gdal_mosaic = [
             "gdal",
@@ -572,19 +608,19 @@ class Georeferencer:
                 f"Processing chunks in channel {self.channel} with warp method {self.warp_algorithm}..."
             )
 
-            self.georeference(
-                ch_stack=ch_stack, otiff=tif_path, progress_signal=progress_signal
-            )
+            #self.georeference(
+            #    ch_stack=ch_stack, otiff=tif_path, progress_signal=progress_signal
+            #)
 
             # save Navigation to .csv
             print(f"Saving navinfo to {nav_ch}")
-            nav = np.column_stack((self.LALO_OUTER, self.LOLA_plt, self.HEAD_plt[:, 1]))
+            nav = np.column_stack((self.PING_NO, self.LALO_OUTER, self.LOLA_plt, self.HEAD_plt[:, 1]))
             np.savetxt(
                 nav_ch,
                 nav,
                 fmt="%s",
                 delimiter=";",
-                header="Outer Latitude; Outer Longitude; Nadir Longitude; Nadir Latitude; Heading",
+                header="Ping No; Outer Latitude; Outer Longitude; Nadir Longitude; Nadir Latitude; Heading",
             )
 
         except Exception as e:
@@ -594,11 +630,7 @@ class Georeferencer:
             print(
                 f"Mosaicking channel {self.channel} with resolution mode {self.resolution_mode}..."
             )
-            self.mosaic(mosaic_tif_path, txt_path, progress_signal=progress_signal)
-            #print(
-            #    f"Mosaicking channel {self.channel} with resolution mode {self.resolution_mode}..."
-            #)
-            #self.mosaic(mosaic_tif_path_ch1, txt_path_ch1, progress_signal=progress_signal)
+            #self.mosaic(mosaic_tif_path, txt_path, progress_signal=progress_signal)
 
         except Exception as e:
             print(f"An error occurred during mosaicking: {str(e)}")

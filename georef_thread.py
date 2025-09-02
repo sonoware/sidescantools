@@ -25,7 +25,7 @@ class Georeferencer:
     GCP_SPLIT: list
     POINTS_SPLIT: list
     LALO_OUTER: list
-    PING_NO: np.ndarray
+    PING: np.ndarray
     chunk_indices: np.array
     vertical_beam_angle: int
     epsg_code: str
@@ -108,19 +108,19 @@ class Georeferencer:
 
     def prep_data(self):
         # Extract metadata for each ping in sonar channel
-        PING = self.sidescan_file.packet_no
+        self.PING = self.sidescan_file.packet_no
         LON_ori = self.sidescan_file.longitude
         LAT_ori = self.sidescan_file.latitude
         HEAD_ori = self.sidescan_file.sensor_heading
         SLANT_RANGE = self.sidescan_file.slant_range[self.channel]
         GROUND_RANGE = []
-        swath_len = len(PING)
+        swath_len = len(self.PING)
         if self.active_proc_data:
             swath_width = len(self.proc_data[0])
         else:
             swath_width = len(self.sidescan_file.data[self.channel][0])
 
-        PING = np.ndarray.flatten(np.array(PING))
+        self.PING = np.ndarray.flatten(np.array(self.PING))
         LON_ori = np.ndarray.flatten(np.array(LON_ori))
         LAT_ori = np.ndarray.flatten(np.array(LAT_ori))
         HEAD_ori = np.ndarray.flatten(np.array(HEAD_ori))
@@ -141,69 +141,60 @@ class Georeferencer:
 
         GROUND_RANGE = GROUND_RANGE[MASK]
         SLANT_RANGE = SLANT_RANGE[MASK]
-        PING = PING[MASK]
-        self.PING_NO = PING
-        print(f"shape ping original: {np.shape(PING)}")
+        self.PING = self.PING[MASK]
+        self.PING = self.PING
+        print(f"shape ping original: {np.shape(self.PING)}")
+
+        # Smooth Coordinates and Heading
+        LAT = savgol_filter(LAT_ori, 100, 2)
+        LON = savgol_filter(LON_ori, 100, 2)
 
         # convert heading angle to vectors to avoid jumps when crossing 0/360° degree angle
         HEAD_ori_rad = np.deg2rad(HEAD_ori)
         x_head = np.cos(HEAD_ori_rad)
         y_head = np.sin(HEAD_ori_rad)
-
-        x_head_savgol = savgol_filter(x_head, 54, 2)
-        y_head_savgol = savgol_filter(y_head, 54, 2)
+    
+        x_head_savgol = savgol_filter(x_head, 100, 2)
+        y_head_savgol = savgol_filter(y_head, 100, 2)
 
         # convert back to angles -> degree and map from -180/180 -> 0/360
         HEAD = np.arctan2(y_head_savgol, x_head_savgol)
         HEAD = np.rad2deg(HEAD) % 360
 
         # filter high turn radii to exclude from data
-        turn_rad = np.gradient(HEAD)
+        turn_rad = np.gradient(HEAD, self.PING, edge_order=1)
+        #turn_rad = np.gradient(x_head_savgol, y_head_savgol, edge_order=1)
 
-        #TODO: plot ping vs. turnrad
+        # plot ping vs. turnrad
         from matplotlib import pyplot as plt
-        plt.plot(self.PING_NO, turn_rad)
-        #plt.show()
+        plt.plot(self.PING, turn_rad)
+        plt.show()
 
-        mov_win =+ 10
+        mov_win =+ 0
         for i, rad in enumerate(turn_rad):
-            if rad >= 25 or rad <= -25:
+            if rad >= 0.025 or rad <= -0.025:
                 turn_rad[i-mov_win:i+mov_win] = np.nan
 
-        plt.plot(self.PING_NO, turn_rad)
-        plt.plot(self.PING_NO, HEAD)
+        plt.plot(self.PING, turn_rad)
+        #plt.plot(self.PING_NO, HEAD)
         plt.show()
-        print(f"shape ping: {np.shape(PING)}, {np.shape(turn_rad)}")
-        print('turn_rad[1820:1870]: ', turn_rad[1820:1870], type(turn_rad[1870]))
 
-        #TURN_MASK = [ True if -25 <= rad <= 25 else False for rad in turn_rad ]
         TURN_MASK = [ False if np.isnan(rad) else True for rad in turn_rad ]
-        print('TURN_MASK[1820:1870]: ', TURN_MASK[1820:1870])
-        print('PING[1820:1870]: ', PING[1820:1870])
 
-        LON_ori = LON_ori[TURN_MASK]
-        LAT_ori = LAT_ori[TURN_MASK]
-        HEAD_ori = HEAD_ori[TURN_MASK]
-        HEAD = HEAD[TURN_MASK]
+        # Apply turn radius mask to cut turns
+        LON = LON[TURN_MASK]
+        LAT = LAT[TURN_MASK]
+        HEAD = HEAD[TURN_MASK]  
+        self.PING = self.PING[TURN_MASK]
 
-        GROUND_RANGE = GROUND_RANGE[TURN_MASK]
-        SLANT_RANGE = SLANT_RANGE[TURN_MASK]
-        PING = PING[TURN_MASK]
-        self.PING_NO = PING
-        print('self.PING[1820:1870]: ', self.PING_NO[1820:1870])
-
-
-        print('np.shape(TURN_MASK): ', np.shape(TURN_MASK), np.shape(HEAD))
-
+        # Create arrays for heading and coords for plotting in GUI
         x = range(len(HEAD))
         self.HEAD_plt = np.column_stack((x, HEAD))
         self.HEAD_plt_ori = np.column_stack((x, HEAD_ori))
-
-        LAT = savgol_filter(LAT_ori, 100, 2)
-        LON = savgol_filter(LON_ori, 100, 2)
         self.LOLA_plt = np.column_stack((LON, LAT))
         self.LOLA_plt_ori = np.column_stack((LON_ori, LAT_ori))
 
+        # Convert to UTM to calculate outer swath coordinates for both channels
         UTM = np.full_like(LAT_ori, np.nan)
         UTM = UTM.tolist()
         for idx, (la, lo) in enumerate(zip(LAT, LON)):
@@ -592,11 +583,7 @@ class Georeferencer:
     def process(self, progress_signal=None):
         file_name = self.filepath.stem
         tif_path = self.output_folder / f"{file_name}_ch{self.channel}.tif"
-        mosaic_tif_path_ch0 = self.output_folder / f"{file_name}_ch0_stack.tif"
-        mosaic_tif_path_ch1 = self.output_folder / f"{file_name}_ch1_stack.tif"
         mosaic_tif_path = self.output_folder / f"{file_name}_ch{self.channel}_stack.tif"
-        txt_path_ch0 = self.output_folder / f"chunks_tif_ch0.txt"
-        txt_path_ch1 = self.output_folder / f"chunks_tif_ch1.txt"
         txt_path = self.output_folder / f"chunks_tif_ch{self.channel}.txt"
         nav_ch = self.output_folder / f"Navigation_{file_name}_ch{self.channel}.csv"
 
@@ -608,21 +595,29 @@ class Georeferencer:
                 f"Processing chunks in channel {self.channel} with warp method {self.warp_algorithm}..."
             )
 
-            #self.georeference(
-            #    ch_stack=ch_stack, otiff=tif_path, progress_signal=progress_signal
-            #)
+            self.georeference(
+                ch_stack=ch_stack, otiff=tif_path, progress_signal=progress_signal
+            )
 
             # save Navigation to .csv
             print(f"Saving navinfo to {nav_ch}")
-            nav = np.column_stack((self.PING_NO, self.LALO_OUTER, self.LOLA_plt, self.HEAD_plt[:, 1]))
+            #nav = np.column_stack((self.PING_NO, self.LALO_OUTER, self.LOLA_plt, self.HEAD_plt[:, 1]))
+            #np.savetxt(
+            #    nav_ch,
+            #    nav,
+            #    fmt="%s",
+            #    delimiter=";",
+            #    header="Ping No; Outer Latitude; Outer Longitude; Nadir Longitude; Nadir Latitude; Heading",
+            #)
+
+            nav = np.column_stack((self.PING, self.LOLA_plt, self.HEAD_plt[:, 1]))
             np.savetxt(
                 nav_ch,
                 nav,
                 fmt="%s",
                 delimiter=";",
-                header="Ping No; Outer Latitude; Outer Longitude; Nadir Longitude; Nadir Latitude; Heading",
+                header="Ping No; Nadir Longitude; Nadir Latitude; Heading",
             )
-
         except Exception as e:
             print(f"An error occurred during georeferencing: {str(e)}")
 
@@ -630,7 +625,7 @@ class Georeferencer:
             print(
                 f"Mosaicking channel {self.channel} with resolution mode {self.resolution_mode}..."
             )
-            #self.mosaic(mosaic_tif_path, txt_path, progress_signal=progress_signal)
+            self.mosaic(mosaic_tif_path, txt_path, progress_signal=progress_signal)
 
         except Exception as e:
             print(f"An error occurred during mosaicking: {str(e)}")

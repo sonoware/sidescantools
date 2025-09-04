@@ -181,7 +181,7 @@ class Georeferencer:
         self.PING = self.PING[UNIQUE_MASK]
         print(f"shape ping unique: {np.shape(self.PING)}")
 
-        #TODO: Calculate true course and derive turn radius from coordinates
+        #TODO: TODO: clean code; tweak savgol filter values; adjust chunking based on possible position holes due to turn cutting
         COURSE_ANG = np.empty_like(LON)
         print("np.shape(COURSE_ANG): ", np.shape(COURSE_ANG))
         LON_DIFF = np.diff(LON, prepend=LON[0])

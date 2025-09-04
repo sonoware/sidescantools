@@ -25,7 +25,7 @@ class Georeferencer:
     GCP_SPLIT: list
     POINTS_SPLIT: list
     LALO_OUTER: list
-    PING: np.ndarray
+    PING: list
     chunk_indices: np.array
     vertical_beam_angle: int
     epsg_code: str
@@ -87,7 +87,7 @@ class Georeferencer:
         self.GCP_SPLIT = []
         self.POINTS_SPLIT = []
         self.LALO_OUTER = []
-        #self.PING_NO = np.empty_like(proc_data)
+        self.PING = []
         self.LOLA_plt = np.empty_like(proc_data)
         self.HEAD_plt = np.empty_like(proc_data)
         self.LOLA_plt_ori = np.empty_like(proc_data)
@@ -133,69 +133,139 @@ class Georeferencer:
         GROUND_RANGE.append(ground_range)
         GROUND_RANGE = np.ndarray.flatten(np.array(GROUND_RANGE))
 
-        MASK = LON_ori != 0
+        ZERO_MASK = LON_ori != 0
+        print(ZERO_MASK)
 
-        LON_ori = LON_ori[MASK]
-        LAT_ori = LAT_ori[MASK]
-        HEAD_ori = HEAD_ori[MASK]
+        LON_ori = LON_ori[ZERO_MASK]
+        LAT_ori = LAT_ori[ZERO_MASK]
+        HEAD_ori = HEAD_ori[ZERO_MASK]
 
-        GROUND_RANGE = GROUND_RANGE[MASK]
-        SLANT_RANGE = SLANT_RANGE[MASK]
-        self.PING = self.PING[MASK]
-        self.PING = self.PING
+        GROUND_RANGE = GROUND_RANGE[ZERO_MASK]
+        SLANT_RANGE = SLANT_RANGE[ZERO_MASK]
+        self.PING = self.PING[ZERO_MASK]
         print(f"shape ping original: {np.shape(self.PING)}")
 
         # Smooth Coordinates and Heading
-        LAT = savgol_filter(LAT_ori, 100, 2)
-        LON = savgol_filter(LON_ori, 100, 2)
+        LAT = savgol_filter(LAT_ori, 54, 2)
+        LON = savgol_filter(LON_ori, 54, 2)
 
-        # convert heading angle to vectors to avoid jumps when crossing 0/360° degree angle
+        # Unwrap to avoid jumps when crossing 0/360° degree angle
         HEAD_ori_rad = np.deg2rad(HEAD_ori)
-        x_head = np.cos(HEAD_ori_rad)
-        y_head = np.sin(HEAD_ori_rad)
-    
-        x_head_savgol = savgol_filter(x_head, 100, 2)
-        y_head_savgol = savgol_filter(y_head, 100, 2)
+        head_unwrapped = np.unwrap(HEAD_ori_rad)
+        head_unwrapped_savgol = savgol_filter(head_unwrapped, 54, 2)
+        HEAD = np.rad2deg(head_unwrapped_savgol) % 360
+        #turn_rad = np.abs(np.diff(head_unwrapped_savgol, prepend=head_unwrapped_savgol[0]))
 
-        # convert back to angles -> degree and map from -180/180 -> 0/360
-        HEAD = np.arctan2(y_head_savgol, x_head_savgol)
-        HEAD = np.rad2deg(HEAD) % 360
+        # Remove duplicate values
+        #_, UIDX = np.unique(LON_ori, return_index=True)
+        #print("UIDX: ", UIDX)
+        UNIQUE_MASK = np.empty_like(LON_ori)
+        #print("UNIQUE_MASK[7440:7700]: ", UNIQUE_MASK[7640:7700])
+        i = 0
+        for i, (lo,la, uni) in enumerate(zip(LON, LAT, UNIQUE_MASK)):
+            if LON[i] == LON[i-1] and LAT[i] == LAT[i-1]:
+                print("LON_ori[i], LON_ori[i-1], LAT_ori[i], LAT_ori[i-1]: ", LON[i], LON[i-1], LAT[i], LAT[i-1])
+                UNIQUE_MASK[i] = np.nan
+            else:
+                UNIQUE_MASK[i] = 0
+                #UNIQUE_MASK.append(unique_val)
+        #print("len, sum nan, where isno nan UNIQUE_MASK: ", np.shape(UNIQUE_MASK), sum(np.isnan(UNIQUE_MASK)), np.where(~np.isnan(UNIQUE_MASK)))
+        UNIQUE_MASK = [False if np.isnan(unique_val) else True for unique_val in UNIQUE_MASK]
+
+        LON = LON[UNIQUE_MASK]
+        LAT = LAT[UNIQUE_MASK]
+        HEAD = HEAD[UNIQUE_MASK]
+
+        GROUND_RANGE = GROUND_RANGE[UNIQUE_MASK]
+        SLANT_RANGE = SLANT_RANGE[UNIQUE_MASK]
+        self.PING = self.PING[UNIQUE_MASK]
+        print(f"shape ping unique: {np.shape(self.PING)}")
+
+        #TODO: Calculate true course and derive turn radius from coordinates
+        COURSE_ANG = np.empty_like(LON)
+        print("np.shape(COURSE_ANG): ", np.shape(COURSE_ANG))
+        LON_DIFF = np.diff(LON, prepend=LON[0])
+        LAT_DIFF = np.diff(LAT, prepend=LAT[0])
+        for i, (lo, la, cang) in enumerate(zip(LON_DIFF, LAT_DIFF, COURSE_ANG)):
+            course_ang = np.atan2(la,lo)
+            COURSE_ANG[i] = np.rad2deg(course_ang) % 360
+        print("np.shape(COURSE_ANG): ", np.shape(COURSE_ANG))
+
+        #COURSE_ANG = np.unwrap(COURSE_ANG)
+        turn_rad = np.abs(np.diff(COURSE_ANG, prepend=COURSE_ANG[0]))
+        #print("np.shape(turn_rad), np.shape(self.PING): ", np.shape(turn_rad), self.PING)
+        #turn_rad = savgol_filter(turn_rad, 100, 2)
 
         # filter high turn radii to exclude from data
-        turn_rad = np.gradient(HEAD, self.PING, edge_order=1)
+        #turn_rad = np.gradient(HEAD, self.PING, edge_order=1)
         #turn_rad = np.gradient(x_head_savgol, y_head_savgol, edge_order=1)
 
         # plot ping vs. turnrad
         from matplotlib import pyplot as plt
+        #plt.plot(self.PING, COURSE_ANG)
+        #plt.plot(LON, LAT)
+        #plt.show()
         plt.plot(self.PING, turn_rad)
-        plt.show()
+        #plt.show()
 
-        mov_win =+ 0
+        # set values above turn radius threshold nan, count nans and delete section with less 
+        # than 100 consecutive pings nan
+        mov_win = 1
+        count = 0
+        start_idx = None
+
         for i, rad in enumerate(turn_rad):
-            if rad >= 0.025 or rad <= -0.025:
-                turn_rad[i-mov_win:i+mov_win] = np.nan
+            if rad >= 10:
+                #turn_rad[i-mov_win:i+mov_win] = np.nan
+                turn_rad[i] = np.nan
+
+        for i, rad in enumerate(turn_rad):
+            if not np.isnan(rad):   # count non-nan pings
+                if count == 0:
+                    start_idx = i
+                count += 1
+            else:  
+                if count > 0 and count <= 20:      # delete/set nan section with less than 500 pings in a row
+                    turn_rad[start_idx:i] = np.nan
+                count = 0
+                start_idx = None
+        if count > 0 and count <= 20:
+            turn_rad[start_idx:] = np.nan
+
 
         plt.plot(self.PING, turn_rad)
-        #plt.plot(self.PING_NO, HEAD)
+        #plt.plot(self.PING, head_unwrapped)
         plt.show()
+        print("sum(np.isnan(turn_rad)):", np.sum(np.isnan(turn_rad)))
 
         TURN_MASK = [ False if np.isnan(rad) else True for rad in turn_rad ]
+        print("sum(np.isnan(turn_rad)):", np.sum(np.isnan(turn_rad)))
+        #TURN_MASK = [False if rad >= 5 else True for rad in turn_rad ]
+        #print(TURN_MASK[6400:7000])
 
         # Apply turn radius mask to cut turns
+        print("len(LAT: ", len(LAT))
         LON = LON[TURN_MASK]
         LAT = LAT[TURN_MASK]
+        print("len(LAT: ", len(LAT))
         HEAD = HEAD[TURN_MASK]  
+        GROUND_RANGE = GROUND_RANGE[TURN_MASK]
+        SLANT_RANGE = SLANT_RANGE[TURN_MASK]
         self.PING = self.PING[TURN_MASK]
+        print(f"shape ping turn: {np.shape(self.PING)}")
+
 
         # Create arrays for heading and coords for plotting in GUI
         x = range(len(HEAD))
+        x_ori = range(len(HEAD_ori))
         self.HEAD_plt = np.column_stack((x, HEAD))
-        self.HEAD_plt_ori = np.column_stack((x, HEAD_ori))
+        self.HEAD_plt_ori = np.column_stack((x_ori, HEAD_ori))
         self.LOLA_plt = np.column_stack((LON, LAT))
+        print(np.shape(self.LOLA_plt))
         self.LOLA_plt_ori = np.column_stack((LON_ori, LAT_ori))
 
         # Convert to UTM to calculate outer swath coordinates for both channels
-        UTM = np.full_like(LAT_ori, np.nan)
+        UTM = np.full_like(LAT, np.nan)
         UTM = UTM.tolist()
         for idx, (la, lo) in enumerate(zip(LAT, LON)):
             try:
@@ -211,6 +281,7 @@ class Georeferencer:
             crs = CRS.from_dict({"proj": "utm", "zone": UTM_ZONE[0], "south": False})
             epsg = crs.to_authority()
             self.epsg_code = f"{epsg[0]}:{epsg[1]}"
+            print("NORTH, EAST: ", len(NORTH), len(EAST))
 
         if self.channel == 0:
             EAST_OUTER = np.array(
@@ -232,6 +303,8 @@ class Georeferencer:
                 )
             ]
             LA_OUTER, LO_OUTER = map(np.array, zip(*self.LALO_OUTER))
+            print("NORTH, EAST, LALO: ", len(NORTH_OUTER), len(EAST_OUTER), len(self.LALO_OUTER))
+
 
         elif self.channel == 1:
             EAST_OUTER = np.array(
@@ -253,10 +326,14 @@ class Georeferencer:
                 )
             ]
             LA_OUTER, LO_OUTER = map(np.array, zip(*self.LALO_OUTER))
+            print("NORTH, EAST, LALO: ", len(NORTH_OUTER), len(EAST_OUTER), len(self.LALO_OUTER))
 
         chunksize = 5
+        swath_len = len(self.PING)
+
         self.chunk_indices = int(swath_len / chunksize)
         print(f"Fixed chunk size: {chunksize} pings.")
+        print("swath_len, chunk_indices: ", swath_len, self.chunk_indices)
 
         # UTM
         if self.active_utm:
@@ -264,12 +341,14 @@ class Georeferencer:
             la_split_ce = np.array_split(EAST, self.chunk_indices, axis=0)
             lo_split_e = np.array_split(NORTH_OUTER, self.chunk_indices, axis=0)
             la_split_e = np.array_split(EAST_OUTER, self.chunk_indices, axis=0)
+            #print("lo_split_ce, la_split_ce, la_split_e, lo_split_e: ", lo_split_ce, la_split_ce, la_split_e, lo_split_e)
 
         else:
             lo_split_ce = np.array_split(LON, self.chunk_indices, axis=0)
             la_split_ce = np.array_split(LAT, self.chunk_indices, axis=0)
             lo_split_e = np.array_split(LO_OUTER, self.chunk_indices, axis=0)
             la_split_e = np.array_split(LA_OUTER, self.chunk_indices, axis=0)
+            #print("lo_split_ce, la_split_ce, la_split_e, lo_split_e: ", lo_split_ce, la_split_ce, la_split_e, lo_split_e)
 
         """
         Calculate edge coordinates for first and last coordinates in chunks:
@@ -595,28 +674,26 @@ class Georeferencer:
                 f"Processing chunks in channel {self.channel} with warp method {self.warp_algorithm}..."
             )
 
-            self.georeference(
-                ch_stack=ch_stack, otiff=tif_path, progress_signal=progress_signal
-            )
+            self.georeference(ch_stack=ch_stack, otiff=tif_path, progress_signal=progress_signal)
 
             # save Navigation to .csv
             print(f"Saving navinfo to {nav_ch}")
-            #nav = np.column_stack((self.PING_NO, self.LALO_OUTER, self.LOLA_plt, self.HEAD_plt[:, 1]))
+            #nav = np.column_stack((self.PING, self.LALO_OUTER, self.LOLA_plt, self.HEAD_plt[:, 1]))
             #np.savetxt(
             #    nav_ch,
             #    nav,
             #    fmt="%s",
             #    delimiter=";",
             #    header="Ping No; Outer Latitude; Outer Longitude; Nadir Longitude; Nadir Latitude; Heading",
-            #)
+#            )
 
-            nav = np.column_stack((self.PING, self.LOLA_plt, self.HEAD_plt[:, 1]))
+            nav = np.column_stack((self.PING, self.LOLA_plt))
             np.savetxt(
                 nav_ch,
                 nav,
                 fmt="%s",
                 delimiter=";",
-                header="Ping No; Nadir Longitude; Nadir Latitude; Heading",
+                header="Ping No; Nadir Longitude; Nadir Latitude",
             )
         except Exception as e:
             print(f"An error occurred during georeferencing: {str(e)}")

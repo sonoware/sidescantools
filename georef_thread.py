@@ -26,8 +26,8 @@ class Georeferencer:
     POINTS_SPLIT: list
     LALO_OUTER: list
     PING: list
+    turn_rate: list
     COURSE_ANG: np.ndarray
-    turn_rate: np.ndarray
     chunk_indices: np.array
     vertical_beam_angle: int
     epsg_code: str
@@ -90,8 +90,8 @@ class Georeferencer:
         self.POINTS_SPLIT = []
         self.LALO_OUTER = []
         self.PING = []
+        self.turn_rate = []
         self.COURSE_ANG = np.empty_like(proc_data)
-        self.turn_rate = np.empty_like(proc_data)
         self.LOLA_plt = np.empty_like(proc_data)
         self.HEAD_plt = np.empty_like(proc_data)
         self.LOLA_plt_ori = np.empty_like(proc_data)
@@ -192,83 +192,67 @@ class Georeferencer:
             DIST[i] = geopy.distance.distance(c_a, c_b).meters
 
         DIST[0] = 0
-        print("DIST: ", DIST)
-        print("len(np.cumsum(DIST)): ", (np.cumsum(DIST)))
-        print("LON[0] - LAT[0]: ", geopy.distance.distance((LAT[-1], LON[-1]), (LAT[0], LON[0])))
+        #print("DIST: ", DIST)
+        #print("len(np.cumsum(DIST)): ", (np.cumsum(DIST)))
+        #print("LON[0] - LAT[0]: ", geopy.distance.distance((LAT[-1], LON[-1]), (LAT[0], LON[0])))
 
 
         #TODO: clean code; tweak savgol filter values; 
-        print("LAT[0:2]: ", LAT[-1])
-        print("LON[0:2]: ", LON[-1])
+
         self.COURSE_ANG = np.empty_like(LON)
-        print("np.shape(COURSE_ANG): ", np.shape(self.COURSE_ANG))
+
         LON_DIFF = np.diff(LON, append=LON[-1])
         LAT_DIFF = np.diff(LAT, append=LAT[-1])
         for i, (lo, la, cang) in enumerate(zip(LON_DIFF, LAT_DIFF, self.COURSE_ANG)):
             course_ang = np.atan2(la,lo)
             self.COURSE_ANG[i] = course_ang
-        print("np.shape(COURSE_ANG): ", np.shape(self.COURSE_ANG))
 
         self.COURSE_ANG = np.unwrap(self.COURSE_ANG)
         self.COURSE_ANG = np.rad2deg(self.COURSE_ANG)
-        #print("self.COURSE_ANG[0:100]: ", self.COURSE_ANG[0:100])
-
-
-        #self.turn_rate = np.abs(np.diff(self.COURSE_ANG, append=self.COURSE_ANG[-1]))
-        #self.turn_rad = np.abs(np.gradient(self.COURSE_ANG, self.PING))
 
         # plot ping vs. turnrad
         from matplotlib import pyplot as plt
-
-        plt.plot(self.PING, self.COURSE_ANG % 360)
-        plt.plot(self.PING, HEAD)
-        plt.title = 'cog, head'
-        plt.legend(["cog [°]", "head [°]"], loc="upper left")
-        plt.show()
+#
+        #plt.plot(self.PING, self.COURSE_ANG % 360)
+        #plt.plot(self.PING, HEAD)
+        #plt.title = 'cog, head'
+        #plt.legend(["cog [°]", "head [°]"], loc="upper left")
+        #plt.show()
 
         # calculate turn rates in [°/ping] (usually of magnitudes 0.xx°/ping) inside moving window of size X pings. to get an idea of turn rates within a distance, 
         # the rates are summed up to make the windows comparable
-        # TODO: make window size depending on swath width(?)
-        
+        # TODO: make window size depending on swath width(?), remove outliers from course_ang if order of pings is messed up
+        #  - take median as threshold maybe?
+
         window = 100
-        TURN_RATE = []
+        self.turn_rate = []
         TR = []
         for window in self.moving_segments(self.COURSE_ANG, window):
             tr = np.abs(np.diff(window, prepend=window[0]))
-            tr_sum = np.sum(tr)
             # find max turn rate within each window
             tr_max = np.max(tr)
-            TURN_RATE.append(tr_max)
+            self.turn_rate.append(tr_max)
             TR.append(tr)
-        #print("len(TR[0]), sum(TR[0]): ", (TR[0:]), sum(TR[0]))
 
 
-        plt.plot(self.PING, TURN_RATE)
+        plt.plot(self.PING, self.turn_rate)
         #plt.plot(self.PING, self.COURSE_ANG)
         plt.title = 'turn rate, cog'
         plt.legend(["turn rate [°/ping]", "cog"], loc="upper left")
-        plt.show()
-        print("sum(np.isnan(turn_rad)):", np.sum(np.isnan(self.turn_rate)))
+        #splt.show()
 
-        TURN_MASK = [ False if np.isnan(rad) else True for rad in self.turn_rate ]
-        print("sum(np.isnan(turn_rad)):", np.sum(np.isnan(self.turn_rate)))
-        #TURN_MASK = [False if rad >= 5 else True for rad in turn_rad ]
-        #print(TURN_MASK[6400:7000])
+        # Find segment indices of turn rates > threshold
+        #TURN_MASK = [False if rate >= 10 else True for rate in self.turn_rate ]
+        TURN_MASK = [np.nan if rate >= 10 else rate for rate in self.turn_rate ]
+        TURN_IDX = np.where(np.isnan(TURN_MASK))
+        TURN_IDX = TURN_IDX[0]
+        print("len TURN_IDX: ", len(TURN_IDX))
 
         # Apply turn radius mask to cut turns
-        #print("len(LAT: ", len(LAT))
-        #self.COURSE_ANG = self.COURSE_ANG[TURN_MASK]
-        #self.turn_rad = self.turn_rad[TURN_MASK]
-        #LON = LON[TURN_MASK]
-        #LAT = LAT[TURN_MASK]
-        #print("len(LAT: ", len(LAT))
-        #HEAD = HEAD[TURN_MASK]  
-        #GROUND_RANGE = GROUND_RANGE[TURN_MASK]
-        #SLANT_RANGE = SLANT_RANGE[TURN_MASK]
-        #self.PING = self.PING[TURN_MASK]
-        #print(f"shape ping turn: {np.shape(self.PING)}")
-        ##plt.plot(LON, LAT)
-        #plt.show()
+        self.COURSE_ANG[TURN_IDX] = np.nan
+        self.turn_rate = np.asarray(self.turn_rate)
+        self.turn_rate[TURN_IDX] = np.nan
+        self.PING[TURN_IDX] = np.nan
 
 
         # Create arrays for heading and coords for plotting in GUI
@@ -277,8 +261,9 @@ class Georeferencer:
         self.HEAD_plt = np.column_stack((x, HEAD))
         self.HEAD_plt_ori = np.column_stack((x_ori, HEAD_ori))
         self.LOLA_plt = np.column_stack((LON, LAT))
-        print(np.shape(self.LOLA_plt))
         self.LOLA_plt_ori = np.column_stack((LON_ori, LAT_ori))
+        self.LOLA_plt[TURN_IDX] = np.nan
+        self.HEAD_plt[TURN_IDX] = np.nan
 
         # Convert to UTM to calculate outer swath coordinates for both channels
         UTM = np.full_like(LAT, np.nan)
@@ -292,12 +277,13 @@ class Georeferencer:
         if UTM:
             NORTH = [utm_coord[0] for utm_coord in UTM]
             EAST = [utm_coord[1] for utm_coord in UTM]
+            NORTH = np.asarray(NORTH)
+            EAST = np.asarray(EAST)
             UTM_ZONE = [utm_coord[2] for utm_coord in UTM]
             UTM_LET = [utm_coord[3] for utm_coord in UTM]
             crs = CRS.from_dict({"proj": "utm", "zone": UTM_ZONE[0], "south": False})
             epsg = crs.to_authority()
             self.epsg_code = f"{epsg[0]}:{epsg[1]}"
-            print("NORTH, EAST: ", len(NORTH), len(EAST))
 
         if self.channel == 0:
             EAST_OUTER = np.array(
@@ -318,8 +304,6 @@ class Georeferencer:
                     NORTH_OUTER, EAST_OUTER, UTM_ZONE, UTM_LET
                 )
             ]
-            LA_OUTER, LO_OUTER = map(np.array, zip(*self.LALO_OUTER))
-            print("NORTH, EAST, LALO: ", len(NORTH_OUTER), len(EAST_OUTER), len(self.LALO_OUTER))
 
 
         elif self.channel == 1:
@@ -341,8 +325,18 @@ class Georeferencer:
                     NORTH_OUTER, EAST_OUTER, UTM_ZONE, UTM_LET
                 )
             ]
-            LA_OUTER, LO_OUTER = map(np.array, zip(*self.LALO_OUTER))
-            print("NORTH, EAST, LALO: ", len(NORTH_OUTER), len(EAST_OUTER), len(self.LALO_OUTER))
+
+        LA_OUTER, LO_OUTER = map(np.array, zip(*self.LALO_OUTER))
+
+        # NAN where turn index > threshold (the other arrays into segments at TURN_IDX)
+        LON[TURN_IDX] = np.nan
+        LAT[TURN_IDX] = np.nan
+        LO_OUTER[TURN_IDX] = np.nan
+        LA_OUTER[TURN_IDX] = np.nan
+        NORTH[TURN_IDX] = np.nan
+        EAST[TURN_IDX] = np.nan
+        NORTH_OUTER[TURN_IDX] = np.nan
+        EAST_OUTER[TURN_IDX] = np.nan
 
         chunksize = 5
         swath_len = len(self.PING)
@@ -420,6 +414,7 @@ class Georeferencer:
 
             self.GCP_SPLIT.append(gcp)
             self.POINTS_SPLIT.append(points)
+            #print("len(self.GCP_SPLIT: ", len(self.GCP_SPLIT), len(self.GCP_SPLIT[0]))
 
     def channel_stack(self):
         """- Work on raw or processed data, depending on `self.active_proc_data`
@@ -509,48 +504,49 @@ class Georeferencer:
         for chunk_num, (ch_chunk, gcp_chunk, points_chunk) in enumerate(
             zip(ch_split, self.GCP_SPLIT, self.POINTS_SPLIT)
         ):
+            # process only non-empty gcp chunks
             if chunk_num < len(ch_split) - 1:
+                if not np.isnan(gcp_chunk).any():
+                    im_path = otiff.with_stem(f"{otiff.stem}_{chunk_num}_tmp").with_suffix(
+                        ".png"
+                    )
+                    chunk_path = otiff.with_stem(
+                        f"{otiff.stem}_{chunk_num}_chunk_tmp"
+                    ).with_suffix(".tif")
+                    warp_path = otiff.with_stem(
+                        f"{otiff.stem}_{chunk_num}_georef_chunk_tmp"
+                    ).with_suffix(".tif")
 
-                im_path = otiff.with_stem(f"{otiff.stem}_{chunk_num}_tmp").with_suffix(
-                    ".png"
-                )
-                chunk_path = otiff.with_stem(
-                    f"{otiff.stem}_{chunk_num}_chunk_tmp"
-                ).with_suffix(".tif")
-                warp_path = otiff.with_stem(
-                    f"{otiff.stem}_{chunk_num}_georef_chunk_tmp"
-                ).with_suffix(".tif")
+                    # Flip image chunks according to side
+                    if self.channel == 0:
+                        ch_chunk_flip = np.flip(ch_chunk, 1)
+                    elif self.channel == 1:
+                        ch_chunk_flip = np.flip(ch_chunk, 0)
 
-                # Flip image chunks according to side
-                if self.channel == 0:
-                    ch_chunk_flip = np.flip(ch_chunk, 1)
-                elif self.channel == 1:
-                    ch_chunk_flip = np.flip(ch_chunk, 0)
+                    alpha = np.ones(np.shape(ch_chunk_flip), dtype=np.uint8) * 255
+                    alpha[ch_chunk_flip == 0] = 0
+                    data_stack = np.stack(
+                        (ch_chunk_flip, ch_chunk_flip, ch_chunk_flip), axis=-1
+                    )
+                    image_to_write = Image.fromarray(data_stack)
+                    alpha = Image.fromarray(alpha)
+                    image_to_write.putalpha(alpha)
+                    png_info = PngInfo()
+                    png_info.add_text("Info", "Generated by SidescanTools")
+                    image_to_write.save(im_path, pnginfo=png_info)
 
-                alpha = np.ones(np.shape(ch_chunk_flip), dtype=np.uint8) * 255
-                alpha[ch_chunk_flip == 0] = 0
-                data_stack = np.stack(
-                    (ch_chunk_flip, ch_chunk_flip, ch_chunk_flip), axis=-1
-                )
-                image_to_write = Image.fromarray(data_stack)
-                alpha = Image.fromarray(alpha)
-                image_to_write.putalpha(alpha)
-                png_info = PngInfo()
-                png_info.add_text("Info", "Generated by SidescanTools")
-                image_to_write.save(im_path, pnginfo=png_info)
+                    try:
+                        coords = [
+                            (im_x, im_y, lo, la) for (im_x, im_y, lo, la) in gcp_chunk
+                        ]
+                        im_x, im_y, lo, la = zip(*coords)
 
-                try:
-                    coords = [
-                        (im_x, im_y, lo, la) for (im_x, im_y, lo, la) in gcp_chunk
-                    ]
-                    im_x, im_y, lo, la = zip(*coords)
+                    except Exception as e:
+                        print(f"gcp chunk: {np.shape(gcp_chunk)}")
 
-                except Exception as e:
-                    print(f"gcp chunk: {np.shape(gcp_chunk)}")
+                    gdal_translate = ["gdal_translate", "-of", "GTiff"]
 
-                gdal_translate = ["gdal_translate", "-of", "GTiff"]
-
-                gdal_warp_utm = [
+                    gdal_warp_utm = [
                     "gdal",
                     "raster",
                     "reproject",
@@ -569,7 +565,7 @@ class Georeferencer:
                     str(warp_path),
                 ]
 
-                gdal_warp_wgs84 = [
+                    gdal_warp_wgs84 = [
                     "gdal",
                     "raster",
                     "reproject",
@@ -588,27 +584,30 @@ class Georeferencer:
                     str(warp_path),
                 ]
 
-                for i in range(len(gcp_chunk)):
-                    gdal_translate.extend(
-                        ["-gcp", str(im_x[i]), str(im_y[i]), str(lo[i]), str(la[i])]
-                    )
+                    for i in range(len(gcp_chunk)):
+                        gdal_translate.extend(
+                            ["-gcp", str(im_x[i]), str(im_y[i]), str(lo[i]), str(la[i])]
+                        )
 
-                gdal_translate.extend([str(im_path), str(chunk_path)])
+                    gdal_translate.extend([str(im_path), str(chunk_path)])
 
-                # gdal 3.11 syntax
-                if self.active_utm:
-                    gdal_warp = gdal_warp_utm
+                    # gdal 3.11 syntax
+                    if self.active_utm:
+                        gdal_warp = gdal_warp_utm
+                    else:
+                        gdal_warp = gdal_warp_wgs84
+
+                    if progress_signal is not None:
+                        progress_signal.emit(1000 / (len(ch_stack[1])) * 0.005)
+
+                    self.run_command(gdal_translate)
+                    self.run_command(gdal_warp)
+
                 else:
-                    gdal_warp = gdal_warp_wgs84
-
-                if progress_signal is not None:
-                    progress_signal.emit(1000 / (len(ch_stack[1])) * 0.005)
-
-                self.run_command(gdal_translate)
-                self.run_command(gdal_warp)
-
+                    print("Contains turns")
             elif chunk_num == len(ch_split) - 1:
                 pass
+
 
     def mosaic(self, mosaic_tiff, txt_path, progress_signal=None):
         """
@@ -694,14 +693,6 @@ class Georeferencer:
 
             # save Navigation to .csv
             print(f"Saving navinfo to {nav_ch}")
-            #nav = np.column_stack((self.PING, self.LALO_OUTER, self.LOLA_plt, self.HEAD_plt[:, 1]))
-            #np.savetxt(
-            #    nav_ch,
-            #    nav,
-            #    fmt="%s",
-            #    delimiter=";",
-            #    header="Ping No; Outer Latitude; Outer Longitude; Nadir Longitude; Nadir Latitude; Heading",
-#            )
 
             nav = np.column_stack((self.PING, self.LOLA_plt, self.COURSE_ANG, self.turn_rate))
             np.savetxt(
@@ -709,7 +700,7 @@ class Georeferencer:
                 nav,
                 fmt="%s",
                 delimiter=";",
-                header="Ping No; Nadir Longitude; Nadir Latitude; CoG; turn radius",
+                header="Ping No; Nadir Longitude; Nadir Latitude; CoG;",
             )
         except Exception as e:
             print(f"An error occurred during georeferencing: {str(e)}")

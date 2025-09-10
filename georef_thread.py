@@ -27,7 +27,7 @@ class Georeferencer:
     LALO_OUTER: list
     PING: list
     COURSE_ANG: np.ndarray
-    turn_rad: np.ndarray
+    turn_rate: np.ndarray
     chunk_indices: np.array
     vertical_beam_angle: int
     epsg_code: str
@@ -91,7 +91,7 @@ class Georeferencer:
         self.LALO_OUTER = []
         self.PING = []
         self.COURSE_ANG = np.empty_like(proc_data)
-        self.turn_rad = np.empty_like(proc_data)
+        self.turn_rate = np.empty_like(proc_data)
         self.LOLA_plt = np.empty_like(proc_data)
         self.HEAD_plt = np.empty_like(proc_data)
         self.LOLA_plt_ori = np.empty_like(proc_data)
@@ -109,6 +109,10 @@ class Georeferencer:
                     f"Error setting up output folder. Path might be invalid: {self.output_folder}"
                 )
                 raise FileNotFoundError
+            
+    def moving_segments(self, track_array, window_size):
+        for i in range(len(track_array - window_size +1)):
+            yield track_array[i:i+window_size]
 
     def prep_data(self):
         # Extract metadata for each ping in sonar channel
@@ -158,13 +162,9 @@ class Georeferencer:
         head_unwrapped = np.unwrap(HEAD_ori_rad)
         head_unwrapped_savgol = savgol_filter(head_unwrapped, 100, 2)
         HEAD = np.rad2deg(head_unwrapped_savgol) % 360
-        #turn_rad = np.abs(np.diff(head_unwrapped_savgol, prepend=head_unwrapped_savgol[0]))
 
         # Remove duplicate values
-        #_, UIDX = np.unique(LON_ori, return_index=True)
-        #print("UIDX: ", UIDX)
         UNIQUE_MASK = np.empty_like(LON_ori)
-        #print("UNIQUE_MASK[7440:7700]: ", UNIQUE_MASK[7640:7700])
         i = 0
         for i, (lo,la, uni) in enumerate(zip(LON, LAT, UNIQUE_MASK)):
             if LON[i] == LON[i-1] and LAT[i] == LAT[i-1]:
@@ -172,8 +172,6 @@ class Georeferencer:
                 UNIQUE_MASK[i] = np.nan
             else:
                 UNIQUE_MASK[i] = 0
-                #UNIQUE_MASK.append(unique_val)
-        #print("len, sum nan, where isno nan UNIQUE_MASK: ", np.shape(UNIQUE_MASK), sum(np.isnan(UNIQUE_MASK)), np.where(~np.isnan(UNIQUE_MASK)))
         UNIQUE_MASK = [False if np.isnan(unique_val) else True for unique_val in UNIQUE_MASK]
 
         LON = LON[UNIQUE_MASK]
@@ -198,27 +196,14 @@ class Georeferencer:
         print("len(np.cumsum(DIST)): ", (np.cumsum(DIST)))
         print("LON[0] - LAT[0]: ", geopy.distance.distance((LAT[-1], LON[-1]), (LAT[0], LON[0])))
 
-        # split into 100m(!) chunks
-        SEGMENT = []
-        SEGMENT_IDX = []
-        segment_sum = 0
-        #SEGMENT_IDX.append(i)
-        for i, dist in enumerate(DIST):
-            segment_sum += dist
-            if segment_sum >= 100:
-                SEGMENT.append(segment_sum)
-                SEGMENT_IDX.append(i)
-                segment_sum = 0
 
-        print("SEGMENT: ", len(SEGMENT_IDX))
-
-
-
-        #TODO: TODO: clean code; tweak savgol filter values; adjust chunking based on possible position holes due to turn cutting
+        #TODO: clean code; tweak savgol filter values; 
+        print("LAT[0:2]: ", LAT[-1])
+        print("LON[0:2]: ", LON[-1])
         self.COURSE_ANG = np.empty_like(LON)
         print("np.shape(COURSE_ANG): ", np.shape(self.COURSE_ANG))
-        LON_DIFF = np.diff(LON[::100], prepend=LON[::100][0])
-        LAT_DIFF = np.diff(LAT[::100], prepend=LAT[::100][0])
+        LON_DIFF = np.diff(LON, append=LON[-1])
+        LAT_DIFF = np.diff(LAT, append=LAT[-1])
         for i, (lo, la, cang) in enumerate(zip(LON_DIFF, LAT_DIFF, self.COURSE_ANG)):
             course_ang = np.atan2(la,lo)
             self.COURSE_ANG[i] = course_ang
@@ -226,79 +211,47 @@ class Georeferencer:
 
         self.COURSE_ANG = np.unwrap(self.COURSE_ANG)
         self.COURSE_ANG = np.rad2deg(self.COURSE_ANG)
-        COURSE_ANG_split = np.array_split(self.COURSE_ANG, SEGMENT_IDX)
-        print("len(COURSE_ANG_split: ", len(COURSE_ANG_split[0]))
-        print("self.COURSE_ANG[0], 1: ", self.COURSE_ANG[0], self.COURSE_ANG[1])
-        #self.turn_rad = np.abs(np.diff(self.COURSE_ANG, prepend=self.COURSE_ANG[1]))
-        self.turn_rad = np.abs(np.gradient(self.COURSE_ANG, self.PING))
+        #print("self.COURSE_ANG[0:100]: ", self.COURSE_ANG[0:100])
 
-        #TURN_RAD = []
-        #for segment in COURSE_ANG_split:
-        #    print("segment: ", len(segment))
-        #    tr = np.abs(np.diff(segment, prepend=segment[0]))
-        #    TURN_RAD.append(tr)
-        #print("len(TURN_RAD): ", (TURN_RAD))
-        #self.turn_rad = np.abs(np.gradient(self.COURSE_ANG, np.cumsum(DIST)))
-        #print("np.shape(turn_rad), np.shape(self.PING): ", np.shape(turn_rad), self.PING)
 
-        # filter high turn radii to exclude from data
-        #turn_rad = np.gradient(HEAD, self.PING, edge_order=1)
-        #turn_rad = np.gradient(x_head_savgol, y_head_savgol, edge_order=1)
+        #self.turn_rate = np.abs(np.diff(self.COURSE_ANG, append=self.COURSE_ANG[-1]))
+        #self.turn_rad = np.abs(np.gradient(self.COURSE_ANG, self.PING))
 
         # plot ping vs. turnrad
         from matplotlib import pyplot as plt
 
-        #plt.plot(np.cumsum(DIST), self.turn_rad % 360)
-        plt.plot(self.PING, self.turn_rad)
-        plt.title = 'Ping, turn rad'
-        plt.legend(["Ping", "turn rad"], loc="upper left")
+        plt.plot(self.PING, self.COURSE_ANG % 360)
+        plt.plot(self.PING, HEAD)
+        plt.title = 'cog, head'
+        plt.legend(["cog [°]", "head [°]"], loc="upper left")
         plt.show()
-#
-        #plt.plot(self.PING, self.COURSE_ANG)
-        #plt.vlines(SEGMENT_IDX, 100, 100)
-        ##plt.plot(self.PING, HEAD)
-        #plt.title = 'Course angle, Heading'
-        ##plt.legend(["Course Ang", "Heading"], loc="upper left")
-        #plt.show()
+
+        # calculate turn rates in [°/ping] (usually of magnitudes 0.xx°/ping) inside moving window of size X pings. to get an idea of turn rates within a distance, 
+        # the rates are summed up to make the windows comparable
+        # TODO: make window size depending on swath width(?)
         
-        #
-        #plt.plot(LON, LAT)
-        #plt.plot(self.PING, np.ndarray.flatten(np.asarray(TURN_RAD)))
-        #plt.title = 'turn radius before and after cut turns'
-        #plt.show()
-
-        # set values above turn radius threshold nan, count nans and delete section with less 
-        # than 100 consecutive pings nan
-        mov_win = 1
-        count = 0
-        start_idx = None
-
-        for i, rad in enumerate(self.turn_rad):
-            if rad >= 6:
-                #turn_rad[i-mov_win:i+mov_win] = np.nan
-                self.turn_rad[i] = np.nan
-
-        for i, rad in enumerate(self.turn_rad):
-            if not np.isnan(rad):   # count non-nan pings
-                if count == 0:
-                    start_idx = i
-                count += 1
-            else:  
-                if count > 0 and count <= 20:      # delete/set nan section with less than 500 pings in a row
-                    self.turn_rad[start_idx:i] = np.nan
-                count = 0
-                start_idx = None
-        if count > 0 and count <= 20:
-            self.turn_rad[start_idx:] = np.nan
+        window = 100
+        TURN_RATE = []
+        TR = []
+        for window in self.moving_segments(self.COURSE_ANG, window):
+            tr = np.abs(np.diff(window, prepend=window[0]))
+            tr_sum = np.sum(tr)
+            # find max turn rate within each window
+            tr_max = np.max(tr)
+            TURN_RATE.append(tr_max)
+            TR.append(tr)
+        #print("len(TR[0]), sum(TR[0]): ", (TR[0:]), sum(TR[0]))
 
 
-        plt.plot(self.PING, self.turn_rad)
-        #plt.plot(self.PING, head_unwrapped)
+        plt.plot(self.PING, TURN_RATE)
+        #plt.plot(self.PING, self.COURSE_ANG)
+        plt.title = 'turn rate, cog'
+        plt.legend(["turn rate [°/ping]", "cog"], loc="upper left")
         plt.show()
-        print("sum(np.isnan(turn_rad)):", np.sum(np.isnan(self.turn_rad)))
+        print("sum(np.isnan(turn_rad)):", np.sum(np.isnan(self.turn_rate)))
 
-        TURN_MASK = [ False if np.isnan(rad) else True for rad in self.turn_rad ]
-        print("sum(np.isnan(turn_rad)):", np.sum(np.isnan(self.turn_rad)))
+        TURN_MASK = [ False if np.isnan(rad) else True for rad in self.turn_rate ]
+        print("sum(np.isnan(turn_rad)):", np.sum(np.isnan(self.turn_rate)))
         #TURN_MASK = [False if rad >= 5 else True for rad in turn_rad ]
         #print(TURN_MASK[6400:7000])
 
@@ -750,7 +703,7 @@ class Georeferencer:
             #    header="Ping No; Outer Latitude; Outer Longitude; Nadir Longitude; Nadir Latitude; Heading",
 #            )
 
-            nav = np.column_stack((self.PING, self.LOLA_plt, self.COURSE_ANG, self.turn_rad))
+            nav = np.column_stack((self.PING, self.LOLA_plt, self.COURSE_ANG, self.turn_rate))
             np.savetxt(
                 nav_ch,
                 nav,

@@ -23,6 +23,7 @@ class Georeferencer:
     channel: int
     active_utm: bool
     active_poly: bool
+    active_export_navdata: bool
     proc_data: np.array
     output_folder: str | os.PathLike
     active_proc_data: bool
@@ -72,6 +73,7 @@ class Georeferencer:
         channel: int = 0,
         active_utm: bool = True,
         active_poly: bool = True,
+        active_export_navdata: bool = True,
         proc_data=None,
         output_folder: str | os.PathLike = "./georef_out",
         vertical_beam_angle: int = 60,
@@ -84,6 +86,7 @@ class Georeferencer:
         self.channel = channel
         self.active_utm = active_utm
         self.active_poly = active_poly
+        self.active_export_navdata = active_export_navdata
         self.output_folder = Path(output_folder)
         self.vertical_beam_angle = vertical_beam_angle
         self.warp_algorithm = warp_algorithm
@@ -102,7 +105,7 @@ class Georeferencer:
         self.HEAD_plt_ori = np.empty_like(proc_data)
         if proc_data is not None:
             self.proc_data = proc_data
-            self.active_proc_data = False
+            self.active_proc_data = True
         self.setup_output_folder()
 
     def setup_output_folder(self):
@@ -223,8 +226,8 @@ class Georeferencer:
 
         # UTM
         if self.active_utm:
-            lo_split_ce = np.array_split(northing, self.chunk_indices, axis=0)
-            la_split_ce = np.array_split(easting, self.chunk_indices, axis=0)
+            lo_split_ce = np.array_split(easting, self.chunk_indices, axis=0)
+            la_split_ce = np.array_split(northing, self.chunk_indices, axis=0)
             lo_split_e = np.array_split(easting_outer, self.chunk_indices, axis=0)
             la_split_e = np.array_split(northing_outer, self.chunk_indices, axis=0)
 
@@ -328,8 +331,8 @@ class Georeferencer:
 
 
         # Smooth Coordinates and Heading
-        LAT_savgol = savgol_filter(LAT_ori, 50, 3)
-        LON_savgol = savgol_filter(LON_ori, 50, 3)
+        #LAT_ori = savgol_filter(LAT_ori, 50, 3)
+        #LON_ori = savgol_filter(LON_ori, 50, 3)
 
         # Remove duplicate values
         UNIQUE_MASK = np.empty_like(LON_ori)
@@ -453,13 +456,13 @@ class Georeferencer:
         la_out_intp_savgol, lo_out_intp_savgol = map(np.array, zip(*self.LALO_OUTER))
 
         # Generate lists of gcps for each chunk
-        self.generate_gcps(chunksize=3, northing=north_intp, easting=east_intp, northing_outer=north_out_intp_savgol, easting_outer=east_out_intp_savgol,
+        self.generate_gcps(chunksize=5, northing=north_intp, easting=east_intp, northing_outer=north_out_intp_savgol, easting_outer=east_out_intp_savgol,
                            lon=lo_intp, lat=la_intp, lon_outer=lo_out_intp_savgol, lat_outer=la_out_intp_savgol)
 
         # Export navigation data
-        if True:
+        if self.active_export_navdata:
             print(f"Saving navinfo to file")
-            nav = np.column_stack((self.PING, lo_intp, la_intp, lo_out_intp_savgol, la_out_intp_savgol, self.cog_smooth))
+            nav = np.column_stack((self.PING, lo_intp, la_intp, lo_out_intp_savgol, la_out_intp_savgol, east_intp, north_intp, east_out_intp_savgol, north_out_intp_savgol, self.cog_smooth))
             nav_ch = self.output_folder / f"Navigation_{self.filepath.stem}_ch{self.channel}.csv"
 
             np.savetxt(
@@ -467,7 +470,7 @@ class Georeferencer:
                 nav,
                 fmt="%s",
                 delimiter=";",
-                header="Ping No; Nadir Longitude; Nadir Latitude, Outer Lon; Outer Lat, CoG [°]",
+                header="Ping No; Nadir Longitude; Nadir Latitude; Outer Lon; Outer Lat; Nadir Easting; Nadir Northing; Outer Easting; Outer Northing; CoG [°]",
             )
 
         # Logic for cutting turn rates. Ignore for now. 
@@ -844,12 +847,18 @@ def main():
         default=True,
         help="Uses polynomial order 1 transformation (affine) instead of homographic for georeferencing. Default is homographic.",
     )
+    parser.add_argument(
+        "--navdata",
+        type=bool,
+        default=True,
+        help="If true, exports navigation data to csv"
+    )
 
     args = parser.parse_args()
     print("args:", args)
 
     georeferencer = Georeferencer(
-        args.xtf, args.channel, args.dynamic_chunking, args.UTM, args.poly
+        args.xtf, args.channel, args.dynamic_chunking, args.UTM, args.poly, args.navdata
     )
     georeferencer.process()
 

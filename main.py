@@ -95,6 +95,7 @@ class SidescanToolsMain(QWidget):
         "Img include raw data": False,
         "Georef active proc data": True,
         "Georef UTM": True,
+        "Georef Navigation": True,
         "Resolution Mode": 3,
         "Warp Mode": 0,
         "Resampling Method": 0,
@@ -607,6 +608,9 @@ class SidescanToolsMain(QWidget):
         self.settings_dict["Georef UTM"] = (
             self.view_and_export_widget.active_utm_checkbox.isChecked()
         )
+        self.settings_dict["Georef Navigation"] = (
+            self.view_and_export_widget.active_navdata_checkbox.isChecked()
+        )
         self.settings_dict["Georef active custom colormap"] = (
             self.view_and_export_widget.active_colormap_checkbox.isChecked()
         )
@@ -692,6 +696,9 @@ class SidescanToolsMain(QWidget):
         )
         self.view_and_export_widget.active_utm_checkbox.setChecked(
             self.settings_dict["Georef UTM"]
+        )
+        self.view_and_export_widget.active_navdata_checkbox.setChecked(
+            self.settings_dict["Georef Navigation"]
         )
         self.view_and_export_widget.active_colormap_checkbox.setChecked(
             self.settings_dict["Georef active custom colormap"]
@@ -1222,7 +1229,10 @@ class ViewAndExportWidget(QVBoxLayout):
         self.active_utm_checkbox.setToolTip(
             "Coordinates in UTM (default). WGS84 if unchecked."
         )
-
+        self.active_navdata_checkbox = QCheckBox("Export Navigation")
+        self.active_navdata_checkbox.setToolTip(
+            "If selected, exports navigation data to .csv"
+        )
         self.active_colormap_checkbox = QCheckBox("Apply custom Colormap")
         self.active_colormap_checkbox.setToolTip(
             "Applies the colormap used in napari to the exported waterfall images. Otherwise grey scale values are used."
@@ -1258,6 +1268,7 @@ class ViewAndExportWidget(QVBoxLayout):
         self.addWidget(self.res_mode_label)
         self.addWidget(self.resolution_mode_dropdown)
         self.addWidget(self.active_utm_checkbox)
+        self.addWidget(self.active_navdata_checkbox)
         self.addWidget(self.active_colormap_checkbox)
         self.addWidget(self.generate_single_georef_btn)
         self.addLayout(self.img_chunk_size_edit)
@@ -1484,6 +1495,7 @@ class ViewAndExportWidget(QVBoxLayout):
             filepath,
             active_utm=self.active_utm_checkbox.isChecked(),
             active_poly=True,
+            active_export_navdata=self.active_navdata_checkbox.isChecked(),
             proc_data=[proc_data_out_0, proc_data_out_1],
             output_folder=output_folder,
             vertical_beam_angle=int(

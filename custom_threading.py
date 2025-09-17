@@ -840,6 +840,7 @@ class GeoreferencerWorker(QtCore.QRunnable):
     channel: int
     active_utm: bool
     active_poly: bool
+    active_export_navdata: bool
     proc_data: np.array
     output_folder: str | os.PathLike
     active_proc_data: bool
@@ -856,6 +857,7 @@ class GeoreferencerWorker(QtCore.QRunnable):
         channel: int,
         active_utm: bool = True,
         active_poly: bool = True,
+        active_export_navdata: bool = True,
         proc_data=None,
         output_folder: str | os.PathLike = "./georef_out",
         vertical_beam_angle: int = 60,
@@ -869,6 +871,7 @@ class GeoreferencerWorker(QtCore.QRunnable):
         self.channel = channel
         self.active_utm = active_utm
         self.active_poly = active_poly
+        self.active_export_navdata = active_export_navdata
         self.output_folder = output_folder
         self.vertical_beam_angle = vertical_beam_angle
         self.warp_algorithm = warp_algorithm
@@ -889,16 +892,13 @@ class GeoreferencerWorker(QtCore.QRunnable):
         finally:
             self.signals.finished.emit()
 
-    def start_georeferencing(self):
-        file_name = self.filepath.stem
-        tif_path = self.output_folder / f"{file_name}_ch{self.channel}.tif"
-        mosaic_tif_path = self.output_folder / f"{file_name}_stack.tif"
-
+    def start_georeferencing(self):    
         processor = Georeferencer(
             filepath=self.filepath,
             channel=self.channel,
             active_utm=self.active_utm,
             active_poly=self.active_poly,
+            active_export_navdata = self.active_export_navdata,
             output_folder=self.output_folder,
             proc_data=self.proc_data,
             vertical_beam_angle=self.vertical_beam_angle,
@@ -952,6 +952,7 @@ class GeoreferencerManager(QWidget):
         filepath: str | os.PathLike,
         active_utm: bool,
         active_poly: bool,
+        active_export_navdata: bool, 
         proc_data: list,
         output_folder: os.PathLike,
         vertical_beam_angle: int,
@@ -966,6 +967,7 @@ class GeoreferencerManager(QWidget):
             0,
             active_utm,
             active_poly,
+            active_export_navdata,
             proc_data[0],
             output_folder,
             vertical_beam_angle,
@@ -987,6 +989,7 @@ class GeoreferencerManager(QWidget):
             1,
             active_utm,
             active_poly,
+            active_export_navdata,
             proc_data[1],
             output_folder,
             vertical_beam_angle,
@@ -1025,7 +1028,7 @@ class GeoreferencerManager(QWidget):
                 file_path = os.path.join(self.output_folder, file)
                 if (
                     str(file_path).endswith(".png")
-                    or str(file_path).endswith(".txt")
+                    #or str(file_path).endswith(".txt")
                     or str(file_path).endswith("tmp.tif")
                     or str(file_path).endswith(".points")
                     or str(file_path).endswith(".xml")

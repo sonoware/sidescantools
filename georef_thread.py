@@ -393,6 +393,8 @@ class Georeferencer:
         north_spl = interpolate.make_interp_spline(PING_UNIQUE, NORTH, k=3, bc_type="not-a-knot") 
         east_intp = east_spl(PING_uniform)
         north_intp = north_spl(PING_uniform)
+        east_intp = savgol_filter(east_intp, 100, 2)
+        north_intp = savgol_filter(north_intp, 100, 2)
 
         # Resize UTM Zone and Letter arrays to fit interpolated array sizes
         UTM_ZONE = np.resize(UTM_ZONE, len(east_intp))

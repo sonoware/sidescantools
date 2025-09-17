@@ -329,11 +329,6 @@ class Georeferencer:
         head_unwrapped_savgol = savgol_filter(head_unwrapped, 100, 2)
         HEAD_savgol = (np.rad2deg(head_unwrapped_savgol)) % 360
 
-
-        # Smooth Coordinates and Heading
-        #LAT_ori = savgol_filter(LAT_ori, 50, 3)
-        #LON_ori = savgol_filter(LON_ori, 50, 3)
-
         # Remove duplicate values
         UNIQUE_MASK = np.empty_like(LON_ori)
         i = 0

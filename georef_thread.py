@@ -31,7 +31,7 @@ class Georeferencer:
     LALO_OUTER: list
     PING: list
     turn_rate: list
-    COURSE_ANG: np.ndarray
+    cog_smooth: np.ndarray
     chunk_indices: np.array
     vertical_beam_angle: int
     epsg_code: str
@@ -95,7 +95,7 @@ class Georeferencer:
         self.LALO_OUTER = []
         self.PING = []
         self.turn_rate = []
-        self.COURSE_ANG = np.empty_like(proc_data)
+        self.cog_smooth = np.empty_like(proc_data)
         self.LOLA_plt = np.empty_like(proc_data)
         self.HEAD_plt = np.empty_like(proc_data)
         self.LOLA_plt_ori = np.empty_like(proc_data)
@@ -115,10 +115,17 @@ class Georeferencer:
                 raise FileNotFoundError
             
     def moving_segments(self, track_array, window_size):
+        """
+        Moving window to isolate turns within window_size. 
+        """
         for i in range(len(track_array - window_size +1)):
             yield track_array[i:i+window_size]
 
-    def calc_cog(self, lo, la):
+    def calc_bearing(self, lo, la):
+        """
+        Calculates bearing according to haversine. Suitable for large scale datasets, 
+        less for datasets that e.g. are within one UTM zone.
+        """
         # convert to radians
         lon_rad = np.deg2rad(lo)
         lat_rad = np.deg2rad(la)
@@ -136,333 +143,79 @@ class Georeferencer:
             np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(dlon)
         )
         # warp from 0-360°
-        self.COURSE_ANG = (np.degrees(bearing) + 360) % 360
+        cog = (np.degrees(bearing) + 360) % 360
         # insert same value at the beginning to avoid artificial jumps
-        self.COURSE_ANG = np.insert(self.COURSE_ANG, 0, self.COURSE_ANG[0])
+        cog = np.insert(cog, 0, cog[0])
         if False:
             # --- Smooth with moving average window size 5---
             kernel = np.ones(30) / 30
-            self.COURSE_ANG = np.convolve(self.COURSE_ANG, kernel, mode="same")
+            cog = np.convolve(cog, kernel, mode="same")
 
-    def calculate_cog(self, lo, la):
-        self.COURSE_ANG = np.empty_like(lo)
+    def calculate_distance(self, lo, la):
+        """
+        Calculate distance between pings
+        """
+        import geopy.distance
+        DIST = np.empty_like(lo)
+        for i, (lo, la, dst) in enumerate(zip(lo, la, DIST)):
+            c_a = (la ,lo)
+            c_b = (la[i-1], lo[i-1])
+            DIST[i] = geopy.distance.distance(c_a, c_b).meters
+        # Set first value to avoid jumps
+        DIST[0] = 0
+
+    def calculate_cog(self, lo, la, ping_unique, ping_uniform):
+        """
+        Calculate Course over Ground (COG)/true heading based on difference between single coordinates. 
+        Note that coordinates must be unique!
+        Paras:
+            - lo: Longitude or Easting, unique and smoothed (savgol filteres) if neccessary
+            - la: Latitude or Northing, unique and smoothed (savgol filteres) if neccessary
+
+        Returns:
+            - Course over ground in degrees (-180° -> 180°)
+        """
+        cog = np.empty_like(lo)
         LON_DIFF = np.diff(lo, prepend=np.nan)
         LAT_DIFF = np.diff(la, prepend=np.nan)
-        for i, (lo, la, cang) in enumerate(zip(LON_DIFF, LAT_DIFF, self.COURSE_ANG)):
+        for i, (lo, la, cang) in enumerate(zip(LON_DIFF, LAT_DIFF, cog)):
             # Set first value same as second to avoid nan or false differences
             if i == 0:
                 course_ang = np.arctan2(LAT_DIFF[1], LON_DIFF[1])
-                self.COURSE_ANG[i] = course_ang
+                cog[i] = course_ang
             else:
                 course_ang = np.atan2(la,lo)
-                self.COURSE_ANG[i] = course_ang
-        self.COURSE_ANG[0] = self.COURSE_ANG[1]
-        self.COURSE_ANG = np.unwrap(self.COURSE_ANG)
-        self.COURSE_ANG = (np.rad2deg(self.COURSE_ANG))
-        #print("np.median(self.COURSE_ANG): ", (self.COURSE_ANG[0:10]))
+                cog[i] = course_ang
+        cog[0] = cog[1]
+        cog = np.unwrap(cog)
+        cog = (np.rad2deg(cog))
 
-    def prep_data(self):
-        # Extract metadata for each ping in sonar channel
-        self.PING = self.sidescan_file.packet_no
-        LON_ori = self.sidescan_file.longitude
-        LAT_ori = self.sidescan_file.latitude
-        HEAD_ori = self.sidescan_file.sensor_heading
-        SLANT_RANGE = self.sidescan_file.slant_range[self.channel]
-        GROUND_RANGE = []
+        # Interpolate cog with univariate to get smooth curve; smoothing factor have been empirically defined
+        cog_spl = interpolate.UnivariateSpline(ping_unique, cog, k=3, s=30)
+        cog_intp = cog_spl(ping_uniform)
+        self.cog_smooth = savgol_filter(cog_intp, 100, 3)
+
+    def generate_gcps(self, chunksize, northing, easting, northing_outer, easting_outer, lon, lat, lon_outer, lat_outer):
+        """
+        Generates ground control points (GCPs) for each chunk of chunksize (usually something like 3-5 pings).
+        Paras:
+            - chunksize: number of pings that are processed together as one chunk
+            - northing/easting/lon/lat: Nadir UTM/unprojected coordinates
+            - northing_outer, easting_outer/lon_outer/lat_outer: UTM/unprojected coordinates calculated for outer swath
+        
+        Returns:
+            - List of Ground control points:
+            Define corner coordinates for chunks and set gcps:
+                - ul, ur: upper left/right --> nadir coordinates
+                - ll, lr: lower left/right --> edge coordinates, calculated with ground range & heading
+                - image coordinates: im_x_right = length of chunk
+        
+        """
         swath_len = len(self.PING)
         if self.active_proc_data:
             swath_width = len(self.proc_data[0])
         else:
             swath_width = len(self.sidescan_file.data[self.channel][0])
-
-        self.PING = np.ndarray.flatten(np.array(self.PING))
-        LON_ori = np.ndarray.flatten(np.array(LON_ori))
-        LAT_ori = np.ndarray.flatten(np.array(LAT_ori))
-        HEAD_ori = np.ndarray.flatten(np.array(HEAD_ori))
-        SLANT_RANGE = np.ndarray.flatten(np.array(SLANT_RANGE))
-
-        ground_range = [
-            math.cos(self.vertical_beam_angle) * slant_range * (-1)
-            for slant_range in SLANT_RANGE
-        ]
-        GROUND_RANGE.append(ground_range)
-        GROUND_RANGE = np.ndarray.flatten(np.array(GROUND_RANGE))
-        print("PING_UNIQUE: ", self.PING[0:50])
-
-        ZERO_MASK = LON_ori != 0
-        print(ZERO_MASK)
-        print(f"shape ping original: {np.shape(self.PING)}")
-
-        LON_ori = LON_ori[ZERO_MASK]
-        LAT_ori = LAT_ori[ZERO_MASK]
-        HEAD_ori = HEAD_ori[ZERO_MASK]
-
-        GROUND_RANGE = GROUND_RANGE[ZERO_MASK]
-        SLANT_RANGE = SLANT_RANGE[ZERO_MASK]
-        self.PING = self.PING[ZERO_MASK]
-        print(f"shape ping zero: {np.shape(self.PING)}")
-
-        # Unwrap to avoid jumps when crossing 0/360° degree angle
-        HEAD_ori_rad = np.deg2rad(HEAD_ori)
-        head_unwrapped = np.unwrap(HEAD_ori_rad)
-        head_unwrapped_savgol = savgol_filter(head_unwrapped, 100, 2)
-        HEAD = (np.rad2deg(head_unwrapped_savgol)) % 360
-
-
-        # Smooth Coordinates and Heading
-        LAT = savgol_filter(LAT_ori, 50, 3)
-        LON = savgol_filter(LON_ori, 50, 3)
-        #LAT = LAT_ori
-        #LON = LON_ori
-
-
-        # Calculate distance between pings
-        import geopy.distance
-        DIST = np.empty_like(LON)
-        for i, (lo, la, dst) in enumerate(zip(LON, LAT, DIST)):
-            c_a = (la ,lo)
-            c_b = (LAT[i-1], LON[i-1])
-            DIST[i] = geopy.distance.distance(c_a, c_b).meters
-
-        DIST[0] = 0
-        print("DIST: ", np.median(DIST))
-
-
-        if True:
-
-        # Remove duplicate values
-            UNIQUE_MASK = np.empty_like(LON_ori)
-            i = 0
-            for i, (lo,la, uni) in enumerate(zip(LON_ori, LAT_ori, UNIQUE_MASK)):
-                if LON_ori[i] == LON_ori[i-1] and LAT_ori[i] == LAT_ori[i-1]:
-                    UNIQUE_MASK[i] = np.nan
-                else:
-                    UNIQUE_MASK[i] = 0
-            UNIQUE_MASK = [False if np.isnan(unique_val) else True for unique_val in UNIQUE_MASK]
-
-            LON = LON_ori[UNIQUE_MASK]
-            LAT = LAT_ori[UNIQUE_MASK]
-            PING_UNIQUE = self.PING[UNIQUE_MASK]
-
-            # make uniform ping sequence for smooth curvature
-
-            PING_uniform = np.linspace(self.PING[0], self.PING[-1], len(self.PING))
-
-            # TODO: fix jump at first ping in spline
-            # B-Spline lon/lats if between-ping distances are larger than threshold (e.g. 0.5m)
-            if True:
-                lo_spl = interpolate.make_interp_spline(PING_UNIQUE, LON, k=3, bc_type="not-a-knot")  
-                la_spl = interpolate.make_interp_spline(PING_UNIQUE, LAT, k=3, bc_type="not-a-knot") 
-                # Evaulate spline at equally spaced pings
-                lo_intp = lo_spl(PING_uniform)
-                la_intp = la_spl(PING_uniform)
-
-
-        if False:
-            # Remove spikes in course ang (e.g. when ping order is messed up in very small sections of ~5-10 pings)
-            window_spike = 10
-            start_range = int(np.abs(np.min(self.COURSE_ANG)) - np.abs(np.median(self.COURSE_ANG)))
-            stop_range = int(np.abs(np.max(self.COURSE_ANG)) - np.abs(np.median(self.COURSE_ANG)))
-            accepted_range = range(start_range, stop_range)
-            print("accepted_range: ", accepted_range, np.max(self.COURSE_ANG), np.min(self.COURSE_ANG))
-            for idx, window_spike in enumerate(self.moving_segments(self.COURSE_ANG, window_spike)):
-                if np.abs(self.COURSE_ANG[idx]) - np.abs(np.median(window_spike)) > np.abs(np.median(self.COURSE_ANG)):
-                    #print("idx, window_spike, np.median(window_spike),: ", idx, np.abs(self.COURSE_ANG[idx]), np.abs(np.median(window_spike)), "outliers")
-                    self.COURSE_ANG[idx] = np.median(window_spike)
-
-
-            # calculate turn rates in [°/ping] (usually of magnitudes 0.xx°/ping) inside moving window of size X pings. to get an idea of turn rates within a distance, 
-            # the rates are summed up to make the windows comparable
-            # TODO: make window size depending on between-ping distances so that segment are ~50 (high turn rate within 50m is bad), 
-            # remove outliers from course_ang if order of pings is messed up  - take median as threshold maybe?
-
-            #window_seg = int(np.abs(np.ceil(30/np.median(DIST))))
-            #print(window_seg)
-            window_seg = 100
-            self.turn_rate = []
-            TR = []
-            for window_seg in self.moving_segments(self.COURSE_ANG, window_seg):
-                tr = np.abs(np.diff(window_seg, prepend=window_seg[0]))
-                # find max turn rate within each window
-                tr_max = np.max(tr)
-                self.turn_rate.append(tr_max)
-                TR.append(tr)
-
-            print("np.ceil(np.max(self.turn_rate) - np.abs(np.median(self.turn_rate))): ", np.ceil(np.max(self.turn_rate) - np.abs(np.median(self.turn_rate))))
-
-            #plt.plot(self.PING, self.turn_rate)
-            #plt.plot(self.PING, self.COURSE_ANG)
-            #plt.title = 'turn rate, cog'
-            #plt.legend(["turn rate [°/ping]", "cog"], loc="upper left")
-            #plt.show()
-
-            # Find segment indices of turn rates > threshold
-            #TURN_MASK = [False if rate >= 10 else True for rate in self.turn_rate ]
-            threshold = np.ceil(np.max(self.turn_rate) - np.abs(np.median(self.turn_rate))) + 5
-            TURN_MASK = [np.nan if rate >= threshold else rate for rate in self.turn_rate ]
-            TURN_IDX = np.where(np.isnan(TURN_MASK))
-            #TURN_IDX = TURN_IDX[0]
-            #print("len TURN_IDX: ", (TURN_IDX))
-
-            # Apply turn radius mask to cut turns
-            self.COURSE_ANG[TURN_IDX] = np.nan
-            self.turn_rate = np.asarray(self.turn_rate)
-            self.turn_rate[TURN_IDX] = np.nan
-            self.PING[TURN_IDX] = np.nan
-
-
-        # Create arrays for heading and coords for plotting in GUI
-        x = range(len(HEAD))
-        x_ori = range(len(HEAD_ori))
-        self.HEAD_plt = np.column_stack((x, HEAD))
-        self.HEAD_plt_ori = np.column_stack((x_ori, HEAD_ori))
-        self.LOLA_plt = np.column_stack((lo_intp, la_intp))
-        #self.LOLA_plt = np.column_stack((LON, LAT))
-        self.LOLA_plt_ori = np.column_stack((LON_ori, LAT_ori))
-
-        if False:
-            self.LOLA_plt[TURN_IDX] = np.nan
-            self.HEAD_plt[TURN_IDX] = np.nan
-
-        # Convert to UTM to calculate outer swath coordinates for both channels
-        UTM = np.full_like(LAT, np.nan)
-        UTM = UTM.tolist()
-        for idx, (la, lo) in enumerate(zip(LAT, LON)):
-            try:
-                UTM[idx] = utm.from_latlon(la, lo)
-            except:
-                ValueError("Values or lon and/or lat must not be 0")
-        #print("len(LO_INTP), len(LA_INTP), len(UTM), self.LALO_OUTER: ", len(lo_intp), len(la_intp), len(UTM), self.LOLA_OUTER)
-
-        if UTM:
-            EAST = [utm_coord[0] for utm_coord in UTM]
-            NORTH = [utm_coord[1] for utm_coord in UTM]
-            NORTH = np.asarray(NORTH)
-            EAST = np.asarray(EAST)
-            UTM_ZONE = [utm_coord[2] for utm_coord in UTM]
-            UTM_LET = [utm_coord[3] for utm_coord in UTM]
-            crs = CRS.from_dict({"proj": "utm", "zone": UTM_ZONE[0], "south": False})
-            epsg = crs.to_authority()
-            self.epsg_code = f"{epsg[0]}:{epsg[1]}"
-
-
-        # calculate cog from east/north
-        self.calculate_cog(EAST, NORTH)
-        cog_spl = interpolate.UnivariateSpline(PING_UNIQUE, self.COURSE_ANG, k=3, s=30)
-        cog_intp = cog_spl(PING_uniform)
-        #cog_intp = interpolate.splev(self.PING, cog_spl)
-        cog_intp = savgol_filter(cog_intp, 100, 3)
-        #print("len(cog_intp): ", len(cog_intp))
-        #plt.plot(PING_UNIQUE, self.COURSE_ANG, 'o', label="cog_ori")
-        #plt.plot(PING_uniform, cog_intp,'o', label="cog_intp")
-        #plt.plot(PING_uniform, HEAD, label="head")
-        #plt.legend()
-        #plt.plot(LON_ori, LAT_ori, 'g', label="lo_interp")
-        #plt.plot(lo_intp, la_intp, 'b', label="lo_interp")
-        #plt.show()
-
-        # interpolate easting northing to full swath length
-        east_spl = interpolate.make_interp_spline(PING_UNIQUE, EAST, k=3, bc_type="not-a-knot")  
-        north_spl = interpolate.make_interp_spline(PING_UNIQUE, NORTH, k=3, bc_type="not-a-knot") 
-        EAST = east_spl(PING_uniform)
-        NORTH = north_spl(PING_uniform)
-
-        print("len(UTM_LET):", len(UTM_LET))
-        UTM_ZONE = np.resize(UTM_ZONE, len(EAST))
-        UTM_LET = np.resize(UTM_LET, len(EAST))
-        print("len(UTM_LET):", len(UTM_LET))
-
-        if self.channel == 0:
-            EAST_OUTER = np.array(
-                [
-                    ground_range * math.sin(np.deg2rad(head)) + east
-                    for ground_range, head, east in zip(GROUND_RANGE, cog_intp, EAST)
-                ]
-            )
-            NORTH_OUTER = np.array(
-                [
-                    (ground_range * math.cos(np.deg2rad(head)) * -1) + north
-                    for ground_range, head, north in zip(GROUND_RANGE, cog_intp, NORTH)
-                ]
-            )
-            self.LALO_OUTER = [
-                utm.to_latlon(east_ch1, north_ch1, utm_zone, utm_let)
-                for (east_ch1, north_ch1, utm_zone, utm_let) in zip(
-                    EAST_OUTER, NORTH_OUTER, UTM_ZONE, UTM_LET
-                )
-            ]
-
-
-        elif self.channel == 1:
-            EAST_OUTER = np.array(
-                [
-                    (ground_range * math.sin(np.deg2rad(head)) * -1) + east
-                    for ground_range, head, east in zip(GROUND_RANGE, cog_intp, EAST)
-                ]
-            )
-
-            NORTH_OUTER = np.array(
-                [
-                    (ground_range * math.cos(np.deg2rad(head))) + north
-                    for ground_range, head, north in zip(GROUND_RANGE, cog_intp, NORTH)
-                ]
-            )
-            self.LALO_OUTER = [
-                utm.to_latlon(east_ch2, north_ch2, utm_zone, utm_let)
-                for (east_ch2, north_ch2, utm_zone, utm_let) in zip(
-                    EAST_OUTER, NORTH_OUTER, UTM_ZONE, UTM_LET
-                )
-            ]
-
-        LA_OUTER, LO_OUTER = map(np.array, zip(*self.LALO_OUTER))
-
-        #east_out_spl = interpolate.make_interp_spline(PING_UNIQUE, EAST_OUTER, k=3, bc_type="not-a-knot")  
-        #north_out_spl = interpolate.make_interp_spline(PING_UNIQUE, NORTH_OUTER, k=3, bc_type="not-a-knot") 
-        #EAST_OUTER = east_out_spl(PING_uniform)
-        #NORTH_OUTER = north_out_spl(PING_uniform)
-        #lo_out_spl = interpolate.make_interp_spline(PING_UNIQUE, LO_OUTER, k=3, bc_type="not-a-knot")  
-        #la_out_spl = interpolate.make_interp_spline(PING_UNIQUE, LA_OUTER, k=3, bc_type="not-a-knot") 
-        #LO_OUTER = lo_out_spl(PING_uniform)
-        #LA_OUTER = la_out_spl(PING_uniform)
-
-        EAST_OUTER = savgol_filter(EAST_OUTER, 300, 2)
-        NORTH_OUTER = savgol_filter(NORTH_OUTER, 300, 2)
-
-
-        #plt.title("BSpline curve fitting")
-        #plt.plot(LON_ori, LAT_ori, 'ro', label="original")
-        plt.plot(EAST_OUTER[22200:22450], NORTH_OUTER[22200:22450], 'c', label="lola out intp")
-        plt.legend(loc='best', fancybox=True, shadow=True)
-        plt.grid()
-        plt.show() 
-
-        print(f"Saving navinfo to file")
-        nav_ch = self.output_folder / f"Navigation_{self.filepath.stem}_ch{self.channel}.csv"
-        nav = np.column_stack((self.PING, self.LOLA_plt, LA_OUTER, LO_OUTER, EAST, EAST_OUTER, NORTH, NORTH_OUTER))
-        #nav = np.column_stack((self.PING, LAT_ori, LON_ori))
-
-        np.savetxt(
-            nav_ch,
-            nav,
-            fmt="%s",
-            delimiter=";",
-            header="Ping No; Nadir Longitude; Nadir Latitude, Outer Lat; Outer Lon, EAST, EAST_OUTER, NORTH, NORTH_OUTER",
-            #header="Ping Ori; LAT Ori; LON Ori",
-        )
-
-        if False:
-            # NAN where turn index > threshold (the other arrays into segments at TURN_IDX)
-            lo_intp[TURN_IDX] = np.nan
-            la_intp[TURN_IDX] = np.nan
-            LO_OUTER[TURN_IDX] = np.nan
-            LA_OUTER[TURN_IDX] = np.nan
-            NORTH[TURN_IDX] = np.nan
-            EAST[TURN_IDX] = np.nan
-            NORTH_OUTER[TURN_IDX] = np.nan
-            EAST_OUTER[TURN_IDX] = np.nan
-
-        chunksize = 5
-        swath_len = len(self.PING)
 
         self.chunk_indices = int(swath_len / chunksize)
         print(f"Fixed chunk size: {chunksize} pings.")
@@ -470,31 +223,21 @@ class Georeferencer:
 
         # UTM
         if self.active_utm:
-            lo_split_ce = np.array_split(NORTH, self.chunk_indices, axis=0)
-            la_split_ce = np.array_split(EAST, self.chunk_indices, axis=0)
-            lo_split_e = np.array_split(EAST_OUTER, self.chunk_indices, axis=0)
-            la_split_e = np.array_split(NORTH_OUTER, self.chunk_indices, axis=0)
+            lo_split_ce = np.array_split(northing, self.chunk_indices, axis=0)
+            la_split_ce = np.array_split(easting, self.chunk_indices, axis=0)
+            lo_split_e = np.array_split(easting_outer, self.chunk_indices, axis=0)
+            la_split_e = np.array_split(northing_outer, self.chunk_indices, axis=0)
 
         else:
-            lo_split_ce = np.array_split(lo_intp, self.chunk_indices, axis=0)
-            la_split_ce = np.array_split(la_intp, self.chunk_indices, axis=0)
-            lo_split_e = np.array_split(LO_OUTER, self.chunk_indices, axis=0)
-            la_split_e = np.array_split(LA_OUTER, self.chunk_indices, axis=0)
+            lo_split_ce = np.array_split(lon, self.chunk_indices, axis=0)
+            la_split_ce = np.array_split(lat, self.chunk_indices, axis=0)
+            lo_split_e = np.array_split(lon_outer, self.chunk_indices, axis=0)
+            la_split_e = np.array_split(lat_outer, self.chunk_indices, axis=0)
 
-        """
-        Calculate edge coordinates for first and last coordinates in chunks:
-        - Convert to utm, add ground range, convert back to lon/lat
-        """
+        # Calculate edge coordinates for first and last coordinates in chunks:        
         for chunk_num, (lo_chunk_ce, la_chunk_ce, lo_chunk_e, la_chunk_e) in enumerate(
             zip(lo_split_ce, la_split_ce, lo_split_e, la_split_e)
         ):
-
-            """
-            Define corner coordinates for chunks and set gcps:
-            - ul, ur: upper left/right --> nadir coordinates
-            - ll, lr: lower left/right --> edge coordinates, calculated with ground range & heading
-            - image coordinates: im_x_right = length of chunk
-            """
 
             lo_ce_ul = lo_chunk_ce[0]
             lo_ce_ur = lo_chunk_ce[-1]
@@ -535,6 +278,255 @@ class Georeferencer:
 
             self.GCP_SPLIT.append(gcp)
             self.POINTS_SPLIT.append(points)
+
+    def prep_data(self):
+        # Extract metadata for each ping in sonar channel
+        self.PING = self.sidescan_file.packet_no
+        LON_ori = self.sidescan_file.longitude
+        LAT_ori = self.sidescan_file.latitude
+        HEAD_ori = self.sidescan_file.sensor_heading
+        SLANT_RANGE = self.sidescan_file.slant_range[self.channel]
+        GROUND_RANGE = []
+        swath_len = len(self.PING)
+        if self.active_proc_data:
+            swath_width = len(self.proc_data[0])
+        else:
+            swath_width = len(self.sidescan_file.data[self.channel][0])
+
+        self.PING = np.ndarray.flatten(np.array(self.PING))
+        LON_ori = np.ndarray.flatten(np.array(LON_ori))
+        LAT_ori = np.ndarray.flatten(np.array(LAT_ori))
+        HEAD_ori = np.ndarray.flatten(np.array(HEAD_ori))
+        SLANT_RANGE = np.ndarray.flatten(np.array(SLANT_RANGE))
+
+        ground_range = [
+            math.cos(self.vertical_beam_angle) * slant_range * (-1)
+            for slant_range in SLANT_RANGE
+        ]
+        GROUND_RANGE.append(ground_range)
+        GROUND_RANGE = np.ndarray.flatten(np.array(GROUND_RANGE))
+        print("PING_UNIQUE: ", len(self.PING))
+
+        ZERO_MASK = LON_ori != 0
+        print(ZERO_MASK)
+        print(f"shape ping original: {np.shape(self.PING)}")
+
+        LON_ori = LON_ori[ZERO_MASK]
+        LAT_ori = LAT_ori[ZERO_MASK]
+        HEAD_ori = HEAD_ori[ZERO_MASK]
+
+        GROUND_RANGE = GROUND_RANGE[ZERO_MASK]
+        SLANT_RANGE = SLANT_RANGE[ZERO_MASK]
+        self.PING = self.PING[ZERO_MASK]
+        print(f"shape ping zero: {np.shape(self.PING)}")
+
+        # Unwrap to avoid jumps when crossing 0/360° degree angle
+        HEAD_ori_rad = np.deg2rad(HEAD_ori)
+        head_unwrapped = np.unwrap(HEAD_ori_rad)
+        head_unwrapped_savgol = savgol_filter(head_unwrapped, 100, 2)
+        HEAD_savgol = (np.rad2deg(head_unwrapped_savgol)) % 360
+
+
+        # Smooth Coordinates and Heading
+        LAT_savgol = savgol_filter(LAT_ori, 50, 3)
+        LON_savgol = savgol_filter(LON_ori, 50, 3)
+
+        # Remove duplicate values
+        UNIQUE_MASK = np.empty_like(LON_ori)
+        i = 0
+        for i, (lo,la, uni) in enumerate(zip(LON_ori, LAT_ori, UNIQUE_MASK)):
+            if LON_ori[i] == LON_ori[i-1] and LAT_ori[i] == LAT_ori[i-1]:
+                UNIQUE_MASK[i] = np.nan
+            else:
+                UNIQUE_MASK[i] = 0
+        UNIQUE_MASK = [False if np.isnan(unique_val) else True for unique_val in UNIQUE_MASK]
+        LON_unique = LON_ori[UNIQUE_MASK]
+        LAT_unique = LAT_ori[UNIQUE_MASK]
+        PING_UNIQUE = self.PING[UNIQUE_MASK]
+
+        # make uniform ping sequence for smooth curvature
+        PING_uniform = np.linspace(self.PING[0], self.PING[-1], len(self.PING))
+
+        # B-Spline lon/lats and filter to obtain esqual-interval, unique coordinates for each ping
+        lo_spl = interpolate.make_interp_spline(PING_UNIQUE, LON_unique, k=3, bc_type="not-a-knot")  
+        la_spl = interpolate.make_interp_spline(PING_UNIQUE, LAT_unique, k=3, bc_type="not-a-knot") 
+        # Evaluate spline at equally spaced pings and smooth again with savgol filter
+        lo_intp = lo_spl(PING_uniform)
+        la_intp = la_spl(PING_uniform)
+        lo_intp = savgol_filter(lo_intp, 100, 2)
+        la_intp = savgol_filter(la_intp, 100, 2)
+
+        # Create arrays for heading and coords for plotting in GUI
+        # TODO: plot cog rather than heading?
+        x = range(len(HEAD_savgol))
+        x_ori = range(len(HEAD_ori))
+        self.HEAD_plt = np.column_stack((x, HEAD_savgol))
+        self.HEAD_plt_ori = np.column_stack((x_ori, HEAD_ori))
+        self.LOLA_plt = np.column_stack((lo_intp, la_intp))
+        self.LOLA_plt_ori = np.column_stack((LON_ori, LAT_ori))
+
+        # Convert to UTM to calculate outer swath coordinates for both channels
+        UTM = np.full_like(LAT_unique, np.nan)
+        UTM = UTM.tolist()
+        for idx, (la, lo) in enumerate(zip(LAT_unique, LON_unique)):
+            try:
+                UTM[idx] = utm.from_latlon(la, lo)
+            except:
+                ValueError("Values or lon and/or lat must not be 0")
+
+        if UTM:
+            EAST = [utm_coord[0] for utm_coord in UTM]
+            NORTH = [utm_coord[1] for utm_coord in UTM]
+            NORTH = np.asarray(NORTH)
+            EAST = np.asarray(EAST)
+            UTM_ZONE = [utm_coord[2] for utm_coord in UTM]
+            UTM_LET = [utm_coord[3] for utm_coord in UTM]
+            crs = CRS.from_dict({"proj": "utm", "zone": UTM_ZONE[0], "south": False})
+            epsg = crs.to_authority()
+            self.epsg_code = f"{epsg[0]}:{epsg[1]}"
+
+
+        # calculate cog from east/north
+        self.calculate_cog(EAST, NORTH, PING_UNIQUE, PING_uniform)
+
+
+        # interpolate easting northing to full swath length
+        east_spl = interpolate.make_interp_spline(PING_UNIQUE, EAST, k=3, bc_type="not-a-knot")  
+        north_spl = interpolate.make_interp_spline(PING_UNIQUE, NORTH, k=3, bc_type="not-a-knot") 
+        east_intp = east_spl(PING_uniform)
+        north_intp = north_spl(PING_uniform)
+
+        # Resize UTM Zone and Letter arrays to fit interpolated array sizes
+        UTM_ZONE = np.resize(UTM_ZONE, len(east_intp))
+        UTM_LET = np.resize(UTM_LET, len(east_intp))
+
+        if self.channel == 1:
+            EAST_OUTER = np.array(
+                [
+                    ground_range * math.sin(np.deg2rad(head)) + east
+                    for ground_range, head, east in zip(GROUND_RANGE, self.cog_smooth, east_intp)
+                ]
+            )
+            NORTH_OUTER = np.array(
+                [
+                    (ground_range * math.cos(np.deg2rad(head)) * -1) + north
+                    for ground_range, head, north in zip(GROUND_RANGE, self.cog_smooth, north_intp)
+                ]
+            )
+
+            east_out_intp_savgol = savgol_filter(EAST_OUTER, 300, 2)
+            north_out_intp_savgol = savgol_filter(NORTH_OUTER, 300, 2)
+
+            self.LALO_OUTER = [
+                utm.to_latlon(east_ch1, north_ch1, utm_zone, utm_let)
+                for (east_ch1, north_ch1, utm_zone, utm_let) in zip(
+                    east_out_intp_savgol, north_out_intp_savgol, UTM_ZONE, UTM_LET
+                )
+            ]
+
+
+        elif self.channel == 0:
+            EAST_OUTER = np.array(
+                [
+                    (ground_range * math.sin(np.deg2rad(head)) * -1) + east
+                    for ground_range, head, east in zip(GROUND_RANGE, self.cog_smooth, east_intp)
+                ]
+            )
+
+            NORTH_OUTER = np.array(
+                [
+                    (ground_range * math.cos(np.deg2rad(head))) + north
+                    for ground_range, head, north in zip(GROUND_RANGE, self.cog_smooth, north_intp)
+                ]
+            )
+
+            east_out_intp_savgol = savgol_filter(EAST_OUTER, 300, 2)
+            north_out_intp_savgol = savgol_filter(NORTH_OUTER, 300, 2)
+
+            self.LALO_OUTER = [
+                utm.to_latlon(east_ch2, north_ch2, utm_zone, utm_let)
+                for (east_ch2, north_ch2, utm_zone, utm_let) in zip(
+                    east_out_intp_savgol, north_out_intp_savgol, UTM_ZONE, UTM_LET
+                )
+            ]
+
+        la_out_intp_savgol, lo_out_intp_savgol = map(np.array, zip(*self.LALO_OUTER))
+
+        # Generate lists of gcps for each chunk
+        self.generate_gcps(chunksize=3, northing=north_intp, easting=east_intp, northing_outer=north_out_intp_savgol, easting_outer=east_out_intp_savgol,
+                           lon=lo_intp, lat=la_intp, lon_outer=lo_out_intp_savgol, lat_outer=la_out_intp_savgol)
+
+        # Export navigation data
+        if True:
+            print(f"Saving navinfo to file")
+            nav = np.column_stack((self.PING, lo_intp, la_intp, lo_out_intp_savgol, la_out_intp_savgol, self.cog_smooth))
+            nav_ch = self.output_folder / f"Navigation_{self.filepath.stem}_ch{self.channel}.csv"
+
+            np.savetxt(
+                nav_ch,
+                nav,
+                fmt="%s",
+                delimiter=";",
+                header="Ping No; Nadir Longitude; Nadir Latitude, Outer Lon; Outer Lat, CoG [°]",
+            )
+
+        # Logic for cutting turn rates. Ignore for now. 
+        if False:
+            # Remove spikes in course ang (e.g. when ping order is messed up in very small sections of ~5-10 pings)
+            window_spike = 10
+            start_range = int(np.abs(np.min(cog)) - np.abs(np.median(cog)))
+            stop_range = int(np.abs(np.max(cog)) - np.abs(np.median(cog)))
+            accepted_range = range(start_range, stop_range)
+            print("accepted_range: ", accepted_range, np.max(cog), np.min(cog))
+            for idx, window_spike in enumerate(self.moving_segments(cog, window_spike)):
+                if np.abs(cog[idx]) - np.abs(np.median(window_spike)) > np.abs(np.median(cog)):
+                    #print("idx, window_spike, np.median(window_spike),: ", idx, np.abs(self.COURSE_ANG[idx]), np.abs(np.median(window_spike)), "outliers")
+                    cog[idx] = np.median(window_spike)
+
+
+            # calculate turn rates in [°/ping] (usually of magnitudes 0.xx°/ping) inside moving window of size X pings. to get an idea of turn rates within a distance, 
+            # the rates are summed up to make the windows comparable
+            # TODO: make window size depending on between-ping distances so that segment are ~50 (high turn rate within 50m is bad), 
+            # remove outliers from course_ang if order of pings is messed up  - take median as threshold maybe?
+
+            #window_seg = int(np.abs(np.ceil(30/np.median(DIST))))
+            #print(window_seg)
+            window_seg = 100
+            self.turn_rate = []
+            TR = []
+            for window_seg in self.moving_segments(cog, window_seg):
+                tr = np.abs(np.diff(window_seg, prepend=window_seg[0]))
+                # find max turn rate within each window
+                tr_max = np.max(tr)
+                self.turn_rate.append(tr_max)
+                TR.append(tr)
+
+            print("np.ceil(np.max(self.turn_rate) - np.abs(np.median(self.turn_rate))): ", np.ceil(np.max(self.turn_rate) - np.abs(np.median(self.turn_rate))))
+
+            # Find segment indices of turn rates > threshold
+            #TURN_MASK = [False if rate >= 10 else True for rate in self.turn_rate ]
+            threshold = np.ceil(np.max(self.turn_rate) - np.abs(np.median(self.turn_rate))) + 5
+            TURN_MASK = [np.nan if rate >= threshold else rate for rate in self.turn_rate ]
+            TURN_IDX = np.where(np.isnan(TURN_MASK))
+            #TURN_IDX = TURN_IDX[0]
+            #print("len TURN_IDX: ", (TURN_IDX))
+
+            # Apply turn radius mask to cut turns
+            cog[TURN_IDX] = np.nan
+            self.turn_rate = np.asarray(self.turn_rate)
+            self.turn_rate[TURN_IDX] = np.nan
+            self.PING[TURN_IDX] = np.nan
+
+            # NAN where turn index > threshold (the other arrays into segments at TURN_IDX)
+            lo_intp[TURN_IDX] = np.nan
+            la_intp[TURN_IDX] = np.nan
+            lo_out_intp_savgol[TURN_IDX] = np.nan
+            la_out_intp_savgol[TURN_IDX] = np.nan
+            NORTH[TURN_IDX] = np.nan
+            EAST[TURN_IDX] = np.nan
+            NORTH_OUTER[TURN_IDX] = np.nan
+            EAST_OUTER[TURN_IDX] = np.nan
+
 
     def channel_stack(self):
         """- Work on raw or processed data, depending on `self.active_proc_data`
@@ -799,7 +791,6 @@ class Georeferencer:
         tif_path = self.output_folder / f"{file_name}_ch{self.channel}.tif"
         mosaic_tif_path = self.output_folder / f"{file_name}_ch{self.channel}_stack.tif"
         txt_path = self.output_folder / f"chunks_tif_ch{self.channel}.txt"
-        nav_ch = self.output_folder / f"Navigation_{file_name}_ch{self.channel}.csv"
 
         self.prep_data()
         ch_stack = self.channel_stack()
@@ -811,17 +802,7 @@ class Georeferencer:
 
             self.georeference(ch_stack=ch_stack, otiff=tif_path, progress_signal=progress_signal)
 
-            # save Navigation to .csv
-            #print(f"Saving navinfo to {nav_ch}")
-#
-            #nav = np.column_stack((self.PING, self.LOLA_plt))
-            #np.savetxt(
-            #    nav_ch,
-            #    nav,
-            #    fmt="%s",
-            #    delimiter=";",
-            #    header="Ping No; Nadir Longitude; Nadir Latitude",
-            #)
+
         except Exception as e:
             print(f"An error occurred during georeferencing: {str(e)}")
 

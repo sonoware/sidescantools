@@ -12,9 +12,6 @@ from PIL.PngImagePlugin import PngInfo
 from pyproj import CRS, datadir
 from scipy.signal import savgol_filter
 from scipy import interpolate
-from matplotlib import pyplot as plt
-
-
 
 
 class Georeferencer:
@@ -282,6 +279,61 @@ class Georeferencer:
             self.GCP_SPLIT.append(gcp)
             self.POINTS_SPLIT.append(points)
 
+    #def cut_turns(self):
+        # Logic for cutting turn rates. Ignore for now. 
+        # Remove spikes in course ang (e.g. when ping order is messed up in very small sections of ~5-10 pings)
+        #window_spike = 10
+        #start_range = int(np.abs(np.min(cog)) - np.abs(np.median(cog)))
+        #stop_range = int(np.abs(np.max(cog)) - np.abs(np.median(cog)))
+        #accepted_range = range(start_range, stop_range)
+        #print("accepted_range: ", accepted_range, np.max(cog), np.min(cog))
+        #for idx, window_spike in enumerate(self.moving_segments(cog, window_spike)):
+        #    if np.abs(cog[idx]) - np.abs(np.median(window_spike)) > np.abs(np.median(cog)):
+        #        #print("idx, window_spike, np.median(window_spike),: ", idx, np.abs(self.COURSE_ANG[idx]), np.abs(np.median(window_spike)), "outliers")
+        #        cog[idx] = np.median(window_spike)
+
+
+        # calculate turn rates in [°/ping] (usually of magnitudes 0.xx°/ping) inside moving window of size X pings. to get an idea of turn rates within a distance, 
+        # the rates are summed up to make the windows comparable
+        # TODO: make window size depending on between-ping distances so that segment are ~50 (high turn rate within 50m is bad), 
+        # remove outliers from course_ang if order of pings is messed up  - take median as threshold maybe?
+
+        #window_seg = int(np.abs(np.ceil(30/np.median(DIST))))
+        #print(window_seg)
+        #window_seg = 100
+        #self.turn_rate = []
+        #TR = []
+        #for window_seg in self.moving_segments(cog, window_seg):
+        #    tr = np.abs(np.diff(window_seg, prepend=window_seg[0]))
+        #    # find max turn rate within each window
+        #    tr_max = np.max(tr)
+        #    self.turn_rate.append(tr_max)
+        #    TR.append(tr)
+#
+        #print("np.ceil(np.max(self.turn_rate) - np.abs(np.median(self.turn_rate))): ", np.ceil(np.max(self.turn_rate) - np.abs(np.median(self.turn_rate))))
+        # Find segment indices of turn rates > threshold
+        #TURN_MASK = [False if rate >= 10 else True for rate in self.turn_rate ]
+        #threshold = np.ceil(np.max(self.turn_rate) - np.abs(np.median(self.turn_rate))) + 5
+        #TURN_MASK = [np.nan if rate >= threshold else rate for rate in self.turn_rate ]
+        #TURN_IDX = np.where(np.isnan(TURN_MASK))
+        #TURN_IDX = TURN_IDX[0]
+        #print("len TURN_IDX: ", (TURN_IDX))
+        # Apply turn radius mask to cut turns
+        #cog[TURN_IDX] = np.nan
+        #self.turn_rate = np.asarray(self.turn_rate)
+        #self.turn_rate[TURN_IDX] = np.nan
+        #self.PING[TURN_IDX] = np.nan
+
+        ## NAN where turn index > threshold (the other arrays into segments at TURN_IDX)
+        #lo_intp[TURN_IDX] = np.nan
+        #la_intp[TURN_IDX] = np.nan
+        #lo_out_intp_savgol[TURN_IDX] = np.nan
+        #la_out_intp_savgol[TURN_IDX] = np.nan
+        #NORTH[TURN_IDX] = np.nan
+        #EAST[TURN_IDX] = np.nan
+        #NORTH_OUTER[TURN_IDX] = np.nan
+        #EAST_OUTER[TURN_IDX] = np.nan
+
     def prep_data(self):
         # Extract metadata for each ping in sonar channel
         self.PING = self.sidescan_file.packet_no
@@ -469,63 +521,6 @@ class Georeferencer:
                 delimiter=";",
                 header="Ping No; Nadir Longitude; Nadir Latitude; Outer Lon; Outer Lat; Nadir Easting; Nadir Northing; Outer Easting; Outer Northing; CoG [°]",
             )
-
-        # Logic for cutting turn rates. Ignore for now. 
-        if False:
-            # Remove spikes in course ang (e.g. when ping order is messed up in very small sections of ~5-10 pings)
-            window_spike = 10
-            start_range = int(np.abs(np.min(cog)) - np.abs(np.median(cog)))
-            stop_range = int(np.abs(np.max(cog)) - np.abs(np.median(cog)))
-            accepted_range = range(start_range, stop_range)
-            print("accepted_range: ", accepted_range, np.max(cog), np.min(cog))
-            for idx, window_spike in enumerate(self.moving_segments(cog, window_spike)):
-                if np.abs(cog[idx]) - np.abs(np.median(window_spike)) > np.abs(np.median(cog)):
-                    #print("idx, window_spike, np.median(window_spike),: ", idx, np.abs(self.COURSE_ANG[idx]), np.abs(np.median(window_spike)), "outliers")
-                    cog[idx] = np.median(window_spike)
-
-
-            # calculate turn rates in [°/ping] (usually of magnitudes 0.xx°/ping) inside moving window of size X pings. to get an idea of turn rates within a distance, 
-            # the rates are summed up to make the windows comparable
-            # TODO: make window size depending on between-ping distances so that segment are ~50 (high turn rate within 50m is bad), 
-            # remove outliers from course_ang if order of pings is messed up  - take median as threshold maybe?
-
-            #window_seg = int(np.abs(np.ceil(30/np.median(DIST))))
-            #print(window_seg)
-            window_seg = 100
-            self.turn_rate = []
-            TR = []
-            for window_seg in self.moving_segments(cog, window_seg):
-                tr = np.abs(np.diff(window_seg, prepend=window_seg[0]))
-                # find max turn rate within each window
-                tr_max = np.max(tr)
-                self.turn_rate.append(tr_max)
-                TR.append(tr)
-
-            print("np.ceil(np.max(self.turn_rate) - np.abs(np.median(self.turn_rate))): ", np.ceil(np.max(self.turn_rate) - np.abs(np.median(self.turn_rate))))
-
-            # Find segment indices of turn rates > threshold
-            #TURN_MASK = [False if rate >= 10 else True for rate in self.turn_rate ]
-            threshold = np.ceil(np.max(self.turn_rate) - np.abs(np.median(self.turn_rate))) + 5
-            TURN_MASK = [np.nan if rate >= threshold else rate for rate in self.turn_rate ]
-            TURN_IDX = np.where(np.isnan(TURN_MASK))
-            #TURN_IDX = TURN_IDX[0]
-            #print("len TURN_IDX: ", (TURN_IDX))
-
-            # Apply turn radius mask to cut turns
-            cog[TURN_IDX] = np.nan
-            self.turn_rate = np.asarray(self.turn_rate)
-            self.turn_rate[TURN_IDX] = np.nan
-            self.PING[TURN_IDX] = np.nan
-
-            # NAN where turn index > threshold (the other arrays into segments at TURN_IDX)
-            lo_intp[TURN_IDX] = np.nan
-            la_intp[TURN_IDX] = np.nan
-            lo_out_intp_savgol[TURN_IDX] = np.nan
-            la_out_intp_savgol[TURN_IDX] = np.nan
-            NORTH[TURN_IDX] = np.nan
-            EAST[TURN_IDX] = np.nan
-            NORTH_OUTER[TURN_IDX] = np.nan
-            EAST_OUTER[TURN_IDX] = np.nan
 
 
     def channel_stack(self):

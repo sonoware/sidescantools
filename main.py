@@ -279,10 +279,6 @@ class SidescanToolsMain(QWidget):
         self.right_scroll_area.setMaximumWidth(
             self.right_view.minimumSize().width() + 10
         )
-        # TODO: why does this only look as intended when called twice?!
-        self.right_base_widget.setMinimumWidth(
-            self.right_view.minimumSize().width() + 10
-        )
         self.right_base_widget.resize(
             self.right_view.minimumSize().height(),
             self.right_view.minimumSize().width() + 10,
@@ -1135,7 +1131,7 @@ class ProcessingWidget(QVBoxLayout):
 class ViewAndExportWidget(QVBoxLayout):
     data_changed = QtCore.Signal()
     """Signal to show that there might be new preprocessed data present"""
-    # TODO: is this a desired cmap or change that?
+    # Set custom colormap
     sonar_dat_cmap = {
         "colors": [
             [0, 0, 0, 1],
@@ -1505,7 +1501,6 @@ class ViewAndExportWidget(QVBoxLayout):
             resolution_mode=self.resolution_mode_dropdown.currentData(),
             resampling_method=self.resamp_mode_dropdown.currentData(),
         )
-        # TODO: signals from manager
 
     def generate_wc_img(self, active_generate_all: bool):
         if len(self.main_ui.file_table.selectedIndexes()) > 0:
@@ -1560,7 +1555,6 @@ class ViewAndExportWidget(QVBoxLayout):
         )
 
     def start_wc_image_export(self, res_list: list):
-        # TODO: this is quite custom for the GNB project, do we want to alter this?
         active_add_raw_img = self.include_raw_data_checkbox.isChecked()
         active_chunkify = True
         active_norm_chunks = False

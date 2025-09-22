@@ -720,7 +720,6 @@ class Georeferencer:
             elif chunk_num == len(ch_split) - 1:
                 pass
 
-
     def mosaic(self, mosaic_tiff, txt_path, progress_signal=None):
         """
         Merges tif chunks created in the georef function.
@@ -764,6 +763,11 @@ class Georeferencer:
         # delete merged file if it already exists
         if mosaic_tiff.exists():
             mosaic_tiff.unlink()
+
+        #if self.channel == 0:
+        #    txt_path = txt_path_ch0
+        #elif self.channel == 1:
+        #    txt_path = txt_path_ch1
 
         # gdal 3.11 syntax
         gdal_mosaic = [

@@ -183,7 +183,7 @@ class EGNTableProcessingWorker(QtCore.QRunnable):
         sidescan_file = SidescanFile(self.filename)
         bottom_info = np.load(self.bottom_file)
 
-        # TODO: Validate incoming sidescan files and all important information
+        # Slant ranges might be incomplete, fill up with previous values
         for ch in range(sidescan_file.num_ch):
             for idx in range(len(sidescan_file.slant_range[0])):
                 if sidescan_file.slant_range[ch, idx] == 0:
@@ -270,7 +270,7 @@ class EGNTableProcessingWorker(QtCore.QRunnable):
         )
         # self.signals.progress.emit(0.5)
 
-        # compute egn info #TODO: check if this params shall be made adjustable
+        # EGN parameters - these are not displayed in the UI to keep it simple
         angle_range = [-1 * np.pi / 2, np.pi / 2]
         angle_num = 360
         r_reduc_factor = 2

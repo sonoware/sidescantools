@@ -1,6 +1,7 @@
 geopy
 napari[all]
 numpy
+Pillow
 pyqtgraph
 pyxtf
 scipy

@@ -10,6 +10,7 @@ from custom_widgets import (
     hist_equalization,
 )  # TODO: move these function somewhere else to remove Qt import here
 from timeit import default_timer as timer
+import os
 
 
 class SidescanToolsMain:
@@ -125,20 +126,12 @@ class SidescanToolsMain:
 
         end_timer_processing = timer()
 
-        # Write png
-        Georeferencer.write_img(
-            self.cfg["Georef dir"] + self.filepath.stem + "_processed.png",
-            np.hstack((proc_data_out_0, proc_data_out_1)),
-        )
-
         # --- Georeferencing
         start_timer_georef = timer()
         # TODO: get settings from CFG
         georeferencer = Georeferencer(
             filepath=self.filepath,
             channel=0,
-            dynamic_chunking=False,
-            active_utm=True,
             output_folder=self.cfg["Georef dir"],
             proc_data=proc_data_out_0,
             vertical_beam_angle=60,
@@ -147,14 +140,41 @@ class SidescanToolsMain:
         georeferencer = Georeferencer(
             filepath=self.filepath,
             channel=1,
-            dynamic_chunking=False,
-            active_utm=True,
             output_folder=self.cfg["Georef dir"],
             proc_data=proc_data_out_1,
             vertical_beam_angle=60,
         )
         georeferencer.process()
+
+        print(f"Cleaning ...")
+        for file in os.listdir(self.cfg["Georef dir"]):
+            file_path = os.path.join(self.cfg["Georef dir"], file)
+            if (
+                str(file_path).endswith(".png")
+                or str(file_path).endswith(".txt")
+                or str(file_path).endswith("tmp.tif")
+                or str(file_path).endswith(".points")
+                or str(file_path).endswith(".xml")
+                or str(file_path).endswith(".vrt")
+            ):
+                try:
+                    os.remove(file_path)
+                except FileNotFoundError:
+                    print(f"File Not Found: {file_path}")
+
+        print("Cleanup done")
+
         end_timer_georef = timer()
+
+        # Also write processed data as png for comparison
+        img_data = np.hstack((proc_data_out_0, proc_data_out_1))
+        img_data /= np.max(np.abs(img_data))
+        img_data *= 255
+        Georeferencer.write_img(
+            self.cfg["Georef dir"] + "\\" + self.filepath.stem + "_processed.png",
+            img_data.astype(np.uint8),
+        )
+
         print(f"Processing took {end_timer_processing - start_timer_processing} s")
         print(f"Georef took {end_timer_georef - start_timer_georef} s")
 

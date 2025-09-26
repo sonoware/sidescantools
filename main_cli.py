@@ -84,15 +84,15 @@ class SidescanToolsMain:
             )
             # TODO: "Nacharbeiten" der Flughöhe
             if self.cfg["Slant gain norm strategy"] == 0:
-                print(f"Apply EGN to {sidescan_path}")
-                preproc.do_EGN_correction(self.cfg["EGN table path"])
-            elif self.cfg["Slant gain norm strategy"] == 1:
                 print(f"Apply BAC to {sidescan_path}")
                 preproc.apply_beam_pattern_correction()
                 preproc.apply_energy_normalization()
+            elif self.cfg["Slant gain norm strategy"] == 1:
+                print(f"Apply EGN to {sidescan_path}")
+                preproc.do_EGN_correction(self.cfg["EGN table path"])
             else:
                 raise NotImplementedError(
-                    f"Gain normalization strategy {self.cfg["Slant gain norm strategy"]} not implemented. Valid options are:\n 0: EGN\n 1: BAC"
+                    f"Gain normalization strategy {self.cfg["Slant gain norm strategy"]} not implemented. Valid options are:\n 0: BAC\n 1: EGN"
                 )
             preproc.egn_corrected_mat = np.hstack(
                 (

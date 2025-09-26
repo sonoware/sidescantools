@@ -190,17 +190,26 @@ class SidescanToolsMain:
 
         plt.show(block=True)
 
+    def gen_egn_table():
+        raise NotImplementedError(
+            "Generation of EGN tables is currently not implemented. Please use the UI variant."
+        )
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Tool to process sidescan sonar data")
     parser.add_argument("filepath", metavar="FILE", help="Path to xtf/jsf file")
     parser.add_argument("cfg", metavar="FILE", help="Path to cfg")
+    parser.add_argument("-g", "--gen_egn")
 
     args = parser.parse_args()
     print("args:", args)
 
     sidescantools = SidescanToolsMain(args.filepath, args.cfg)
-    sidescantools.process()
+    if args.gen_egn:
+        sidescantools.gen_egn_table()
+    else:
+        sidescantools.process()
 
 # T:\\projekte\\intern\\geisternetze\\seekuh2024_kiel\\990F\\StarfishLog_20240822_131816.xtf U:\\git\\ghostnetdetector\\sidescan_out_kiel\\project_info.yml
 # T:\\projekte\\intern\\geisternetze\\seekuh2024_kolding\\sonar\\2024-08-08a\\StarfishLog_20240808_115824.xtf U:\\git\\ghostnetdetector\\sidescan_out_2\\project_info.yml

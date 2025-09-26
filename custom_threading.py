@@ -265,7 +265,7 @@ class EGNTableProcessingWorker(QtCore.QRunnable):
         preproc.slant_range_correction(
             active_interpolation=True,
             nadir_angle=self.nadir_angle,
-            use_intern_depth=self.active_intern_depth,
+            use_intern_altitude=self.active_intern_depth,
             progress_signal=self.signals.progress,
         )
         # self.signals.progress.emit(0.5)
@@ -892,13 +892,13 @@ class GeoreferencerWorker(QtCore.QRunnable):
         finally:
             self.signals.finished.emit()
 
-    def start_georeferencing(self):    
+    def start_georeferencing(self):
         processor = Georeferencer(
             filepath=self.filepath,
             channel=self.channel,
             active_utm=self.active_utm,
             active_poly=self.active_poly,
-            active_export_navdata = self.active_export_navdata,
+            active_export_navdata=self.active_export_navdata,
             output_folder=self.output_folder,
             proc_data=self.proc_data,
             vertical_beam_angle=self.vertical_beam_angle,
@@ -952,7 +952,7 @@ class GeoreferencerManager(QWidget):
         filepath: str | os.PathLike,
         active_utm: bool,
         active_poly: bool,
-        active_export_navdata: bool, 
+        active_export_navdata: bool,
         proc_data: list,
         output_folder: os.PathLike,
         vertical_beam_angle: int,
@@ -1028,7 +1028,7 @@ class GeoreferencerManager(QWidget):
                 file_path = os.path.join(self.output_folder, file)
                 if (
                     str(file_path).endswith(".png")
-                    #or str(file_path).endswith(".txt")
+                    # or str(file_path).endswith(".txt")
                     or str(file_path).endswith("tmp.tif")
                     or str(file_path).endswith(".points")
                     or str(file_path).endswith(".xml")

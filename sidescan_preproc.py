@@ -7,7 +7,7 @@ import skimage
 from skimage import feature
 from pathlib import Path
 import geopy.distance as geo_dist
-from custom_widgets import convert_to_dB, hist_equalization
+from aux_functions import convert_to_dB, hist_equalization
 
 
 class SidescanPreprocessor:
@@ -866,7 +866,7 @@ class SidescanPreprocessor:
         active_interpolation=True,
         save_to=None,
         nadir_angle=0,
-        use_intern_depth=False,
+        use_intern_altitude=False,
         active_mult_slant_range_resampling=False,
         progress_signal=None,
     ):
@@ -897,17 +897,22 @@ class SidescanPreprocessor:
         self.sonar_data_proc[0] = np.fliplr(self.sonar_data_proc[0])
 
         # check whether depth data is present
-        if (
-            use_intern_depth and np.mean(self.sidescan_file.depth == 0) < 0.01
-        ):  # maximum 1% depth==0
+        if use_intern_altitude:
+            # check all depth values and fill zeros with next non zero entry
+            raw_altitude = self.sidescan_file.sensor_primary_altitude
+            if np.max(raw_altitude) == 0:
+                raise ValueError("No depth information found in intern data.")
+            raw_altitude = self.fill_zeros_with_last(raw_altitude)
+
+            # TODO: add smoothing/outlier detection here?
             # read depth info and calc corresponding sample idx
-            stepsize = (
-                self.sidescan_file.slant_range[0, :] / self.ping_len
-            )  # TODO: is there a case where the channels have different slant ranges?
+            stepsize = self.sidescan_file.slant_range[0, :] / self.ping_len
             self.dep_info = [
-                self.sidescan_file.depth / stepsize,
-                self.sidescan_file.depth / stepsize,
+                raw_altitude / stepsize,
+                raw_altitude / stepsize,
             ]  # is the same for both sides
+            self.portside_bottom_dist = self.ping_len - self.dep_info[0]
+            self.starboard_bottom_dist = self.dep_info[1]
             print(
                 "SidescanPreprocessor - Slant range correction: Using intern depth data."
             )
@@ -1089,6 +1094,13 @@ class SidescanPreprocessor:
         y_axis_m[nans] = np.interp(x(nans), x(~nans), y_axis_m[~nans])
 
         return y_axis_m
+
+    @staticmethod
+    def fill_zeros_with_last(arr):
+        prev = np.arange(len(arr))
+        prev[arr == 0] = 0
+        prev = np.maximum.accumulate(prev)
+        return arr[prev]
 
     def do_EGN_correction(self, egn_table_path, save_to=None):
         """

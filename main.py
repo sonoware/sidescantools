@@ -40,10 +40,9 @@ from custom_widgets import (
     LabeledLineEdit,
     OverwriteWarnDialog,
     ErrorWarnDialog,
-    convert_to_dB,
-    hist_equalization,
     FilePicker,
 )
+from aux_functions import convert_to_dB, hist_equalization
 from custom_threading import (
     FileImportManager,
     EGNTableBuilder,

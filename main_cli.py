@@ -11,19 +11,18 @@ import os
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 
-# TODO: delete
-ACTIVE_GEOREF = False
-
 
 class SidescanToolsMain:
     filepath: Path
     cfg_path: Path
     sidescan_files_path: list
     cfg: dict
+    active_georef: bool
 
-    def __init__(self, file_path, cfg_path):
+    def __init__(self, file_path, cfg_path, no_georef):
         self.filepath = Path(file_path)
         self.cfg_path = Path(cfg_path)
+        self.active_georef = not no_georef
         # Check input sidescan file path
         if self.filepath.is_dir():
             self.sidescan_files_path = []
@@ -54,12 +53,15 @@ class SidescanToolsMain:
 
         # summarize found files which will be processed
         print(
-            f"SidescanTools found the following sonar files:{self.sidescan_files_path}"
+            f"SidescanTools found the following sonar files: {self.sidescan_files_path}"
         )
         print(
             f"Processed PNGs will be written to: {self.sidescan_files_path[0].parent}"
         )
-        print(f"Georeferencing will be working in: {self.cfg["Georef dir"]}")
+        if self.active_georef:
+            print(f"Georeferencing will be working in: {self.cfg["Georef dir"]}")
+        else:
+            print("Georeferencing disabled")
 
     def process(self):
 
@@ -120,7 +122,7 @@ class SidescanToolsMain:
             end_timer_processing = timer()
 
             # --- Georeferencing
-            if ACTIVE_GEOREF:
+            if self.active_georef:
                 start_timer_georef = timer()
                 # TODO: get settings from CFG
                 georeferencer = Georeferencer(
@@ -194,7 +196,7 @@ class SidescanToolsMain:
             plt.imshow(img_data)
 
             print(f"Processing took {end_timer_processing - start_timer_processing} s")
-            if ACTIVE_GEOREF:
+            if self.active_georef:
                 print(f"Georef took {end_timer_georef - start_timer_georef} s")
 
         plt.show(block=True)
@@ -210,20 +212,13 @@ if __name__ == "__main__":
     parser.add_argument("filepath", metavar="FILE", help="Path to xtf/jsf file")
     parser.add_argument("cfg", metavar="FILE", help="Path to cfg")
     parser.add_argument("-g", "--gen_egn", action="store_true")
+    parser.add_argument("-n", "--no_georef", action="store_true")
 
     args = parser.parse_args()
     print("args:", args)
 
-    sidescantools = SidescanToolsMain(args.filepath, args.cfg)
+    sidescantools = SidescanToolsMain(args.filepath, args.cfg, args.no_georef)
     if args.gen_egn:
         sidescantools.gen_egn_table()
     else:
         sidescantools.process()
-
-# T:\\projekte\\intern\\geisternetze\\seekuh2024_kiel\\990F\\StarfishLog_20240822_131816.xtf U:\\git\\ghostnetdetector\\sidescan_out_kiel\\project_info.yml
-# T:\\projekte\\intern\\geisternetze\\seekuh2024_kolding\\sonar\\2024-08-08a\\StarfishLog_20240808_115824.xtf U:\\git\\ghostnetdetector\\sidescan_out_2\\project_info.yml
-# D:\\sidescan_greinert\\2025-03-17_08-35-38_0.xtf D:\\sidescan_greinert\\project_info.yml
-# D:\\sidescan_greinert\\2025-03-17_08-30-44_0.xtf D:\\sidescan_greinert\\project_info.yml
-# D:\\sidescan_greinert\\2025-03-17_08-25-31_0.xtf D:\\sidescan_greinert\\project_info.yml
-# D:\\downloads\\MGDS_Download_1\\CentralAmerica_NicLakes\\niclakes.sidescan.26-MAY-2006-03.xtf D:\\sidescan_greinert\\project_info.yml
-# D:\\downloads\\MGDS_Download_1\\NBP0505\\NBP050501C.XTF D:\\sidescan_greinert\\project_info.yml

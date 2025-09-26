@@ -80,7 +80,7 @@ class SidescanToolsMain:
             print(f"Slant range correcting {sidescan_path}")
             preproc.slant_range_correction(
                 nadir_angle=self.cfg["Slant nadir angle"],
-                use_intern_altitude=self.cfg["Slant use intern depth"],
+                use_intern_altitude=True,
             )
             # TODO: "Nacharbeiten" der Flughöhe
             if self.cfg["Slant gain norm strategy"] == 0:

@@ -60,7 +60,6 @@ class SidescanToolsMain:
             f"Processed PNGs will be written to: {self.sidescan_files_path[0].parent}"
         )
         print(f"Georeferencing will be working in: {self.cfg["Georef dir"]}")
-        # TODO: write cfg parser to make working with cfg parameters more convenient
 
     def process(self):
 
@@ -75,18 +74,26 @@ class SidescanToolsMain:
             )
 
             # --- Processing
-            print(f"Pie slice filtering {sidescan_path}")
-            preproc.apply_pie_slice_filter()
+            if self.cfg["Acitve pie slice filter"]:
+                print(f"Pie slice filtering {sidescan_path}")
+                preproc.apply_pie_slice_filter()
             print(f"Slant range correcting {sidescan_path}")
             preproc.slant_range_correction(
                 nadir_angle=self.cfg["Slant nadir angle"],
                 use_intern_altitude=True,
             )
             # TODO: "Nacharbeiten" der Flughöhe
-            # TODO: Decide whether to use EGN or BAC via CFG
-            print(f"Apply BAC to {sidescan_path}")
-            preproc.apply_beam_pattern_correction()
-            preproc.apply_energy_normalization()
+            if self.cfg["Slant gain norm strategy"] == 0:
+                print(f"Apply EGN to {sidescan_path}")
+                preproc.do_EGN_correction(self.cfg["EGN table path"])
+            elif self.cfg["Slant gain norm strategy"] == 1:
+                print(f"Apply BAC to {sidescan_path}")
+                preproc.apply_beam_pattern_correction()
+                preproc.apply_energy_normalization()
+            else:
+                raise NotImplementedError(
+                    f"Gain normalization strategy {self.cfg["Slant gain norm strategy"]} not implemented. Valid options are:\n 0: EGN\n 1: BAC"
+                )
             preproc.egn_corrected_mat = np.hstack(
                 (
                     np.fliplr(preproc.sonar_data_proc[0]),
@@ -102,11 +109,13 @@ class SidescanToolsMain:
             proc_data_1 = preproc.egn_corrected_mat[:, ping_len:]
             proc_data_1 = np.nan_to_num(proc_data_1)
             # Convert data to dB
-            proc_data_out_0 = convert_to_dB(proc_data_0)
-            proc_data_out_1 = convert_to_dB(proc_data_1)
+            if self.cfg["Active convert dB"]:
+                proc_data_out_0 = convert_to_dB(proc_data_0)
+                proc_data_out_1 = convert_to_dB(proc_data_1)
             # Apply CLAHE
-            proc_data_out_0 = hist_equalization(proc_data_out_0)
-            proc_data_out_1 = hist_equalization(proc_data_out_1)
+            if self.cfg["Active hist equal"]:
+                proc_data_out_0 = hist_equalization(proc_data_out_0)
+                proc_data_out_1 = hist_equalization(proc_data_out_1)
 
             end_timer_processing = timer()
 

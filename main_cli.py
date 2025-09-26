@@ -80,7 +80,7 @@ class SidescanToolsMain:
             print(f"Slant range correcting {sidescan_path}")
             preproc.slant_range_correction(
                 nadir_angle=self.cfg["Slant nadir angle"],
-                use_intern_altitude=True,
+                use_intern_altitude=self.cfg["Slant use intern depth"],
             )
             # TODO: "Nacharbeiten" der Flughöhe
             if self.cfg["Slant gain norm strategy"] == 0:
@@ -128,7 +128,7 @@ class SidescanToolsMain:
                     channel=0,
                     output_folder=self.cfg["Georef dir"],
                     proc_data=proc_data_out_0,
-                    vertical_beam_angle=60,
+                    vertical_beam_angle=self.cfg["Slant vertical beam angle"],
                 )
                 georeferencer.process()
                 georeferencer = Georeferencer(
@@ -136,7 +136,7 @@ class SidescanToolsMain:
                     channel=1,
                     output_folder=self.cfg["Georef dir"],
                     proc_data=proc_data_out_1,
-                    vertical_beam_angle=60,
+                    vertical_beam_angle=self.cfg["Slant vertical beam angle"],
                 )
                 georeferencer.process()
 

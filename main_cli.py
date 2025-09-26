@@ -190,7 +190,7 @@ class SidescanToolsMain:
 
         plt.show(block=True)
 
-    def gen_egn_table():
+    def gen_egn_table(self):
         raise NotImplementedError(
             "Generation of EGN tables is currently not implemented. Please use the UI variant."
         )
@@ -200,7 +200,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Tool to process sidescan sonar data")
     parser.add_argument("filepath", metavar="FILE", help="Path to xtf/jsf file")
     parser.add_argument("cfg", metavar="FILE", help="Path to cfg")
-    parser.add_argument("-g", "--gen_egn")
+    parser.add_argument("-g", "--gen_egn", action="store_true")
 
     args = parser.parse_args()
     print("args:", args)

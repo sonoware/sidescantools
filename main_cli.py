@@ -10,6 +10,8 @@ from timeit import default_timer as timer
 import os
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
+from egn_table_build import generate_egn_info, generate_egn_table_from_infos
+from datetime import datetime
 
 
 class SidescanToolsMain:
@@ -243,9 +245,38 @@ class SidescanToolsMain:
             plt.show(block=True)
 
     def gen_egn_table(self):
-        raise NotImplementedError(
-            "Generation of EGN tables is currently not implemented. Please use the UI variant."
-        )
+
+        egn_infos = []
+        time_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        egn_table_path = str(
+            Path(self.sidescan_files_path[0]).parent
+            / Path(self.sidescan_files_path[0]).stem
+        ) + ("_egn_table_" + time_str + ".npz")
+        for sidescan_path in self.sidescan_files_path:
+            sonar_file_path = Path(sidescan_path)
+            bottom_path = sonar_file_path.parent / (
+                sonar_file_path.stem + "_bottom_info.npz"
+            )
+            out_path = sonar_file_path.parent / (sonar_file_path.stem + "_egn_info.npz")
+            active_btm_detection_downsampling = False
+            if self.cfg["Btm downsampling"] > 1:
+                active_btm_detection_downsampling = True
+            generate_egn_info(
+                filename=sidescan_path,
+                bottom_file=bottom_path,
+                out_path=out_path,
+                chunk_size=self.cfg["Slant chunk size"],
+                nadir_angle=self.cfg["Slant nadir angle"],
+                active_intern_depth=self.cfg["Slant use intern depth"],
+                active_bottom_detection_downsampling=active_btm_detection_downsampling,
+            )
+            egn_infos.append(out_path)
+
+        generate_egn_table_from_infos(egn_infos, egn_table_path)
+
+        # clean up
+        for egn_info in egn_infos:
+            os.remove(egn_info)
 
 
 if __name__ == "__main__":

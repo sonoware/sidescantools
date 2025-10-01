@@ -82,9 +82,13 @@ class SidescanToolsMain:
                 preproc.apply_pie_slice_filter()
             search_range = 0.06  # fraction of ping len TODO: add to CFG
             active_depth_refine = True
+            active_single_altitude_offset = True
             use_intern_altitude = True
             if active_depth_refine:
-                preproc.refine_detected_bottom_line(search_range)
+                preproc.refine_detected_bottom_line(
+                    search_range,
+                    active_single_altitude_offset=active_single_altitude_offset,
+                )
                 use_intern_altitude = False
 
             # --- Processing

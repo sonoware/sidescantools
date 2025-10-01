@@ -891,7 +891,8 @@ class SidescanPreprocessor:
     def refine_detected_bottom_line(
         self,
         search_range,
-        active_depth_smoothing=True,  # TODO CFG
+        active_single_altitude_offset=False,  # TODO: CFG
+        active_bottom_smoothing=True,  # TODO CFG
     ):
         # copy data
         son_data = np.copy(self.sonar_data_proc)
@@ -1003,7 +1004,20 @@ class SidescanPreprocessor:
                 + additional_inset
             )
 
-        if active_depth_smoothing:
+        if active_single_altitude_offset:
+            # find mean offset of intern altitude and detected bottom line
+            altitude_offset = np.mean(
+                [
+                    self.intern_altitude_port - self.portside_bottom_dist,
+                    -1 * (self.intern_altitude_star - self.starboard_bottom_dist),
+                ]
+            )
+            altitude_offset = int(np.round(altitude_offset))
+            # apply mean offset to resulting bottom lines
+            self.starboard_bottom_dist = self.intern_altitude_star + altitude_offset
+            self.portside_bottom_dist = self.intern_altitude_port - altitude_offset
+
+        if active_bottom_smoothing:
             self.starboard_bottom_dist = scisig.savgol_filter(
                 self.starboard_bottom_dist, 20, 3
             )

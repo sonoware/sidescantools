@@ -9,6 +9,9 @@ from pathlib import Path
 import geopy.distance as geo_dist
 from aux_functions import convert_to_dB, hist_equalization
 
+# TODO: Just for debugging
+import matplotlib.pyplot as plt
+
 
 class SidescanPreprocessor:
     """Main class to apply preprocessing functionalities to sidescan sonar data:
@@ -520,13 +523,34 @@ class SidescanPreprocessor:
                 np.hstack((port_edges, star_edges)), dtype=bool
             )
 
+        # fig, axs = plt.subplots(2, 1)
+        # axs[0].imshow(portside)
+        # axs[1].imshow(starboard)
+
+        # print(f"Threshold is: {threshold_bin}")
+
+        # fig, axs = plt.subplots(2, 1)
+        # axs[0].imshow(portside_bin)
+        # axs[1].imshow(starboard_bin)
+
+        # fig, axs = plt.subplots(2, 1)
+        # axs[0].imshow(portside_edges)
+        # axs[1].imshow(starboard_edges)
+
+        # plt.show(block=True)
+
         return (portside_edges, starboard_edges)
 
     # find depth TODO: is there a better way to do this with skimage?
     def edges_to_bottom_dist(
-        self, edges, threshold_bin, data_is_port_side, click_pos=None
+        self,
+        edges,
+        threshold_bin,
+        data_is_port_side,
+        click_pos=None,
+        dist_at_ends=20,  # TODO: find a good val
     ):
-        dist_at_ends = 20  # TODO: find a good val
+
         cand_start = 0
         # TODO: cand_start von außen einstellbar machen (per Mausclick) -> Loopen von da aus in beide Richtungen, um den den Candidaten zu verfolgen?
         idx = 0
@@ -802,6 +826,9 @@ class SidescanPreprocessor:
                 son_dat *= pre_filt_max
             self.sonar_data_proc[ch] = son_dat
 
+        # TODO: Delete, this is curently used for later visualization
+        self.dat_pie_slice_copy = copy.deepcopy(self.sonar_data_proc)
+
     @staticmethod
     def comp_D(u, v, M_2, N_2):
         return np.sqrt((u - M_2) ** 2 + (v - N_2) ** 2)
@@ -860,7 +887,131 @@ class SidescanPreprocessor:
 
             self.sonar_data_proc[ch] = son_dat
 
-    # Slant range correction, partly taken from PINGMapper
+    # Refine bottom detection
+    def refine_detected_bottom_line(
+        self,
+        search_range,
+        active_depth_smoothing=True,  # TODO CFG
+    ):
+        # copy data
+        son_data = np.copy(self.sonar_data_proc)
+
+        # read altitude information
+        raw_altitude = self.sidescan_file.sensor_primary_altitude
+        if np.max(raw_altitude) == 0:
+            raise ValueError("No depth information found in intern data.")
+        raw_altitude = self.fill_zeros_with_last(raw_altitude)
+
+        # read depth info and calc corresponding sample idx
+        stepsize = self.sidescan_file.slant_range[0, :] / self.ping_len
+        self.dep_info = [
+            raw_altitude / stepsize,
+            raw_altitude / stepsize,
+        ]
+        self.portside_bottom_dist = self.ping_len - np.round(self.dep_info[0]).astype(
+            int
+        )
+        self.intern_altitude_port = copy.copy(self.portside_bottom_dist)
+        self.starboard_bottom_dist = np.round(self.dep_info[1]).astype(int)
+        self.intern_altitude_star = copy.copy(self.starboard_bottom_dist)
+        # TODO: add to CFG
+        search_range_radius = int(np.round(search_range * self.ping_len / 2))
+        additional_inset = 3
+
+        # edge detection
+        combine_both_sides = True
+        for chunk_idx in range(self.num_chunk):
+
+            # get current chunk of depth info and get snippet that ahs to be analyzed
+            cur_depth_port = self.portside_bottom_dist[
+                chunk_idx * self.chunk_size : (chunk_idx + 1) * self.chunk_size
+            ]
+            cur_depth_star = self.starboard_bottom_dist[
+                chunk_idx * self.chunk_size : (chunk_idx + 1) * self.chunk_size
+            ]
+            cur_chunk = np.zeros((2, self.chunk_size, 2 * search_range_radius))
+            out_len = len(
+                self.portside_bottom_dist[
+                    chunk_idx * self.chunk_size : (chunk_idx + 1) * self.chunk_size
+                ]
+            )
+            for line_idx in range(self.chunk_size):
+                if line_idx < len(cur_depth_port):
+                    if line_idx < out_len:
+                        cur_chunk[0, line_idx] = son_data[
+                            0,
+                            line_idx + (self.chunk_size * chunk_idx),
+                            cur_depth_port[line_idx]
+                            - search_range_radius : cur_depth_port[line_idx]
+                            + search_range_radius,
+                        ]
+                        cur_chunk[1, line_idx] = son_data[
+                            1,
+                            line_idx + (self.chunk_size * chunk_idx),
+                            cur_depth_star[line_idx]
+                            - search_range_radius : cur_depth_star[line_idx]
+                            + search_range_radius,
+                        ]
+
+            # work on normalized data
+            cur_chunk[0] /= np.max(np.abs(cur_chunk[0]))
+            cur_chunk[1] /= np.max(np.abs(cur_chunk[1]))
+
+            # Find best threshold for current chunk, currently median is used because roughly half water/land is expected
+            threshold_bin = np.median(cur_chunk[:, :out_len])
+            # TODO: delete visualization, just kept for current testing
+            # plt.hist(cur_chunk.flatten(), bins=500)
+            # plt.title(f"Histogram of current chunk, median={threshold_bin}")
+            # plt.show(block=True)
+
+            # clip threshold because it might be 0 for chunks with a lot of zero-padding
+            threshold_bin = np.max((threshold_bin, 0.004))
+
+            portside_edges_chunk, starboard_edges_chunk = self.detect_edges(
+                cur_chunk[0],
+                cur_chunk[1],
+                threshold_bin,
+                combine_both_sides,
+                False,
+            )
+            # convert most likely edge to bottom distance
+            # TODO test against bound/find potential crashes
+            self.portside_bottom_dist[
+                chunk_idx * self.chunk_size : (chunk_idx + 1) * self.chunk_size
+            ] = (
+                self.edges_to_bottom_dist(
+                    portside_edges_chunk,
+                    threshold_bin,
+                    data_is_port_side=True,
+                    dist_at_ends=5,
+                )[:out_len]
+                - search_range_radius
+                + cur_depth_port
+                - additional_inset
+            )
+            self.starboard_bottom_dist[
+                chunk_idx * self.chunk_size : (chunk_idx + 1) * self.chunk_size
+            ] = (
+                self.edges_to_bottom_dist(
+                    starboard_edges_chunk,
+                    threshold_bin,
+                    data_is_port_side=False,
+                    dist_at_ends=5,
+                )[:out_len]
+                - search_range_radius
+                + cur_depth_star
+                + additional_inset
+            )
+
+        if active_depth_smoothing:
+            self.starboard_bottom_dist = scisig.savgol_filter(
+                self.starboard_bottom_dist, 20, 3
+            )
+            self.portside_bottom_dist = scisig.savgol_filter(
+                self.portside_bottom_dist, 20, 3
+            )
+
+    # Slant range correction
     def slant_range_correction(
         self,
         active_interpolation=True,

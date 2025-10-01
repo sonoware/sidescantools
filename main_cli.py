@@ -75,16 +75,25 @@ class SidescanToolsMain:
                 chunk_size=self.cfg["Slant chunk size"],
             )
 
-            # --- Processing
-            if self.cfg["Acitve pie slice filter"]:
+            # Refine altitude
+            # Therefore apply pie slice filter beforehand to remove artifacts
+            if self.cfg["Active pie slice filter"]:
                 print(f"Pie slice filtering {sidescan_path}")
                 preproc.apply_pie_slice_filter()
+            search_range = 0.06  # fraction of ping len TODO: add to CFG
+            active_depth_refine = True
+            use_intern_altitude = True
+            if active_depth_refine:
+                preproc.refine_detected_bottom_line(search_range)
+                use_intern_altitude = False
+
+            # --- Processing
             print(f"Slant range correcting {sidescan_path}")
             preproc.slant_range_correction(
                 nadir_angle=self.cfg["Slant nadir angle"],
-                use_intern_altitude=True,
+                use_intern_altitude=use_intern_altitude,
             )
-            # TODO: "Nacharbeiten" der Flughöhe
+
             if self.cfg["Slant gain norm strategy"] == 0:
                 print(f"Apply BAC to {sidescan_path}")
                 preproc.apply_beam_pattern_correction()
@@ -176,6 +185,9 @@ class SidescanToolsMain:
             # Plotting to find errors and test bottom line strategy
             btm_line_mat_port = np.zeros_like(sidescan_file.data[0])
             btm_line_mat_star = np.zeros_like(sidescan_file.data[0])
+            if active_depth_refine:
+                btm_line_mat_port_intern = np.zeros_like(sidescan_file.data[0])
+                btm_line_mat_star_intern = np.zeros_like(sidescan_file.data[0])
             for line_idx in range(len(preproc.portside_bottom_dist.astype(int))):
                 btm_line_mat_port[
                     line_idx, preproc.portside_bottom_dist.astype(int)[line_idx]
@@ -183,14 +195,39 @@ class SidescanToolsMain:
                 btm_line_mat_star[
                     line_idx, preproc.starboard_bottom_dist.astype(int)[line_idx]
                 ] = 1
+                if active_depth_refine:
+                    btm_line_mat_port_intern[
+                        line_idx, preproc.intern_altitude_port.astype(int)[line_idx]
+                    ] = 1
+                    btm_line_mat_star_intern[
+                        line_idx, preproc.intern_altitude_star.astype(int)[line_idx]
+                    ] = 1
             overlay_cmap = ListedColormap(["none", "red"])
+            overlay_cmap_2 = ListedColormap(["none", "green"])
             plt.figure()
             plt.imshow(20 * np.log10(sidescan_file.data[0]))
             plt.imshow(btm_line_mat_port, cmap=overlay_cmap)
+            if active_depth_refine:
+                plt.imshow(btm_line_mat_port_intern, cmap=overlay_cmap_2)
 
             plt.figure()
             plt.imshow(20 * np.log10(sidescan_file.data[1]))
             plt.imshow(btm_line_mat_star, cmap=overlay_cmap)
+            if active_depth_refine:
+                plt.imshow(btm_line_mat_star_intern, cmap=overlay_cmap_2)
+
+            if self.cfg["Active pie slice filter"]:
+                plt.figure()
+                plt.imshow(20 * np.log10(preproc.dat_pie_slice_copy[0]))
+                plt.imshow(btm_line_mat_port, cmap=overlay_cmap)
+                if active_depth_refine:
+                    plt.imshow(btm_line_mat_port_intern, cmap=overlay_cmap_2)
+
+                plt.figure()
+                plt.imshow(20 * np.log10(preproc.dat_pie_slice_copy[1]))
+                plt.imshow(btm_line_mat_star, cmap=overlay_cmap)
+                if active_depth_refine:
+                    plt.imshow(btm_line_mat_star_intern, cmap=overlay_cmap_2)
 
             plt.figure()
             plt.imshow(img_data)
@@ -199,7 +236,7 @@ class SidescanToolsMain:
             if self.active_georef:
                 print(f"Georef took {end_timer_georef - start_timer_georef} s")
 
-        plt.show(block=True)
+            plt.show(block=True)
 
     def gen_egn_table(self):
         raise NotImplementedError(
@@ -209,7 +246,11 @@ class SidescanToolsMain:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Tool to process sidescan sonar data")
-    parser.add_argument("filepath", metavar="FILE", help="Path to xtf/jsf file")
+    parser.add_argument(
+        "filepath",
+        metavar="FILE",
+        help="Path to xtf/jsf file or dir containing multiple files",
+    )
     parser.add_argument("cfg", metavar="FILE", help="Path to cfg")
     parser.add_argument("-g", "--gen_egn", action="store_true")
     parser.add_argument("-n", "--no_georef", action="store_true")

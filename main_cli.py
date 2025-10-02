@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 from egn_table_build import generate_egn_info, generate_egn_table_from_infos
 from datetime import datetime
-import time
 
 
 class SidescanToolsMain:

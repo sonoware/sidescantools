@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 from egn_table_build import generate_egn_info, generate_egn_table_from_infos
 from datetime import datetime
+import time
 
 
 class SidescanToolsMain:
@@ -30,7 +31,7 @@ class SidescanToolsMain:
             self.sidescan_files_path = []
             for f_path in list(self.filepath.glob("*.xtf")):
                 self.sidescan_files_path.append(f_path)
-            for f_path in list(self.filepath.glob("*.xtf")):
+            for f_path in list(self.filepath.glob("*.jsf")):
                 self.sidescan_files_path.append(f_path)
         elif self.filepath.is_file():
             self.sidescan_files_path = [self.filepath]
@@ -248,10 +249,9 @@ class SidescanToolsMain:
 
         egn_infos = []
         time_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        egn_table_path = str(
-            Path(self.sidescan_files_path[0]).parent
-            / Path(self.sidescan_files_path[0]).stem
-        ) + ("_egn_table_" + time_str + ".npz")
+        egn_table_path = Path(self.sidescan_files_path[0]).parent / (
+            "egn_table_" + time_str + ".npz"
+        )
         for sidescan_path in self.sidescan_files_path:
             sonar_file_path = Path(sidescan_path)
             bottom_path = sonar_file_path.parent / (
@@ -272,6 +272,7 @@ class SidescanToolsMain:
             )
             egn_infos.append(out_path)
 
+        # generate final EGN Table
         generate_egn_table_from_infos(egn_infos, egn_table_path)
 
         # clean up

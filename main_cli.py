@@ -9,7 +9,7 @@ from aux_functions import convert_to_dB, hist_equalization
 from timeit import default_timer as timer
 import os
 
-PLOT = False
+PLOT = True
 if PLOT:
     import matplotlib.pyplot as plt
     from matplotlib.colors import ListedColormap
@@ -87,7 +87,7 @@ class SidescanToolsMain:
                 preproc.apply_pie_slice_filter()
             search_range = 0.06  # fraction of ping len TODO: add to CFG
             active_depth_refine = True
-            active_single_altitude_offset = True
+            active_single_altitude_offset = False
             use_intern_altitude = True  # CFG
             if active_depth_refine:
                 preproc.refine_detected_bottom_line(
@@ -105,7 +105,9 @@ class SidescanToolsMain:
 
             if self.cfg["Slant gain norm strategy"] == 0:
                 print(f"Apply BAC to {sidescan_path}")
-                preproc.apply_beam_pattern_correction()
+                preproc.apply_beam_pattern_correction(
+                    angle_num=self.cfg["BAC resolution"]
+                )
                 preproc.apply_energy_normalization()
             elif self.cfg["Slant gain norm strategy"] == 1:
                 print(f"Apply EGN to {sidescan_path}")

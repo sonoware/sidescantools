@@ -101,6 +101,8 @@ class SidescanToolsMain(QWidget):
         "Georef active custom colormap": False,
         "Path": [],
         "Meta info": dict(),
+        "BAC resolution": 360,
+        # "EGN table resolution":
     }
 
     def __init__(self):
@@ -1100,6 +1102,7 @@ class ProcessingWidget(QVBoxLayout):
             active_egn=self.egn_radio_btn.isChecked(),
             active_bac=self.beam_ang_corr_radio_btn.isChecked(),
             active_sharpening_filter=self.sharpening_filter_checkbox.isChecked(),
+            num_angle_bac=self.main_ui.settings_dict["BAC resolution"],
         )
 
     def proc_strat_changed(self, btn_object):
@@ -1322,6 +1325,7 @@ class ViewAndExportWidget(QVBoxLayout):
             active_egn=self.main_ui.processing_widget.egn_radio_btn.isChecked(),
             active_bac=self.main_ui.processing_widget.beam_ang_corr_radio_btn.isChecked(),
             active_sharpening_filter=self.main_ui.processing_widget.sharpening_filter_checkbox.isChecked(),
+            num_angle_bac=self.main_ui.settings_dict["BAC resolution"],
         )
 
     def preproc_to_run_napari(self, res: list):
@@ -1454,6 +1458,7 @@ class ViewAndExportWidget(QVBoxLayout):
             active_egn=self.main_ui.processing_widget.egn_radio_btn.isChecked(),
             active_bac=self.main_ui.processing_widget.beam_ang_corr_radio_btn.isChecked(),
             active_sharpening_filter=self.main_ui.processing_widget.sharpening_filter_checkbox.isChecked(),
+            num_angle_bac=self.main_ui.settings_dict["BAC resolution"],
         )
 
     def start_georeferencer(self, res_list: list):
@@ -1551,6 +1556,7 @@ class ViewAndExportWidget(QVBoxLayout):
             active_egn=self.main_ui.processing_widget.egn_radio_btn.isChecked(),
             active_bac=self.main_ui.processing_widget.beam_ang_corr_radio_btn.isChecked(),
             active_sharpening_filter=self.main_ui.processing_widget.sharpening_filter_checkbox.isChecked(),
+            num_angle_bac=self.main_ui.settings_dict["BAC resolution"],
         )
 
     def start_wc_image_export(self, res_list: list):

@@ -321,6 +321,7 @@ class PreProcWorker(QtCore.QRunnable):
         active_egn: bool,
         active_bac: bool,
         active_sharpening_filter: bool,
+        num_angle_bac: int,
     ):
         super().__init__()
         self.filepath = pathlib.Path(filepath)
@@ -340,6 +341,7 @@ class PreProcWorker(QtCore.QRunnable):
         self.active_egn = active_egn
         self.active_bac = active_bac
         self.active_sharpening_filter = active_sharpening_filter
+        self.num_angle_bac = num_angle_bac
 
     @QtCore.Slot()
     def run(self):
@@ -448,7 +450,7 @@ class PreProcWorker(QtCore.QRunnable):
                     preproc.egn_corrected_mat = gain_corrected_data["egn_corrected_mat"]
                     self.signals.progress.emit(0.4)
                 else:
-                    preproc.apply_beam_pattern_correction()
+                    preproc.apply_beam_pattern_correction(angle_num=self.num_angle_bac)
                     self.signals.progress.emit(0.3)
                     preproc.apply_energy_normalization()
                     self.signals.progress.emit(0.1)
@@ -528,6 +530,7 @@ class PreProcManager(QWidget):
         active_egn: bool,
         active_bac: bool,
         active_sharpening_filter: bool,
+        num_angle_bac: int,
     ):
 
         # change title to reflect actual processing
@@ -565,6 +568,7 @@ class PreProcManager(QWidget):
                     active_egn=active_egn,
                     active_bac=active_bac,
                     active_sharpening_filter=active_sharpening_filter,
+                    num_angle_bac=num_angle_bac,
                 )
                 new_worker.signals.error_signal.connect(
                     lambda err: self.build_aborted(err)

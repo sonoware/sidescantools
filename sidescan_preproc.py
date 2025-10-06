@@ -657,12 +657,11 @@ class SidescanPreprocessor:
         H[int(M / 2) :] = np.flipud(H[: int(M / 2)])
         return H
 
-    def apply_beam_pattern_correction(self):
+    def apply_beam_pattern_correction(self, angle_num=360):
         """Applies Beam Pattern Correction to the processing data"""
 
         num_ping = np.shape(self.sonar_data_proc[0])[0]
         angle_range = [-1 * np.pi / 2, np.pi / 2]
-        angle_num = 360
         angle_stepsize = (angle_range[1] - angle_range[0]) / angle_num
         angle_sum = np.zeros(angle_num)
         angle_hits = np.zeros(angle_num)

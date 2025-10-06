@@ -9,10 +9,6 @@ from pathlib import Path
 import geopy.distance as geo_dist
 from aux_functions import convert_to_dB, hist_equalization
 
-PLOT = True
-if PLOT:
-    import matplotlib.pyplot as plt
-
 
 class SidescanPreprocessor:
     """Main class to apply preprocessing functionalities to sidescan sonar data:

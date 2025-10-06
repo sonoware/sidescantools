@@ -909,6 +909,7 @@ class SidescanPreprocessor:
             raw_altitude / stepsize,
             raw_altitude / stepsize,
         ]
+        self.dep_info = np.clip(self.dep_info, a_min=1, a_max=self.ping_len - 1)
         self.portside_bottom_dist = self.ping_len - np.round(self.dep_info[0]).astype(
             int
         )
@@ -917,6 +918,7 @@ class SidescanPreprocessor:
         self.intern_altitude_star = copy.copy(self.starboard_bottom_dist)
         # TODO: add to CFG
         search_range_radius = int(np.round(search_range * self.ping_len / 2))
+        additional_inset = 3
 
         # edge detection
         combine_both_sides = True  # this is currently mandatory
@@ -1017,6 +1019,7 @@ class SidescanPreprocessor:
                 )[:out_len]
                 - search_range_radius
                 + cur_depth_port
+                - additional_inset
             )
             self.starboard_bottom_dist[
                 chunk_idx * self.chunk_size : (chunk_idx + 1) * self.chunk_size
@@ -1029,7 +1032,16 @@ class SidescanPreprocessor:
                 )[:out_len]
                 - search_range_radius
                 + cur_depth_star
+                + additional_inset
             )
+
+        # limit to [0, PING_LEN] if additional inset would lead to values out of bounds
+        self.portside_bottom_dist = np.clip(
+            self.portside_bottom_dist, a_min=1, a_max=self.ping_len - 1
+        )
+        self.starboard_bottom_dist = np.clip(
+            self.starboard_bottom_dist, a_min=1, a_max=self.ping_len - 1
+        )
 
         if active_single_altitude_offset:
             # find mean offset of intern altitude and detected bottom line
@@ -1103,6 +1115,7 @@ class SidescanPreprocessor:
                 raw_altitude / stepsize,
                 raw_altitude / stepsize,
             ]  # is the same for both sides
+            self.dep_info = np.clip(self.dep_info, a_min=1, a_max=self.ping_len - 1)
             self.portside_bottom_dist = self.ping_len - self.dep_info[0]
             self.starboard_bottom_dist = self.dep_info[1]
             print(

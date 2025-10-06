@@ -8,8 +8,11 @@ from georef_thread import Georeferencer
 from aux_functions import convert_to_dB, hist_equalization
 from timeit import default_timer as timer
 import os
-import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap
+
+PLOT = True
+if PLOT:
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import ListedColormap
 from egn_table_build import generate_egn_info, generate_egn_table_from_infos
 from datetime import datetime
 
@@ -208,41 +211,44 @@ class SidescanToolsMain:
                     btm_line_mat_star_intern[
                         line_idx, preproc.intern_altitude_star.astype(int)[line_idx]
                     ] = 1
-            overlay_cmap = ListedColormap(["none", "red"])
-            overlay_cmap_2 = ListedColormap(["none", "green"])
-            plt.figure()
-            plt.imshow(20 * np.log10(sidescan_file.data[0]))
-            plt.imshow(btm_line_mat_port, cmap=overlay_cmap)
-            if active_depth_refine:
-                plt.imshow(btm_line_mat_port_intern, cmap=overlay_cmap_2)
-
-            plt.figure()
-            plt.imshow(20 * np.log10(sidescan_file.data[1]))
-            plt.imshow(btm_line_mat_star, cmap=overlay_cmap)
-            if active_depth_refine:
-                plt.imshow(btm_line_mat_star_intern, cmap=overlay_cmap_2)
-
-            if self.cfg["Active pie slice filter"]:
-                plt.figure()
-                plt.imshow(20 * np.log10(preproc.dat_pie_slice_copy[0]))
-                plt.imshow(btm_line_mat_port, cmap=overlay_cmap)
-                if active_depth_refine:
-                    plt.imshow(btm_line_mat_port_intern, cmap=overlay_cmap_2)
-
-                plt.figure()
-                plt.imshow(20 * np.log10(preproc.dat_pie_slice_copy[1]))
-                plt.imshow(btm_line_mat_star, cmap=overlay_cmap)
-                if active_depth_refine:
-                    plt.imshow(btm_line_mat_star_intern, cmap=overlay_cmap_2)
-
-            plt.figure()
-            plt.imshow(img_data)
 
             print(f"Processing took {end_timer_processing - start_timer_processing} s")
             if self.active_georef:
                 print(f"Georef took {end_timer_georef - start_timer_georef} s")
 
-            plt.show(block=True)
+            if PLOT:
+                overlay_cmap = ListedColormap(["none", "red"])
+                overlay_cmap_2 = ListedColormap(["none", "green"])
+
+                plt.figure()
+                plt.imshow(20 * np.log10(sidescan_file.data[0]))
+                plt.imshow(btm_line_mat_port, cmap=overlay_cmap)
+                if active_depth_refine:
+                    plt.imshow(btm_line_mat_port_intern, cmap=overlay_cmap_2)
+
+                plt.figure()
+                plt.imshow(20 * np.log10(sidescan_file.data[1]))
+                plt.imshow(btm_line_mat_star, cmap=overlay_cmap)
+                if active_depth_refine:
+                    plt.imshow(btm_line_mat_star_intern, cmap=overlay_cmap_2)
+
+                if self.cfg["Active pie slice filter"]:
+                    plt.figure()
+                    plt.imshow(20 * np.log10(preproc.dat_pie_slice_copy[0]))
+                    plt.imshow(btm_line_mat_port, cmap=overlay_cmap)
+                    if active_depth_refine:
+                        plt.imshow(btm_line_mat_port_intern, cmap=overlay_cmap_2)
+
+                    plt.figure()
+                    plt.imshow(20 * np.log10(preproc.dat_pie_slice_copy[1]))
+                    plt.imshow(btm_line_mat_star, cmap=overlay_cmap)
+                    if active_depth_refine:
+                        plt.imshow(btm_line_mat_star_intern, cmap=overlay_cmap_2)
+
+                plt.figure()
+                plt.imshow(img_data)
+
+                plt.show(block=True)
 
     def gen_egn_table(self):
 

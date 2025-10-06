@@ -9,8 +9,9 @@ from pathlib import Path
 import geopy.distance as geo_dist
 from aux_functions import convert_to_dB, hist_equalization
 
-# TODO: Just for debugging
-import matplotlib.pyplot as plt
+PLOT = True
+if PLOT:
+    import matplotlib.pyplot as plt
 
 
 class SidescanPreprocessor:

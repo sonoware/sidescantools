@@ -917,10 +917,9 @@ class SidescanPreprocessor:
         self.intern_altitude_star = copy.copy(self.starboard_bottom_dist)
         # TODO: add to CFG
         search_range_radius = int(np.round(search_range * self.ping_len / 2))
-        additional_inset = 3
 
         # edge detection
-        combine_both_sides = True
+        combine_both_sides = True  # this is currently mandatory
         for chunk_idx in range(self.num_chunk):
 
             # get current chunk of depth info and get snippet that ahs to be analyzed
@@ -939,20 +938,50 @@ class SidescanPreprocessor:
             for line_idx in range(self.chunk_size):
                 if line_idx < len(cur_depth_port):
                     if line_idx < out_len:
-                        cur_chunk[0, line_idx] = son_data[
+                        tmp_chunk_0 = son_data[
                             0,
                             line_idx + (self.chunk_size * chunk_idx),
-                            cur_depth_port[line_idx]
-                            - search_range_radius : cur_depth_port[line_idx]
+                            np.max(
+                                (0, cur_depth_port[line_idx] - search_range_radius)
+                            ) : cur_depth_port[line_idx]
                             + search_range_radius,
                         ]
-                        cur_chunk[1, line_idx] = son_data[
+
+                        tmp_chunk_1 = son_data[
                             1,
                             line_idx + (self.chunk_size * chunk_idx),
-                            cur_depth_star[line_idx]
-                            - search_range_radius : cur_depth_star[line_idx]
+                            np.max(
+                                (0, cur_depth_star[line_idx] - search_range_radius)
+                            ) : cur_depth_star[line_idx]
                             + search_range_radius,
                         ]
+
+                        chunk_len = len(tmp_chunk_0)
+                        # check whether data needs to be padded because search radius would need samples with index <0 oder >PING_LEN
+                        # therefore use zero padding to add "water" or padd ones for "ground"
+                        if cur_depth_port[line_idx] - search_range_radius < 0:
+                            # add ones for "negative" indices
+                            cur_chunk[:, line_idx] = np.ones(
+                                (2, 2 * search_range_radius)
+                            ) * np.max(tmp_chunk_0)
+                            cur_chunk[
+                                0, line_idx, (2 * search_range_radius) - chunk_len :
+                            ] = tmp_chunk_0
+                            cur_chunk[1, line_idx, :chunk_len] = tmp_chunk_1
+
+                        elif (
+                            cur_depth_port[line_idx] + search_range_radius
+                            > self.ping_len
+                        ):
+                            cur_chunk[0, line_idx, :chunk_len] = tmp_chunk_0
+                            cur_chunk[
+                                1, line_idx, (2 * search_range_radius) - chunk_len :
+                            ] = tmp_chunk_1
+                            # and if depth is low/chunk needs to be zero padded
+                        else:
+                            # default case
+                            cur_chunk[0, line_idx] = tmp_chunk_0
+                            cur_chunk[1, line_idx] = tmp_chunk_1
 
             # work on normalized data
             cur_chunk[0] /= np.max(np.abs(cur_chunk[0]))
@@ -988,7 +1017,6 @@ class SidescanPreprocessor:
                 )[:out_len]
                 - search_range_radius
                 + cur_depth_port
-                - additional_inset
             )
             self.starboard_bottom_dist[
                 chunk_idx * self.chunk_size : (chunk_idx + 1) * self.chunk_size
@@ -1001,7 +1029,6 @@ class SidescanPreprocessor:
                 )[:out_len]
                 - search_range_radius
                 + cur_depth_star
-                + additional_inset
             )
 
         if active_single_altitude_offset:

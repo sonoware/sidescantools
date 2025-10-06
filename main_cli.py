@@ -85,7 +85,7 @@ class SidescanToolsMain:
             search_range = 0.06  # fraction of ping len TODO: add to CFG
             active_depth_refine = True
             active_single_altitude_offset = True
-            use_intern_altitude = True
+            use_intern_altitude = True  # CFG
             if active_depth_refine:
                 preproc.refine_detected_bottom_line(
                     search_range,

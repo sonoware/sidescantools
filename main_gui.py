@@ -103,6 +103,11 @@ class SidescanToolsMain(QWidget):
         "Meta info": dict(),
         "BAC resolution": 360,
         "EGN table resolution parameters": [360, 2],
+        "Bottom line refinement search range": 0.06,
+        "Active bottom line refinement": True,
+        "Active Altitude offset": True,
+        "Active bottom line smoothing": True,
+        "Additional bottom line inset": 0,
     }
 
     def __init__(self):

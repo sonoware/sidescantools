@@ -85,14 +85,18 @@ class SidescanToolsMain:
             if self.cfg["Active pie slice filter"]:
                 print(f"Pie slice filtering {sidescan_path}")
                 preproc.apply_pie_slice_filter()
-            search_range = 0.06  # fraction of ping len TODO: add to CFG
-            active_depth_refine = True
-            active_single_altitude_offset = False
-            use_intern_altitude = True  # CFG
+            search_range = self.cfg["Bottom line refinement search range"]
+            active_depth_refine = self.cfg["Active bottom line refinement"]
+            active_single_altitude_offset = self.cfg["Active Altitude offset"]
+            active_btm_smoothing = self.cfg["Active bottom line smoothing"]
+            additional_inset = self.cfg["Additional bottom line inset"]
+            use_intern_altitude = True
             if active_depth_refine:
                 preproc.refine_detected_bottom_line(
                     search_range,
                     active_single_altitude_offset=active_single_altitude_offset,
+                    active_bottom_smoothing=active_btm_smoothing,
+                    additional_inset=additional_inset,
                 )
                 use_intern_altitude = False
 

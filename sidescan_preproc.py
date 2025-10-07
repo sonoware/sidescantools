@@ -887,8 +887,9 @@ class SidescanPreprocessor:
     def refine_detected_bottom_line(
         self,
         search_range,
-        active_single_altitude_offset=False,  # TODO: CFG
-        active_bottom_smoothing=True,  # TODO CFG
+        active_single_altitude_offset=False,
+        active_bottom_smoothing=True,
+        additional_inset=0,
     ):
         # copy data
         son_data = np.copy(self.sonar_data_proc)
@@ -912,9 +913,7 @@ class SidescanPreprocessor:
         self.intern_altitude_port = copy.copy(self.portside_bottom_dist)
         self.starboard_bottom_dist = np.round(self.dep_info[1]).astype(int)
         self.intern_altitude_star = copy.copy(self.starboard_bottom_dist)
-        # TODO: add to CFG
         search_range_radius = int(np.round(search_range * self.ping_len / 2))
-        additional_inset = 3
 
         # edge detection
         combine_both_sides = True  # this is currently mandatory
@@ -1003,7 +1002,6 @@ class SidescanPreprocessor:
                 False,
             )
             # convert most likely edge to bottom distance
-            # TODO test against bound/find potential crashes
             self.portside_bottom_dist[
                 chunk_idx * self.chunk_size : (chunk_idx + 1) * self.chunk_size
             ] = (

@@ -276,6 +276,7 @@ class SidescanToolsMain:
                 nadir_angle=self.cfg["Slant nadir angle"],
                 active_intern_depth=self.cfg["Slant use intern depth"],
                 active_bottom_detection_downsampling=active_btm_detection_downsampling,
+                egn_table_parameters=self.cfg["EGN table resolution parameters"],
             )
             egn_infos.append(out_path)
 

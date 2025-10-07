@@ -102,7 +102,7 @@ class SidescanToolsMain(QWidget):
         "Path": [],
         "Meta info": dict(),
         "BAC resolution": 360,
-        # "EGN table resolution":
+        "EGN table resolution parameters": [360, 2],
     }
 
     def __init__(self):
@@ -1053,6 +1053,9 @@ class ProcessingWidget(QVBoxLayout):
             self.active_intern_depth_checkbox.isChecked(),
             int(self.slant_chunk_size_edit.line_edit.text()),
             self.active_bottom_detection_downsampling_checkbox.isChecked(),
+            egn_table_parameters=self.main_ui.settings_dict[
+                "EGN table resolution parameters"
+            ],
         )
 
     def show_error_msg(self, msg):

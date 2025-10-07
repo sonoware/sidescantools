@@ -16,6 +16,7 @@ def generate_egn_info(
     active_intern_depth: bool,
     active_bottom_detection_downsampling: bool,
     progress_signal=None,
+    egn_table_parameters=[360, 2],
 ):
     print("---")
     print(f"Reading file: {filename}")
@@ -112,8 +113,8 @@ def generate_egn_info(
 
     # EGN parameters - these are not displayed in the UI to keep it simple
     angle_range = [-1 * np.pi / 2, np.pi / 2]
-    angle_num = 360
-    r_reduc_factor = 2
+    angle_num = egn_table_parameters[0]
+    r_reduc_factor = egn_table_parameters[1]
     r_size = int(preproc.ping_len * 1.1 / r_reduc_factor)
     angle_stepsize = (angle_range[1] - angle_range[0]) / angle_num
     egn_mat = np.zeros((r_size, angle_num))

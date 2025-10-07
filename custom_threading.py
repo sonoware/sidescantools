@@ -138,6 +138,7 @@ class EGNTableProcessingWorker(QtCore.QRunnable):
         nadir_angle: int,
         active_intern_depth: bool,
         active_bottom_detection_downsampling: bool,
+        egn_table_parameters: list,
     ):
         """Init Worker to calculate slant range correction and EGN Table
 
@@ -167,6 +168,7 @@ class EGNTableProcessingWorker(QtCore.QRunnable):
         self.active_intern_depth = active_intern_depth
         self.active_bottom_detection_downsampling = active_bottom_detection_downsampling
         self.signals = EGNTableProcessingWorkerSignals()
+        self.egn_table_parameters = egn_table_parameters
 
     @QtCore.Slot()
     def run(self):
@@ -187,6 +189,7 @@ class EGNTableProcessingWorker(QtCore.QRunnable):
             active_intern_depth=self.active_intern_depth,
             active_bottom_detection_downsampling=self.active_bottom_detection_downsampling,
             progress_signal=self.signals.progress,
+            egn_table_parameters=self.egn_table_parameters,
         )
 
 
@@ -236,6 +239,7 @@ class EGNTableBuilder(QWidget):
         active_intern_depth: bool,
         chunk_size: int,
         active_downsampling: bool,
+        egn_table_parameters: list,
     ):
 
         # Build list of needed and to be written file names
@@ -263,6 +267,7 @@ class EGNTableBuilder(QWidget):
                 nadir_angle,
                 active_intern_depth,
                 active_downsampling,
+                egn_table_parameters=egn_table_parameters,
             )
             new_worker.signals.error_signal.connect(lambda err: self.build_aborted(err))
             new_worker.signals.progress.connect(

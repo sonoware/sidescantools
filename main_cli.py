@@ -87,7 +87,9 @@ class SidescanToolsMain:
                 preproc.apply_pie_slice_filter()
             search_range = self.cfg["Bottom line refinement search range"]
             active_depth_refine = self.cfg["Active bottom line refinement"]
-            active_single_altitude_offset = self.cfg["Active Altitude offset"]
+            active_single_altitude_offset = self.cfg[
+                "Active btm refinement shift by offset"
+            ]
             active_btm_smoothing = self.cfg["Active bottom line smoothing"]
             additional_inset = self.cfg["Additional bottom line inset"]
             use_intern_altitude = True

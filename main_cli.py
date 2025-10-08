@@ -9,7 +9,7 @@ from aux_functions import convert_to_dB, hist_equalization
 from timeit import default_timer as timer
 import os
 
-PLOT = True
+PLOT = False
 if PLOT:
     import matplotlib.pyplot as plt
     from matplotlib.colors import ListedColormap

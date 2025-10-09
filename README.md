@@ -85,7 +85,7 @@ In the following all GUI elements are explained in more detail.
 ### Slant Range Correction and Gain Normalisation
 - `Apply Downsampling`: Use downsampling factor as defined in bottom line detection. If unchecked, data will only be downsampled for bottom line detection but not for final image/geotiff generation.
 - `Apply Gain Normalisation`: Apply BAC or EGN to the data.
-- `Vertical Beam Angle` (only relevant if internal depth is unknown or shall be omitted): Horizontal angle by which the instrument is tilted (usually found in the manual)
+- `Vertical Beam Angle` (only relevant if internal depth is unknown or shall be omitted): Angle in the vertical plane that the sound waves cover(usually found in the manual)
 - Tick `Use Internal Depth` if the flying altitude of the side scan instrument is known & has been logged correctly
 
 ### Advanced Gain Normalisation Filter
@@ -147,32 +147,47 @@ The tool produces:
 - **optional flags**:
   - `-g`: **Generate EGN Table**
   
-  This option generates an EGN table by analyzing all sidescan files in the provided `file_or_folder_path`. The result is written to a numpy file `egn_table_<timestamp>.npz` containing all info for SidescanTools to use this table for later EGN processing of these or other files.
+    This option generates an EGN table by analyzing all sidescan files in the provided `file_or_folder_path`. The result is written to a numpy file `egn_table_<timestamp>.npz` containing all info for SidescanTools to use this table for later EGN processing of these or other files.
 
-  To use this EGN table you need to adjust the `EGN table path` in your `project_info.yml` to point to the latest generated EGN table (and have EGN gain normalisation enabled by setting `Slant gain norm strategy` to `1`).
+    To use this EGN table you need to adjust the `EGN table path` in your `project_info.yml` to point to the latest generated EGN table (and have EGN gain normalisation enabled by setting `Slant gain norm strategy` to `1`).
   - `-n`: **No GeoTiff**
   
-  Skips GeoTIFF generation and only creates the .png image(s).
+    Skips GeoTIFF generation and only creates the .png image(s).
 
-## Additional details on parameters in `project_info.yml`
-In the following the most important CFG parameters which are relevant for  processing witht he CLI variant are explained.
+## Additional details about main parameters in `project_info.yml`
+In the following the most important CFG parameters which are relevant for  processing with the CLI variant are explained.
 
-- `Active bottom line refinement`
-- `Active bottom line smoothing`
-- `Active btm refinement shift by offset`
-- `Active convert dB`
-- `Active gain norm`
-- `Active hist equal`
-- `Active pie slice filter`
-- `Active sharpening filter`
-- `Additional bottom line inset`
-- `Bottom line refinement search range`
-- `EGN table path`
-- `Georef dir`
-- `Slant gain norm strategy`
-- `Slant nadir angle`
-- `Slant vertical beam angle`
-- `Working dir`
+- `Active bottom line refinement`: If `true`: Uses the internal primary sensor altitude information to find the bottom line in an area around the known altitude. This bottom line is found via an edge detection algorithm and its result can be used in two different ways. See `Active btm refinement shift by offset` for more information.
+
+- `Active bottom line smoothing`: If `true`: Smooth detected bottom line.
+
+- `Active btm refinement shift by offset`: This parameter only has effect when `Active bottom line refinement`=`true`. The mean distance of the raw altitude and the detected bottom line is calculated. If this parameter is `true`, the raw altitude information is shifted by this value and the result is used in the following as bottom line. Otherwise the result of the edge detection itself is used as bottom line
+
+- `Active convert dB`: If `true`: Convert data to decibels instead of raw intensities.
+
+- `Active hist equal`: If `true`: Apply CLAHE (Contrast Limited Adaptive Histogram Equalization) to the data to improve contrast.
+
+- `Active pie slice filter`: If `true`: A 2D FFT based filter is applied to remove the horizontal stripes that often occur in sidescan images.
+
+- `Active sharpening filter` If `true`: A homomorphic filter is applied to amplify the high frequency information. This feature is highly experimental and currently not advised.
+
+- `Additional bottom line inset`: Offset in integer (default=0). Move the bottom line by this amount inwards. May be useful to exclude remaining samples of the watercolumn, but should usually not be needed.
+
+- `Bottom line refinement search range`: Fraction in float (default=0.06). Defines the range around the sensor altitude which is used for the bottom line refinement.
+
+- `EGN table path`: Path to the EGN Table which is used for gain normalisation.
+
+- `Georef dir`: Directory which is used by the georeferencing to hold interim files and where the resulting GeoTIFFs are saved.
+
+- `Slant gain norm strategy`: Enum. 
+
+  When set to `0`: BAC is used for gain normalisation. 
+
+  When set to `1`: EGN is used for gain normalisation. 
+
+- `Slant nadir angle`: Degrees as integer. Angle between perpendicular and first bottom return (usually needs to be estimated, leave `0` if unsure)
+
+- `Slant vertical beam angle`: Degrees as integer. Angle in the vertical plane that the sound waves cover (usually found in the manual)
 
 # About
 SidescanTools is an open-source software project by [GEOMAR](https://www.geomar.de/ghostnetbusters) and [sonoware](https://www.sonoware.de/news/2024-12-06_uebergabe_foerderbescheid/) funded by the AI Fund of the State of Schleswig-Holstein. The logo design and artwork has been done by [Aili Xue](https://ailixue.myportfolio.com/work).

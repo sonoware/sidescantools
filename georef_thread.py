@@ -113,17 +113,17 @@ class Georeferencer:
                     f"Error setting up output folder. Path might be invalid: {self.output_folder}"
                 )
                 raise FileNotFoundError
-            
+
     def moving_segments(self, track_array, window_size):
         """
-        Moving window to isolate turns within window_size. 
+        Moving window to isolate turns within window_size.
         """
-        for i in range(len(track_array - window_size +1)):
-            yield track_array[i:i+window_size]
+        for i in range(len(track_array - window_size + 1)):
+            yield track_array[i : i + window_size]
 
     def calc_bearing(self, lo, la):
         """
-        Calculates bearing according to haversine. Suitable for large scale datasets, 
+        Calculates bearing according to haversine. Suitable for large scale datasets,
         less for datasets that e.g. are within one UTM zone.
         """
         # convert to radians
@@ -140,7 +140,7 @@ class Georeferencer:
         # Calculate bearing based on haversine bearing on sphere
         bearing = np.arctan2(
             np.sin(dlon) * np.cos(lat2),
-            np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(dlon)
+            np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(dlon),
         )
         # warp from 0-360°
         cog = (np.degrees(bearing) + 360) % 360
@@ -156,17 +156,18 @@ class Georeferencer:
         Calculate distance between pings
         """
         import geopy.distance
+
         DIST = np.empty_like(lo)
         for i, (lo, la, dst) in enumerate(zip(lo, la, DIST)):
-            c_a = (la ,lo)
-            c_b = (la[i-1], lo[i-1])
+            c_a = (la, lo)
+            c_b = (la[i - 1], lo[i - 1])
             DIST[i] = geopy.distance.distance(c_a, c_b).meters
         # Set first value to avoid jumps
         DIST[0] = 0
 
     def calculate_cog(self, lo, la, ping_unique, ping_uniform):
         """
-        Calculate Course over Ground (COG)/true heading based on difference between single coordinates. 
+        Calculate Course over Ground (COG)/true heading based on difference between single coordinates.
         Note that coordinates must be unique!
         Paras:
             - lo: Longitude or Easting, unique and smoothed (savgol filteres) if neccessary
@@ -184,32 +185,43 @@ class Georeferencer:
                 course_ang = np.arctan2(LAT_DIFF[1], LON_DIFF[1])
                 cog[i] = course_ang
             else:
-                course_ang = np.atan2(la,lo)
+                course_ang = np.atan2(la, lo)
                 cog[i] = course_ang
         cog[0] = cog[1]
         cog = np.unwrap(cog)
-        cog = (np.rad2deg(cog))
+        cog = np.rad2deg(cog)
 
         # Interpolate cog with univariate to get smooth curve; smoothing factor have been empirically defined
         cog_spl = interpolate.UnivariateSpline(ping_unique, cog, k=3, s=30)
         cog_intp = cog_spl(ping_uniform)
         self.cog_smooth = savgol_filter(cog_intp, 100, 3)
 
-    def generate_gcps(self, chunksize, northing, easting, northing_outer, easting_outer, lon, lat, lon_outer, lat_outer):
+    def generate_gcps(
+        self,
+        chunksize,
+        northing,
+        easting,
+        northing_outer,
+        easting_outer,
+        lon,
+        lat,
+        lon_outer,
+        lat_outer,
+    ):
         """
         Generates ground control points (GCPs) for each chunk of chunksize (usually something like 3-5 pings).
         Paras:
             - chunksize: number of pings that are processed together as one chunk
             - northing/easting/lon/lat: Nadir UTM/unprojected coordinates
             - northing_outer, easting_outer/lon_outer/lat_outer: UTM/unprojected coordinates calculated for outer swath
-        
+
         Returns:
             - List of Ground control points:
             Define corner coordinates for chunks and set gcps:
                 - ul, ur: upper left/right --> nadir coordinates
                 - ll, lr: lower left/right --> edge coordinates, calculated with ground range & heading
                 - image coordinates: im_x_right = length of chunk
-        
+
         """
         swath_len = len(self.PING)
         if self.active_proc_data:
@@ -234,7 +246,7 @@ class Georeferencer:
             lo_split_e = np.array_split(lon_outer, self.chunk_indices, axis=0)
             la_split_e = np.array_split(lat_outer, self.chunk_indices, axis=0)
 
-        # Calculate edge coordinates for first and last coordinates in chunks:        
+        # Calculate edge coordinates for first and last coordinates in chunks:
         for chunk_num, (lo_chunk_ce, la_chunk_ce, lo_chunk_e, la_chunk_e) in enumerate(
             zip(lo_split_ce, la_split_ce, lo_split_e, la_split_e)
         ):
@@ -280,7 +292,7 @@ class Georeferencer:
             self.POINTS_SPLIT.append(points)
 
     def cut_turns(self):
-        # Logic for cutting turn rates. Ignore for now. 
+        # Logic for cutting turn rates. Ignore for now.
         # Remove spikes in course ang (e.g. when ping order is messed up in very small sections of ~5-10 pings)
         window_spike = 10
         start_range = int(np.abs(np.min(cog)) - np.abs(np.median(cog)))
@@ -288,17 +300,18 @@ class Georeferencer:
         accepted_range = range(start_range, stop_range)
         print("accepted_range: ", accepted_range, np.max(cog), np.min(cog))
         for idx, window_spike in enumerate(self.moving_segments(cog, window_spike)):
-            if np.abs(cog[idx]) - np.abs(np.median(window_spike)) > np.abs(np.median(cog)):
-                #print("idx, window_spike, np.median(window_spike),: ", idx, np.abs(self.COURSE_ANG[idx]), np.abs(np.median(window_spike)), "outliers")
+            if np.abs(cog[idx]) - np.abs(np.median(window_spike)) > np.abs(
+                np.median(cog)
+            ):
+                # print("idx, window_spike, np.median(window_spike),: ", idx, np.abs(self.COURSE_ANG[idx]), np.abs(np.median(window_spike)), "outliers")
                 cog[idx] = np.median(window_spike)
 
-
-        # calculate turn rates in [°/ping] (usually of magnitudes 0.xx°/ping) inside moving window of size X pings. to get an idea of turn rates within a distance, 
+        # calculate turn rates in [°/ping] (usually of magnitudes 0.xx°/ping) inside moving window of size X pings. to get an idea of turn rates within a distance,
         # the rates are summed up to make the windows comparable
-        # TODO: make window size depending on between-ping distances so that segment are ~50 (high turn rate within 50m is bad), 
+        # TODO: make window size depending on between-ping distances so that segment are ~50 (high turn rate within 50m is bad),
         # remove outliers from course_ang if order of pings is messed up  - take median as threshold maybe?
 
-        window_seg = int(np.abs(np.ceil(30/np.median(DIST))))
+        window_seg = int(np.abs(np.ceil(30 / np.median(DIST))))
         print(window_seg)
         window_seg = 100
         self.turn_rate = []
@@ -309,16 +322,21 @@ class Georeferencer:
             tr_max = np.max(tr)
             self.turn_rate.append(tr_max)
             TR.append(tr)
-#
-        print("np.ceil(np.max(self.turn_rate) - np.abs(np.median(self.turn_rate))): ", np.ceil(np.max(self.turn_rate) - np.abs(np.median(self.turn_rate))))
+        #
+        print(
+            "np.ceil(np.max(self.turn_rate) - np.abs(np.median(self.turn_rate))): ",
+            np.ceil(np.max(self.turn_rate) - np.abs(np.median(self.turn_rate))),
+        )
         # Find segment indices of turn rates > threshold
-        TURN_MASK = [False if rate >= 10 else True for rate in self.turn_rate ]
-        threshold = np.ceil(np.max(self.turn_rate) - np.abs(np.median(self.turn_rate))) + 5
-        TURN_MASK = [np.nan if rate >= threshold else rate for rate in self.turn_rate ]
+        TURN_MASK = [False if rate >= 10 else True for rate in self.turn_rate]
+        threshold = (
+            np.ceil(np.max(self.turn_rate) - np.abs(np.median(self.turn_rate))) + 5
+        )
+        TURN_MASK = [np.nan if rate >= threshold else rate for rate in self.turn_rate]
         TURN_IDX = np.where(np.isnan(TURN_MASK))
         TURN_IDX = TURN_IDX[0]
         print("len TURN_IDX: ", (TURN_IDX))
-         #Apply turn radius mask to cut turns
+        # Apply turn radius mask to cut turns
         cog[TURN_IDX] = np.nan
         self.turn_rate = np.asarray(self.turn_rate)
         self.turn_rate[TURN_IDX] = np.nan
@@ -384,12 +402,14 @@ class Georeferencer:
         # Remove duplicate values
         UNIQUE_MASK = np.empty_like(LON_ori)
         i = 0
-        for i, (lo,la, uni) in enumerate(zip(LON_ori, LAT_ori, UNIQUE_MASK)):
-            if LON_ori[i] == LON_ori[i-1] and LAT_ori[i] == LAT_ori[i-1]:
+        for i, (lo, la, uni) in enumerate(zip(LON_ori, LAT_ori, UNIQUE_MASK)):
+            if LON_ori[i] == LON_ori[i - 1] and LAT_ori[i] == LAT_ori[i - 1]:
                 UNIQUE_MASK[i] = np.nan
             else:
                 UNIQUE_MASK[i] = 0
-        UNIQUE_MASK = [False if np.isnan(unique_val) else True for unique_val in UNIQUE_MASK]
+        UNIQUE_MASK = [
+            False if np.isnan(unique_val) else True for unique_val in UNIQUE_MASK
+        ]
         LON_unique = LON_ori[UNIQUE_MASK]
         LAT_unique = LAT_ori[UNIQUE_MASK]
         PING_UNIQUE = self.PING[UNIQUE_MASK]
@@ -398,8 +418,12 @@ class Georeferencer:
         PING_uniform = np.linspace(self.PING[0], self.PING[-1], len(self.PING))
 
         # B-Spline lon/lats and filter to obtain esqual-interval, unique coordinates for each ping
-        lo_spl = interpolate.make_interp_spline(PING_UNIQUE, LON_unique, k=3, bc_type="not-a-knot")  
-        la_spl = interpolate.make_interp_spline(PING_UNIQUE, LAT_unique, k=3, bc_type="not-a-knot") 
+        lo_spl = interpolate.make_interp_spline(
+            PING_UNIQUE, LON_unique, k=3, bc_type="not-a-knot"
+        )
+        la_spl = interpolate.make_interp_spline(
+            PING_UNIQUE, LAT_unique, k=3, bc_type="not-a-knot"
+        )
         # Evaluate spline at equally spaced pings and smooth again with savgol filter
         lo_intp = lo_spl(PING_uniform)
         la_intp = la_spl(PING_uniform)
@@ -435,14 +459,16 @@ class Georeferencer:
             epsg = crs.to_authority()
             self.epsg_code = f"{epsg[0]}:{epsg[1]}"
 
-
         # calculate cog from east/north
         self.calculate_cog(EAST, NORTH, PING_UNIQUE, PING_uniform)
 
-
         # interpolate easting northing to full swath length
-        east_spl = interpolate.make_interp_spline(PING_UNIQUE, EAST, k=3, bc_type="not-a-knot")  
-        north_spl = interpolate.make_interp_spline(PING_UNIQUE, NORTH, k=3, bc_type="not-a-knot") 
+        east_spl = interpolate.make_interp_spline(
+            PING_UNIQUE, EAST, k=3, bc_type="not-a-knot"
+        )
+        north_spl = interpolate.make_interp_spline(
+            PING_UNIQUE, NORTH, k=3, bc_type="not-a-knot"
+        )
         east_intp = east_spl(PING_uniform)
         north_intp = north_spl(PING_uniform)
         east_intp = savgol_filter(east_intp, 100, 2)
@@ -456,13 +482,17 @@ class Georeferencer:
             EAST_OUTER = np.array(
                 [
                     ground_range * math.sin(np.deg2rad(head)) + east
-                    for ground_range, head, east in zip(GROUND_RANGE, self.cog_smooth, east_intp)
+                    for ground_range, head, east in zip(
+                        GROUND_RANGE, self.cog_smooth, east_intp
+                    )
                 ]
             )
             NORTH_OUTER = np.array(
                 [
                     (ground_range * math.cos(np.deg2rad(head)) * -1) + north
-                    for ground_range, head, north in zip(GROUND_RANGE, self.cog_smooth, north_intp)
+                    for ground_range, head, north in zip(
+                        GROUND_RANGE, self.cog_smooth, north_intp
+                    )
                 ]
             )
 
@@ -476,19 +506,22 @@ class Georeferencer:
                 )
             ]
 
-
         elif self.channel == 0:
             EAST_OUTER = np.array(
                 [
                     (ground_range * math.sin(np.deg2rad(head)) * -1) + east
-                    for ground_range, head, east in zip(GROUND_RANGE, self.cog_smooth, east_intp)
+                    for ground_range, head, east in zip(
+                        GROUND_RANGE, self.cog_smooth, east_intp
+                    )
                 ]
             )
 
             NORTH_OUTER = np.array(
                 [
                     (ground_range * math.cos(np.deg2rad(head))) + north
-                    for ground_range, head, north in zip(GROUND_RANGE, self.cog_smooth, north_intp)
+                    for ground_range, head, north in zip(
+                        GROUND_RANGE, self.cog_smooth, north_intp
+                    )
                 ]
             )
 
@@ -505,14 +538,39 @@ class Georeferencer:
         la_out_intp_savgol, lo_out_intp_savgol = map(np.array, zip(*self.LALO_OUTER))
 
         # Generate lists of gcps for each chunk
-        self.generate_gcps(chunksize=5, northing=north_intp, easting=east_intp, northing_outer=north_out_intp_savgol, easting_outer=east_out_intp_savgol,
-                           lon=lo_intp, lat=la_intp, lon_outer=lo_out_intp_savgol, lat_outer=la_out_intp_savgol)
+        self.generate_gcps(
+            chunksize=5,
+            northing=north_intp,
+            easting=east_intp,
+            northing_outer=north_out_intp_savgol,
+            easting_outer=east_out_intp_savgol,
+            lon=lo_intp,
+            lat=la_intp,
+            lon_outer=lo_out_intp_savgol,
+            lat_outer=la_out_intp_savgol,
+        )
 
         # Export navigation data
         if self.active_export_navdata:
             print(f"Saving navinfo to file")
-            nav = np.column_stack((self.PING, lo_intp, la_intp, lo_out_intp_savgol, la_out_intp_savgol, east_intp, north_intp, east_out_intp_savgol, north_out_intp_savgol, self.cog_smooth))
-            nav_ch = self.output_folder / f"Navigation_{self.filepath.stem}_ch{self.channel}.csv"
+            nav = np.column_stack(
+                (
+                    self.PING,
+                    lo_intp,
+                    la_intp,
+                    lo_out_intp_savgol,
+                    la_out_intp_savgol,
+                    east_intp,
+                    north_intp,
+                    east_out_intp_savgol,
+                    north_out_intp_savgol,
+                    self.cog_smooth,
+                )
+            )
+            nav_ch = (
+                self.output_folder
+                / f"Navigation_{self.filepath.stem}_ch{self.channel}.csv"
+            )
 
             np.savetxt(
                 nav_ch,
@@ -521,7 +579,6 @@ class Georeferencer:
                 delimiter=";",
                 header="Ping No; Nadir Longitude; Nadir Latitude; Outer Lon; Outer Lat; Nadir Easting; Nadir Northing; Outer Easting; Outer Northing; CoG [°]",
             )
-
 
     def channel_stack(self):
         """- Work on raw or processed data, depending on `self.active_proc_data`
@@ -614,9 +671,9 @@ class Georeferencer:
             # process only non-empty gcp chunks
             if chunk_num < len(ch_split) - 1:
                 if not np.isnan(gcp_chunk).any():
-                    im_path = otiff.with_stem(f"{otiff.stem}_{chunk_num}_tmp").with_suffix(
-                        ".png"
-                    )
+                    im_path = otiff.with_stem(
+                        f"{otiff.stem}_{chunk_num}_tmp"
+                    ).with_suffix(".png")
                     chunk_path = otiff.with_stem(
                         f"{otiff.stem}_{chunk_num}_chunk_tmp"
                     ).with_suffix(".tif")
@@ -654,42 +711,42 @@ class Georeferencer:
                     gdal_translate = ["gdal_translate", "-of", "GTiff"]
 
                     gdal_warp_utm = [
-                    "gdal",
-                    "raster",
-                    "reproject",
-                    "-r",
-                    self.resampling_method,
-                    "--to",
-                    self.warp_algorithm,
-                    "--co",
-                    "COMPRESS=DEFLATE",
-                    "--overwrite",
-                    "-d",
-                    self.epsg_code,
-                    "-i",
-                    str(chunk_path),
-                    "-o",
-                    str(warp_path),
-                ]
+                        "gdal",
+                        "raster",
+                        "reproject",
+                        "-r",
+                        self.resampling_method,
+                        "--to",
+                        self.warp_algorithm,
+                        "--co",
+                        "COMPRESS=DEFLATE",
+                        "--overwrite",
+                        "-d",
+                        self.epsg_code,
+                        "-i",
+                        str(chunk_path),
+                        "-o",
+                        str(warp_path),
+                    ]
 
                     gdal_warp_wgs84 = [
-                    "gdal",
-                    "raster",
-                    "reproject",
-                    "-r",
-                    self.resampling_method,
-                    "--to",
-                    self.warp_algorithm,
-                    "--co",
-                    "COMPRESS=DEFLATE",
-                    "--overwrite",
-                    "-d",
-                    "EPSG:4326",
-                    "-i",
-                    str(chunk_path),
-                    "-o",
-                    str(warp_path),
-                ]
+                        "gdal",
+                        "raster",
+                        "reproject",
+                        "-r",
+                        self.resampling_method,
+                        "--to",
+                        self.warp_algorithm,
+                        "--co",
+                        "COMPRESS=DEFLATE",
+                        "--overwrite",
+                        "-d",
+                        "EPSG:4326",
+                        "-i",
+                        str(chunk_path),
+                        "-o",
+                        str(warp_path),
+                    ]
 
                     for i in range(len(gcp_chunk)):
                         gdal_translate.extend(
@@ -759,9 +816,9 @@ class Georeferencer:
         if mosaic_tiff.exists():
             mosaic_tiff.unlink()
 
-        #if self.channel == 0:
+        # if self.channel == 0:
         #    txt_path = txt_path_ch0
-        #elif self.channel == 1:
+        # elif self.channel == 1:
         #    txt_path = txt_path_ch1
 
         # gdal 3.11 syntax
@@ -799,8 +856,9 @@ class Georeferencer:
                 f"Processing chunks in channel {self.channel} with warp method {self.warp_algorithm}..."
             )
 
-            self.georeference(ch_stack=ch_stack, otiff=tif_path, progress_signal=progress_signal)
-
+            self.georeference(
+                ch_stack=ch_stack, otiff=tif_path, progress_signal=progress_signal
+            )
 
         except Exception as e:
             print(f"An error occurred during georeferencing: {str(e)}")
@@ -847,7 +905,7 @@ def main():
         "--navdata",
         type=bool,
         default=True,
-        help="If true, exports navigation data to csv"
+        help="If true, exports navigation data to csv",
     )
 
     args = parser.parse_args()

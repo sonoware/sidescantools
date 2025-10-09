@@ -10,9 +10,10 @@ from timeit import default_timer as timer
 import os
 from egn_table_build import generate_egn_info, generate_egn_table_from_infos
 from datetime import datetime
+from cfg_parser import CFGParser
 
-PLOT = False
-if PLOT:
+PLOTTING = False
+if PLOTTING:
     import matplotlib.pyplot as plt
     from matplotlib.colors import ListedColormap
 
@@ -21,6 +22,7 @@ class SidescanToolsMain:
     filepath: Path
     cfg_path: Path
     sidescan_files_path: list
+    cfg_parser: CFGParser
     cfg: dict
     active_georef: bool
 
@@ -43,14 +45,9 @@ class SidescanToolsMain:
             )
 
         # Read CFG
+        self.cfg_parser = CFGParser()
         if self.cfg_path.is_file() and self.cfg_path.suffix == ".yml":
-            f = open(
-                cfg_path,
-                "r",
-            )
-            loaded_dict = yaml.safe_load(f)
-            f.close()
-            self.cfg = loaded_dict
+            self.cfg = self.cfg_parser.load_cfg(self.cfg_path)
         else:
             raise ValueError(
                 f"CFG can't be found or is no valid yml file: {self.cfg_path}"
@@ -224,7 +221,7 @@ class SidescanToolsMain:
             if self.active_georef:
                 print(f"Georef took {end_timer_georef - start_timer_georef} s")
 
-            if PLOT:
+            if PLOTTING:
                 overlay_cmap = ListedColormap(["none", "red"])
                 overlay_cmap_2 = ListedColormap(["none", "green"])
 
@@ -280,7 +277,7 @@ class SidescanToolsMain:
                 out_path=out_path,
                 chunk_size=self.cfg["Slant chunk size"],
                 nadir_angle=self.cfg["Slant nadir angle"],
-                active_intern_depth=self.cfg["Slant use intern depth"],
+                active_intern_depth=self.cfg["Slant active intern depth"],
                 active_bottom_detection_downsampling=active_btm_detection_downsampling,
                 egn_table_parameters=self.cfg["EGN table resolution parameters"],
             )

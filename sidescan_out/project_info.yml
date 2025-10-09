@@ -1,4 +1,4 @@
-'0: Main Processing Parameters':
+"0: Main Processing Parameters":
   Active bottom line refinement: true
   Active bottom line smoothing: true
   Active btm refinement shift by offset: true
@@ -9,22 +9,21 @@
   Active sharpening filter: false
   Additional bottom line inset: 0
   Bottom line refinement search range: 0.06
-  EGN table path: ./sidescan_out/EGN_table.npz
-  Georef dir: C:\Users\finn\git\sidescantools\georef_out
-  Slant gain norm strategy: 0
+  EGN table path: ./sidescan_out/egn_table.npz
+  Georef dir: ./georef_out
+  Slant gain norm strategy: 0 # 0: BAC 1: EGN
   Slant nadir angle: 0
   Slant vertical beam angle: 60
-  Working dir: C:\Users\finn\git\sidescantools\sidescan_out
-'1: Bottom Detection':
+"1: Bottom Detection":
   Btm chunk size: 1000
   Btm def thresh: 0.6
   Btm downsampling: 1
   Btm equal hist: true
-'2: Slant and Gain Correction':
+"2: Slant and Gain Correction":
   BAC resolution: 360
   EGN table resolution parameters:
-  - 360
-  - 2
+    - 360
+    - 2
   Slant active export proc data: true
   Slant active export slant data: true
   Slant active intern depth: false
@@ -32,19 +31,20 @@
   Slant active use downsampling: true
   Slant chunk size: 1000
   Slant num worker: 8
-'3: Georeferencing and Viewing':
+"3: Georeferencing and Viewing":
   Georef Navigation: true
   Georef UTM: true
   Georef active custom colormap: false
   Georef active proc data: true
-  Img chunk size: '1000'
+  Img chunk size: "1000"
   Img include raw data: false
   Resampling Method: 0
   Resolution Mode: 3
   View reprocess file: false
   Warp Mode: 0
-'4: Meta info':
+"4: Meta info":
   EGN table name: EGN_table.npz
   Meta info: {}
   Path: []
   Project filename: project_info.yml
+  Working dir: ./sidescan_out

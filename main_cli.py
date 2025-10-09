@@ -61,7 +61,8 @@ class SidescanToolsMain:
             f"Processed PNGs will be written to: {self.sidescan_files_path[0].parent}"
         )
         if self.active_georef:
-            print(f"Georeferencing will be working in: {self.cfg["Georef dir"]}")
+            georef_dir = self.cfg["Georef dir"]
+            print(f"Georeferencing will be working in: {georef_dir}")
         else:
             print("Georeferencing disabled")
 
@@ -116,8 +117,9 @@ class SidescanToolsMain:
                 print(f"Apply EGN to {sidescan_path}")
                 preproc.do_EGN_correction(self.cfg["EGN table path"])
             else:
+                strat_idx = self.cfg["Slant gain norm strategy"]
                 raise NotImplementedError(
-                    f"Gain normalization strategy {self.cfg["Slant gain norm strategy"]} not implemented. Valid options are:\n 0: BAC\n 1: EGN"
+                    f"Gain normalization strategy {strat_idx} not implemented. Valid options are:\n 0: BAC\n 1: EGN"
                 )
             preproc.egn_corrected_mat = np.hstack(
                 (

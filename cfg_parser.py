@@ -70,7 +70,6 @@ class CFGParser:
         """Save CFG in a structure that makes working with the CLI version more easy."""
         self.categorized_dict["0: Main Processing Parameters"].update(
             [
-                CFGParser.get_kv_pair(cfg, "Working dir"),
                 CFGParser.get_kv_pair(cfg, "Georef dir"),
                 CFGParser.get_kv_pair(cfg, "Active convert dB"),
                 CFGParser.get_kv_pair(cfg, "EGN table path"),
@@ -125,6 +124,7 @@ class CFGParser:
         )
         self.categorized_dict["4: Meta info"].update(
             [
+                CFGParser.get_kv_pair(cfg, "Working dir"),
                 CFGParser.get_kv_pair(cfg, "Project filename"),
                 CFGParser.get_kv_pair(cfg, "EGN table name"),
                 CFGParser.get_kv_pair(cfg, "Path"),

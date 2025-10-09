@@ -22,10 +22,10 @@ As of now, SidescanTools can process and read data from two formats:
   - Beam Angle Correction (BAC, works on a single file)
   - Empirical Gain Normalization (EGN, works by analyzing all files in the project)
 
-   Note: EGN needs quite some data for good performance. If only few data exist, use BAC!
+   **_Note_**: EGN needs quite some data for good performance. If only few data exist, use BAC!
    BAC sums & averages intensities per beam angle over all pings in a file. 
    EGN sums and averages amplitudes of all pings by beam angle and distance over all loaded files to correct for intensity.
-   Note that this only works for files from the *same* instrument.
+   **_Note_**: that this only works for files from the *same* instrument.
    A good approach is one EGN table per survey/day and per instrument.
 
 4. **View and Export**
@@ -36,17 +36,19 @@ As of now, SidescanTools can process and read data from two formats:
 # Issues and Planned Features
 The following features are still under development and will be improved in future releases:
 - **Georeferencing** currently uses [gdal v3.11](https://gdal.org/) and `homography` or `polynomial 1` as warping algortihm along with ground control points. Usually, homography is more precise but can in some cases produce wavy structures and/or shifts in the data. In this case, use `Polynomial` (preserves parallel lines) -- _custom georeferencing to be implemented_
-- _Implement a standard case per possible imported datatype for **optimal visibility of objects** in the images_
 - **Bottom line detection** sometimes failes, especially when there are a lot of reflections in the water coloumn. Therefore a strategy to counter this should be examined.
 - When creating a docker image, add **- conda-forge::sqlite=3.50.0** & **- conda-forge::libsqlite=3.50.0** to the environment.yaml
 
 # Getting Started
+SidescanTools may be used with **full feature extent** as **GUI Tool**. Also there is the option to use a **CLI only** implementation when there is no graphical interface available.
+In the following the usage of the GUI version is described. At the end of this readme the CLI variant is explained.
+
 1. Currently we use Anaconda/Miniconda for platform indepent installation using Python 3.12. This is preferred because the installation of GDAL is essential and often doesn't work using pip. 
 2. Clone this git repository
 3. Install required packages from `environment.yml`: `conda env create -f environment.yml`
    Using a virtual (conda!) environment is recommended.
    Currently packages are listed without minimum version.
-4. Start GUI by executing `python main.py`
+4. Start GUI by executing `python main_gui.py`
 
 
 # Usage
@@ -92,6 +94,11 @@ In the following all GUI elements are explained in more detail.
 - `Generate EGN table`: Initiates EGN table generation. All files loaded in the project that have bottom line information available will be processed. For each sonar file, the required information is saved to individual EGN info files. In a last step, all these info files are combined into one EGN table that can be applied to gain normalise all data of this side scan sonar type (see next step). This process needs quite some time (check console outputs).
 - `Process All Files`: Applies previously calculated slant range correction & EGN to all loaded files at once. This will take some time depending on the amount of data (check console outputs).
 
+#### Parameters that are only exposed via `project_info.yml`
+When using BAC or EGN for Gain Normalisation, the resolution of the estimated beam/beam and range pattern is usually fixed. It can be adjusted by these parameters:
+- `BAC resolution`: Number of quantized values of the estimated beam pattern.
+- `EGN table resolution parameters`: Two integer values. The first is the number of quantized values of the estimated beam pattern in angle direction. The second parameter is the range reduction factor. This defines by resolution in range direction of the resulting EGN table by dividing the ping length by this factor.
+
 ## View and Export
 ### View Results
 - Tick the `Reprocess File` option to apply slant range correction and EGN only to the selected file when viewing the results.
@@ -110,6 +117,62 @@ In the following all GUI elements are explained in more detail.
 - `Generate Geotiff`: Uses gdal reproject (with either homography or polynomial order 1) and ground control points (gcps) to georeference data chunk wise and export as Geotiff
 - `Include raw data in waterfall image`: produces additional png with raw undprocessed data
 - `Generate Waterfall Image`: Generates a non-georeferenced png file from processed data. Adjust chunk size if you need one file instead of several.
+
+# Usage as CLI Tool
+If no graphical interface is desired or accessible, the CLI variant of SidescanTools can be used. Therefore only the python packages defined in `environment_cli.yml` are required. 
+
+To process a file or a directory, use the following command:
+```
+python main_cli.py file_or_folder_path project_info.yml
+```
+
+This command processes the specified file or all files within the folder, using the settings defined in the provided `project_info.yml` file.
+
+## Output
+The tool produces:
+
+- A **fully processed waterfall-like image** (.png format) stored in the same folder as the input data.
+- An **GeoTIFF** of the processed data, saved in a separate folder as specified in `project_info.yml`.
+
+**_Note_**: This workflow is intended for datasets where the sensor altitude is known during acquisition. This altitude information is used and refined during processing.
+
+- **Mandatory Arguments**:
+  - `file_or_folder_path`:
+
+    Path to a single `.xtf` or `.jsf` file, or a folder containing multiple such files.
+  - `project_info.yml`: 
+
+    Path to the CFG file.
+
+- **optional flags**:
+  - `-g`: **Generate EGN Table**
+  
+  This option generates an EGN table by analyzing all sidescan files in the provided `file_or_folder_path`. The result is written to a numpy file `egn_table_<timestamp>.npz` containing all info for SidescanTools to use this table for later EGN processing of these or other files.
+
+  To use this EGN table you need to adjust the `EGN table path` in your `project_info.yml` to point to the latest generated EGN table (and have EGN gain normalisation enabled by setting `Slant gain norm strategy` to `1`).
+  - `-n`: **No GeoTiff**
+  
+  Skips GeoTIFF generation and only creates the .png image(s).
+
+## Additional details on parameters in `project_info.yml`
+In the following the most important CFG parameters which are relevant for  processing witht he CLI variant are explained.
+
+- `Active bottom line refinement`
+- `Active bottom line smoothing`
+- `Active btm refinement shift by offset`
+- `Active convert dB`
+- `Active gain norm`
+- `Active hist equal`
+- `Active pie slice filter`
+- `Active sharpening filter`
+- `Additional bottom line inset`
+- `Bottom line refinement search range`
+- `EGN table path`
+- `Georef dir`
+- `Slant gain norm strategy`
+- `Slant nadir angle`
+- `Slant vertical beam angle`
+- `Working dir`
 
 # About
 SidescanTools is an open-source software project by [GEOMAR](https://www.geomar.de/ghostnetbusters) and [sonoware](https://www.sonoware.de/news/2024-12-06_uebergabe_foerderbescheid/) funded by the AI Fund of the State of Schleswig-Holstein. The logo design and artwork has been done by [Aili Xue](https://ailixue.myportfolio.com/work).

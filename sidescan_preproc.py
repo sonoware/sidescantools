@@ -611,7 +611,7 @@ class SidescanPreprocessor:
         return sup_fact_lin
 
     @staticmethod
-    def build_pie_H(M, N, width_end=0.1, dist_to_mid=0.0, sup_fact=80, peak_pos=None):
+    def build_pie_H(M, N, width_end=0.05, dist_to_mid=0.0, sup_fact=80, peak_pos=None):
         """
         Parameters
         ----------
@@ -638,6 +638,9 @@ class SidescanPreprocessor:
         if peak_pos is not None:
             dist_fact = pie_len / peak_pos[0]
             max_shift = int(np.round(dist_fact * (peak_pos[1] - N / 2)))
+            # Limit shift to "45°" Higher shifts probably mean parallel artifacts therefore don't shift pie slice
+            if max_shift > pie_len / 2:
+                max_shift = 0
             shift_vec = np.linspace(0, max_shift, pie_len).astype(int)
         else:
             shift_vec = np.linspace(0, 0, pie_len).astype(int)

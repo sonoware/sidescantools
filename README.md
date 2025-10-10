@@ -145,6 +145,9 @@ The tool produces:
     Path to the CFG file.
 
 - **optional flags**:
+  - `-w`: **Write default CFG**:
+
+    This option expects only one path to a valid directory as argument. A default CFG is written as `project_info.yml` to the given directory.
   - `-g`: **Generate EGN Table**
   
     This option generates an EGN table by analyzing all sidescan files in the provided `file_or_folder_path`. The result is written to a numpy file `egn_table_<timestamp>.npz` containing all info for SidescanTools to use this table for later EGN processing of these or other files.

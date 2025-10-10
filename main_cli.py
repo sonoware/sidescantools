@@ -295,20 +295,35 @@ class SidescanToolsMain:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Tool to process sidescan sonar data")
+    parser.add_argument("-w", "--write_cfg", action="store_true")
     parser.add_argument(
         "filepath",
         metavar="FILE",
         help="Path to xtf/jsf file or dir containing multiple files",
     )
-    parser.add_argument("cfg", metavar="FILE", help="Path to cfg")
+    parser.add_argument(
+        "cfg",
+        nargs="?",
+        metavar="FILE",
+        help="Path to cfg",
+        default="./sidescan_out/project_info.yml",
+    )
     parser.add_argument("-g", "--gen_egn", action="store_true")
     parser.add_argument("-n", "--no_georef", action="store_true")
 
     args = parser.parse_args()
     print("args:", args)
 
-    sidescantools = SidescanToolsMain(args.filepath, args.cfg, args.no_georef)
-    if args.gen_egn:
-        sidescantools.gen_egn_table()
+    if args.write_cfg:
+        cfg_parser = CFGParser()
+        dst_path = Path(args.filepath)
+        if Path.is_dir(dst_path):
+            cfg_parser.save_cfg(dst_path / "project_info.yml", cfg_parser.cfg)
+        else:
+            print(f"{dst_path} - is no valid directory.")
     else:
-        sidescantools.process()
+        sidescantools = SidescanToolsMain(args.filepath, args.cfg, args.no_georef)
+        if args.gen_egn:
+            sidescantools.gen_egn_table()
+        else:
+            sidescantools.process()

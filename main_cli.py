@@ -149,21 +149,43 @@ class SidescanToolsMain:
             # --- Georeferencing
             if self.active_georef:
                 start_timer_georef = timer()
-                # TODO: get settings from CFG
+
                 georeferencer = Georeferencer(
                     filepath=sidescan_path,
                     channel=0,
+                    active_utm=self.cfg["Georef UTM"],
+                    active_export_navdata=self.cfg["Georef Navigation"],
                     output_folder=self.cfg["Georef dir"],
                     proc_data=proc_data_out_0,
                     vertical_beam_angle=self.cfg["Slant vertical beam angle"],
+                    warp_algorithm=list(Georeferencer.warp_options.values())[
+                        self.cfg["Warp Mode"]
+                    ],
+                    resolution_mode=list(Georeferencer.resolution_options.values())[
+                        self.cfg["Resolution Mode"]
+                    ],
+                    resampling_method=list(Georeferencer.resampling_options.values())[
+                        self.cfg["Resampling Method"]
+                    ],
                 )
                 georeferencer.process()
                 georeferencer = Georeferencer(
                     filepath=sidescan_path,
                     channel=1,
+                    active_utm=self.cfg["Georef UTM"],
+                    active_export_navdata=self.cfg["Georef Navigation"],
                     output_folder=self.cfg["Georef dir"],
                     proc_data=proc_data_out_1,
                     vertical_beam_angle=self.cfg["Slant vertical beam angle"],
+                    warp_algorithm=list(Georeferencer.warp_options.values())[
+                        self.cfg["Warp Mode"]
+                    ],
+                    resolution_mode=list(Georeferencer.resolution_options.values())[
+                        self.cfg["Resolution Mode"]
+                    ],
+                    resampling_method=list(Georeferencer.resampling_options.values())[
+                        self.cfg["Resampling Method"]
+                    ],
                 )
                 georeferencer.process()
 

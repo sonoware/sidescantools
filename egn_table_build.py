@@ -23,8 +23,14 @@ def generate_egn_info(
 
     sidescan_file = SidescanFile(filename)
 
-    # TODO: check if bottom_file exists otherwise switch to intern altitude
-    bottom_info = np.load(bottom_file)
+    # check if bottom_file exists otherwise switch to intern altitude
+    if bottom_file is not None and active_intern_depth == False:
+        if pathlib.Path(bottom_file).exists():
+            bottom_info = np.load(bottom_file)
+        else:
+            active_intern_depth = True
+    else:
+        active_intern_depth = True
 
     # Slant ranges might be incomplete, fill up with previous values
     for ch in range(sidescan_file.num_ch):
@@ -33,54 +39,56 @@ def generate_egn_info(
                 sidescan_file.slant_range[ch, idx] = sidescan_file.slant_range[ch, -1]
 
     # Check if downsampling was applied
-    try:
-        downsampling_factor = bottom_info["downsampling_factor"]
-    except:
-        downsampling_factor = 1
-
-    portside_bottom_dist = bottom_info["bottom_info_port"].flatten()[
-        : sidescan_file.num_ping
-    ]
-    starboard_bottom_dist = bottom_info["bottom_info_star"].flatten()[
-        : sidescan_file.num_ping
-    ]
-    # flip order for xtf files to contain backwards compability
-    filepath = pathlib.Path(filename)
-    if filepath.suffix.casefold() == ".xtf":
-        portside_bottom_dist = np.flip(portside_bottom_dist)
-        starboard_bottom_dist = np.flip(starboard_bottom_dist)
-
-    # If a bottom line distance value is 0, just use val from other side (solve that bug in bottom line detection)
-    num_btm_line = len(portside_bottom_dist)
-    for btm_idx in range(num_btm_line):
-        if portside_bottom_dist[btm_idx] == 0:
-            portside_bottom_dist[btm_idx] = starboard_bottom_dist[btm_idx]
-        elif starboard_bottom_dist[btm_idx] == 0:
-            starboard_bottom_dist[btm_idx] = portside_bottom_dist[btm_idx]
-
-    if len(portside_bottom_dist) != len(starboard_bottom_dist):
-        print(
-            f"Reading bottom info {bottom_file}: detected bottom line lengths don't match!"
-        )
-        return False
-
-    # check that data length and bottom detection length match
-    if sidescan_file.num_ping != len(portside_bottom_dist):
-        # if lengths don't match, bottom line might be padded to fill the last last chunk
+    downsampling_factor = 1
+    if active_intern_depth == False:
         try:
-            bottom_chunk_size = bottom_info["chunk_size"]
+            downsampling_factor = bottom_info["downsampling_factor"]
         except:
-            bottom_chunk_size = chunk_size
-        expected_full_chunk_size = int(
-            np.ceil(sidescan_file.num_ping / bottom_chunk_size) * bottom_chunk_size
-        )
-        if len(portside_bottom_dist) != expected_full_chunk_size:
+            downsampling_factor = 1
+
+        portside_bottom_dist = bottom_info["bottom_info_port"].flatten()[
+            : sidescan_file.num_ping
+        ]
+        starboard_bottom_dist = bottom_info["bottom_info_star"].flatten()[
+            : sidescan_file.num_ping
+        ]
+        # flip order for xtf files to contain backwards compability
+        filepath = pathlib.Path(filename)
+        if filepath.suffix.casefold() == ".xtf":
+            portside_bottom_dist = np.flip(portside_bottom_dist)
+            starboard_bottom_dist = np.flip(starboard_bottom_dist)
+
+        # If a bottom line distance value is 0, just use val from other side (solve that bug in bottom line detection)
+        num_btm_line = len(portside_bottom_dist)
+        for btm_idx in range(num_btm_line):
+            if portside_bottom_dist[btm_idx] == 0:
+                portside_bottom_dist[btm_idx] = starboard_bottom_dist[btm_idx]
+            elif starboard_bottom_dist[btm_idx] == 0:
+                starboard_bottom_dist[btm_idx] = portside_bottom_dist[btm_idx]
+
+        if len(portside_bottom_dist) != len(starboard_bottom_dist):
             print(
-                f"Sizes of NUM ping ({sidescan_file.num_ping}) and bottom line info ({len(portside_bottom_dist)}) don't match!"
+                f"Reading bottom info {bottom_file}: detected bottom line lengths don't match!"
             )
-            print(f"Sonar file: {filename}")
-            print(f"Bottom line detection: {bottom_file}")
             return False
+
+        # check that data length and bottom detection length match
+        if sidescan_file.num_ping != len(portside_bottom_dist):
+            # if lengths don't match, bottom line might be padded to fill the last last chunk
+            try:
+                bottom_chunk_size = bottom_info["chunk_size"]
+            except:
+                bottom_chunk_size = chunk_size
+            expected_full_chunk_size = int(
+                np.ceil(sidescan_file.num_ping / bottom_chunk_size) * bottom_chunk_size
+            )
+            if len(portside_bottom_dist) != expected_full_chunk_size:
+                print(
+                    f"Sizes of NUM ping ({sidescan_file.num_ping}) and bottom line info ({len(portside_bottom_dist)}) don't match!"
+                )
+                print(f"Sonar file: {filename}")
+                print(f"Bottom line detection: {bottom_file}")
+                return False
 
     # Check whether data shall be downsampled using the bottom line detection factor
     if active_bottom_detection_downsampling:
@@ -95,12 +103,14 @@ def generate_egn_info(
             chunk_size=chunk_size,
             downsampling_factor=1,
         )
-        # rescale bottom info
-        portside_bottom_dist = portside_bottom_dist * downsampling_factor
-        starboard_bottom_dist = starboard_bottom_dist * downsampling_factor
+        if active_intern_depth == False:
+            # rescale bottom info
+            portside_bottom_dist = portside_bottom_dist * downsampling_factor
+            starboard_bottom_dist = starboard_bottom_dist * downsampling_factor
 
-    preproc.portside_bottom_dist = portside_bottom_dist
-    preproc.starboard_bottom_dist = starboard_bottom_dist
+    if active_intern_depth == False:
+        preproc.portside_bottom_dist = portside_bottom_dist
+        preproc.starboard_bottom_dist = starboard_bottom_dist
 
     # slant range correction
     preproc.slant_range_correction(
@@ -109,7 +119,6 @@ def generate_egn_info(
         use_intern_altitude=active_intern_depth,
         progress_signal=progress_signal,
     )
-    # self.signals.progress.emit(0.5)
 
     # EGN parameters - these are not displayed in the UI to keep it simple
     angle_range = [-1 * np.pi / 2, np.pi / 2]

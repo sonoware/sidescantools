@@ -84,23 +84,23 @@ class SidescanPreprocessor:
         self._napari_active_click_pos = False
 
         ## Print spatial information estimation
-        start_idx = 0
-        start_coord = (
-            sidescan_file.longitude[start_idx],
-            sidescan_file.latitude[start_idx],
-        )
-        while sidescan_file.longitude[start_idx] == 0:
-            if start_idx >= (len(sidescan_file.longitude) - 1):
-                break
-            start_idx += 1
-            start_coord = (
-                sidescan_file.longitude[start_idx],
-                sidescan_file.latitude[start_idx],
-            )
-        end_coord = (
-            sidescan_file.longitude[-1],
-            sidescan_file.latitude[-1],
-        )
+        # start_idx = 0
+        # start_coord = (
+        #     sidescan_file.longitude[start_idx],
+        #     sidescan_file.latitude[start_idx],
+        # )
+        # while sidescan_file.longitude[start_idx] == 0:
+        #     if start_idx >= (len(sidescan_file.longitude) - 1):
+        #         break
+        #     start_idx += 1
+        #     start_coord = (
+        #         sidescan_file.longitude[start_idx],
+        #         sidescan_file.latitude[start_idx],
+        #     )
+        # end_coord = (
+        #     sidescan_file.longitude[-1],
+        #     sidescan_file.latitude[-1],
+        # )
         # print("------------------------------------------------------------")
         # print("--- Estimated spatial information by SidescanPreprocessor:")
         # if np.size(self.sidescan_file.slant_range) > 1:

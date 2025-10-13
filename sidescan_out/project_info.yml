@@ -5,7 +5,7 @@
   Active convert dB: true
   Active gain norm: true
   Active hist equal: true
-  Active pie slice filter: true
+  Active pie slice filter: false
   Active sharpening filter: false
   Additional bottom line inset: 0
   Bottom line refinement search range: 0.06

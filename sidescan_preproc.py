@@ -101,25 +101,25 @@ class SidescanPreprocessor:
             sidescan_file.longitude[-1],
             sidescan_file.latitude[-1],
         )
-        print("------------------------------------------------------------")
-        print("--- Estimated spatial information by SidescanPreprocessor:")
-        if np.size(self.sidescan_file.slant_range) > 1:
-            print(
-                f"Resolution in ping direction: {self.sidescan_file.slant_range[0, 0]/self.ping_len} m"
-            )
-        else:
-            print(
-                f"Resolution in ping direction: {self.sidescan_file.slant_range/self.ping_len} m"
-            )
-        print("(Estimated from slant range of first ping)")
-        try:
-            print(
-                f"Resolution in tow/heading direction: {geo_dist.geodesic(end_coord, start_coord).m / self.sidescan_file.num_ping} m"
-            )
-        except:
-            print("Geo Error")
-        print("(Estimated from start and end GPS position)")
-        print("------------------------------------------------------------")
+        # print("------------------------------------------------------------")
+        # print("--- Estimated spatial information by SidescanPreprocessor:")
+        # if np.size(self.sidescan_file.slant_range) > 1:
+        #     print(
+        #         f"Resolution in ping direction: {self.sidescan_file.slant_range[0, 0]/self.ping_len} m"
+        #     )
+        # else:
+        #     print(
+        #         f"Resolution in ping direction: {self.sidescan_file.slant_range/self.ping_len} m"
+        #     )
+        # print("(Estimated from slant range of first ping)")
+        # try:
+        #     print(
+        #         f"Resolution in tow/heading direction: {geo_dist.geodesic(end_coord, start_coord).m / self.sidescan_file.num_ping} m"
+        #     )
+        # except:
+        #     print("Geo Error")
+        # print("(Estimated from start and end GPS position)")
+        # print("------------------------------------------------------------")
 
     def detect_bottom_line_t(
         self,
@@ -1197,7 +1197,7 @@ class SidescanPreprocessor:
             for ping_idx in range(num_ping):
                 if ping_idx % 1000 == 0 and ping_idx != 0:
                     print(
-                        f"\rSlant range correction progress: {ping_idx/num_ping*100:.2f}%"
+                        f"\rSlant range correction: Channel: {ch+1} - Progress: {ping_idx/num_ping*100:.2f}%"
                     )
                     if progress_signal is not None:
                         progress_signal.emit((1000 / num_ping) * 0.25)

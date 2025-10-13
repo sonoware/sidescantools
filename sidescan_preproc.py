@@ -1120,7 +1120,7 @@ class SidescanPreprocessor:
             )
         elif nadir_angle != 0:
             print(
-                f"SidescanPreprocessor - Slant range correction: No intern depth data used -> Using nadir angle {nadir_angle}° to estimate depth."
+                f"SidescanPreprocessor - Slant range correction: Using nadir angle {nadir_angle}° to estimate depth."
             )
             portside_dist = (self.ping_len - self.portside_bottom_dist) * np.sin(
                 np.deg2rad(90 - nadir_angle)
@@ -1130,9 +1130,6 @@ class SidescanPreprocessor:
             )
             self.dep_info = [portside_dist, starboard_dist]
         else:
-            print(
-                "SidescanPreprocessor - Slant range correction: No beam angle known -> Using raw slant values as depth info."
-            )
             self.dep_info = [
                 self.ping_len - self.portside_bottom_dist,
                 self.starboard_bottom_dist,

@@ -312,7 +312,6 @@ class Georeferencer:
         # remove outliers from course_ang if order of pings is messed up  - take median as threshold maybe?
 
         window_seg = int(np.abs(np.ceil(30 / np.median(DIST))))
-        print(window_seg)
         window_seg = 100
         self.turn_rate = []
         TR = []
@@ -322,11 +321,6 @@ class Georeferencer:
             tr_max = np.max(tr)
             self.turn_rate.append(tr_max)
             TR.append(tr)
-        #
-        print(
-            "np.ceil(np.max(self.turn_rate) - np.abs(np.median(self.turn_rate))): ",
-            np.ceil(np.max(self.turn_rate) - np.abs(np.median(self.turn_rate))),
-        )
         # Find segment indices of turn rates > threshold
         TURN_MASK = [False if rate >= 10 else True for rate in self.turn_rate]
         threshold = (
@@ -335,7 +329,6 @@ class Georeferencer:
         TURN_MASK = [np.nan if rate >= threshold else rate for rate in self.turn_rate]
         TURN_IDX = np.where(np.isnan(TURN_MASK))
         TURN_IDX = TURN_IDX[0]
-        print("len TURN_IDX: ", (TURN_IDX))
         # Apply turn radius mask to cut turns
         cog[TURN_IDX] = np.nan
         self.turn_rate = np.asarray(self.turn_rate)
@@ -378,11 +371,8 @@ class Georeferencer:
         ]
         GROUND_RANGE.append(ground_range)
         GROUND_RANGE = np.ndarray.flatten(np.array(GROUND_RANGE))
-        print("PING_UNIQUE: ", len(self.PING))
 
         ZERO_MASK = LON_ori != 0
-        print(ZERO_MASK)
-        print(f"shape ping original: {np.shape(self.PING)}")
 
         LON_ori = LON_ori[ZERO_MASK]
         LAT_ori = LAT_ori[ZERO_MASK]
@@ -391,7 +381,6 @@ class Georeferencer:
         GROUND_RANGE = GROUND_RANGE[ZERO_MASK]
         SLANT_RANGE = SLANT_RANGE[ZERO_MASK]
         self.PING = self.PING[ZERO_MASK]
-        print(f"shape ping zero: {np.shape(self.PING)}")
 
         # Unwrap to avoid jumps when crossing 0/360° degree angle
         HEAD_ori_rad = np.deg2rad(HEAD_ori)
@@ -597,7 +586,6 @@ class Georeferencer:
         swath_len = len(PING)
         swath_width = len(ch_stack[0])
         print(f"swath_len: {swath_len}, swath_width: {swath_width}")
-        # print(f"ch_stack.shape[0], ch_stack.shape[1]: {ch_stack.shape[0], ch_stack.shape[1]}")
 
         # Transpose (always!) so that the largest axis is horizontal
         ch_stack = ch_stack.T
@@ -609,7 +597,6 @@ class Georeferencer:
         ch_stack = np.clip(ch_stack, 1, 255)
 
         # Flip array ---> Note: different for .jsf and .xtf!
-        # print(f"ch_stack shape after transposing: {np.shape(ch_stack)}")
         ch_stack = np.flip(ch_stack, axis=0)
 
         return ch_stack.astype(np.uint8)

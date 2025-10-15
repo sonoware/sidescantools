@@ -40,10 +40,9 @@ from custom_widgets import (
     LabeledLineEdit,
     OverwriteWarnDialog,
     ErrorWarnDialog,
-    convert_to_dB,
-    hist_equalization,
     FilePicker,
 )
+from aux_functions import convert_to_dB, hist_equalization
 from custom_threading import (
     FileImportManager,
     EGNTableBuilder,
@@ -51,10 +50,9 @@ from custom_threading import (
     NavPlotter,
     GeoreferencerManager,
 )
-from enum import Enum
-import scipy.signal as scisig
 
-GAINSTRAT = Enum("GAINSTRAT", [("BAC", 0), ("EGN", 1)])
+import scipy.signal as scisig
+from cfg_parser import GAINSTRAT, CFGParser
 
 
 class SidescanToolsMain(QWidget):
@@ -65,44 +63,8 @@ class SidescanToolsMain(QWidget):
         "Gain corrected": [],
         "File size": [],
     }
-    settings_dict = {
-        "Working dir": "./sidescan_out",
-        "Georef dir": "./georef_out",
-        "EGN table path": "./sidescan_out/EGN_table.npz",
-        "Project filename": "project_info.yml",
-        "EGN table name": "EGN_table.npz",
-        "Btm chunk size": 1000,
-        "Btm def thresh": 0.6,
-        "Btm downsampling": 1,
-        "Active convert dB": True,
-        "Btm equal hist": True,
-        "Active pie slice filter": True,
-        "Active sharpening filter": False,
-        "Active gain norm": True,
-        "Active hist equal": True,
-        "Slant gain norm strategy": GAINSTRAT.BAC.value,
-        "Slant vertical beam angle": 60,
-        "Slant nadir angle": 0,
-        "Slant active intern depth": False,
-        "Slant chunk size": 1000,
-        "Slant active use downsampling": True,
-        "Slant active multiprocessing": True,
-        "Slant num worker": 8,
-        "Slant active export proc data": True,
-        "Slant active export slant data": True,
-        "View reprocess file": False,
-        "Img chunk size": 1000,
-        "Img include raw data": False,
-        "Georef active proc data": True,
-        "Georef UTM": True,
-        "Georef Navigation": True,
-        "Resolution Mode": 3,
-        "Warp Mode": 0,
-        "Resampling Method": 0,
-        "Georef active custom colormap": False,
-        "Path": [],
-        "Meta info": dict(),
-    }
+    settings_dict: dict
+    cfg_parser: CFGParser
 
     def __init__(self):
         super().__init__()
@@ -110,6 +72,8 @@ class SidescanToolsMain(QWidget):
         self.setWindowTitle("SidescanTools")
         self.base_layout = QHBoxLayout()
         self.setLayout(self.base_layout)
+        self.cfg_parser = CFGParser()
+        self.settings_dict = self.cfg_parser.cfg
 
         self.initGUI()
 
@@ -472,15 +436,7 @@ class SidescanToolsMain(QWidget):
         dlg = OverwriteWarnDialog(self)
         if dlg.exec():
             # Save
-            try:
-                f = open(
-                    filepath,
-                    "w",
-                )
-                yaml.dump(self.settings_dict, f)
-                f.close()
-            except:
-                print(f"Can't write to {filepath}")
+            self.cfg_parser.save_cfg(filepath, self.settings_dict)
 
     def load_project(self):
 
@@ -489,20 +445,11 @@ class SidescanToolsMain(QWidget):
         )
 
         if filepath.exists():
-            f = open(
-                filepath,
-                "r",
-            )
-            loaded_dict = yaml.safe_load(f)
-            f.close()
-            for key in dict(loaded_dict).keys():
-                try:
-                    self.settings_dict[key] = loaded_dict[key]
-                except:
-                    print(f"Couldn't load setting with key: {key}")
+
+            self.settings_dict = self.cfg_parser.load_cfg(filepath)
 
             # Check whether the dict contains the latest info
-            if not "Meta info" in loaded_dict.keys():
+            if not "Meta info" in self.settings_dict.keys():
                 dlg = ErrorWarnDialog(
                     self,
                     title=f"Error while loading settings",
@@ -511,7 +458,7 @@ class SidescanToolsMain(QWidget):
                 dlg.exec()
                 return
 
-            full_list = loaded_dict["Path"]  # downward compatibility
+            full_list = self.settings_dict["Path"]  # downward compatibility
             full_list.sort()
             num_files = len(full_list)
             self.file_dict["Path"] = full_list
@@ -1052,6 +999,9 @@ class ProcessingWidget(QVBoxLayout):
             self.active_intern_depth_checkbox.isChecked(),
             int(self.slant_chunk_size_edit.line_edit.text()),
             self.active_bottom_detection_downsampling_checkbox.isChecked(),
+            egn_table_parameters=self.main_ui.settings_dict[
+                "EGN table resolution parameters"
+            ],
         )
 
     def show_error_msg(self, msg):
@@ -1101,6 +1051,7 @@ class ProcessingWidget(QVBoxLayout):
             active_egn=self.egn_radio_btn.isChecked(),
             active_bac=self.beam_ang_corr_radio_btn.isChecked(),
             active_sharpening_filter=self.sharpening_filter_checkbox.isChecked(),
+            num_angle_bac=self.main_ui.settings_dict["BAC resolution"],
         )
 
     def proc_strat_changed(self, btn_object):
@@ -1323,6 +1274,7 @@ class ViewAndExportWidget(QVBoxLayout):
             active_egn=self.main_ui.processing_widget.egn_radio_btn.isChecked(),
             active_bac=self.main_ui.processing_widget.beam_ang_corr_radio_btn.isChecked(),
             active_sharpening_filter=self.main_ui.processing_widget.sharpening_filter_checkbox.isChecked(),
+            num_angle_bac=self.main_ui.settings_dict["BAC resolution"],
         )
 
     def preproc_to_run_napari(self, res: list):
@@ -1455,6 +1407,7 @@ class ViewAndExportWidget(QVBoxLayout):
             active_egn=self.main_ui.processing_widget.egn_radio_btn.isChecked(),
             active_bac=self.main_ui.processing_widget.beam_ang_corr_radio_btn.isChecked(),
             active_sharpening_filter=self.main_ui.processing_widget.sharpening_filter_checkbox.isChecked(),
+            num_angle_bac=self.main_ui.settings_dict["BAC resolution"],
         )
 
     def start_georeferencer(self, res_list: list):
@@ -1552,6 +1505,7 @@ class ViewAndExportWidget(QVBoxLayout):
             active_egn=self.main_ui.processing_widget.egn_radio_btn.isChecked(),
             active_bac=self.main_ui.processing_widget.beam_ang_corr_radio_btn.isChecked(),
             active_sharpening_filter=self.main_ui.processing_widget.sharpening_filter_checkbox.isChecked(),
+            num_angle_bac=self.main_ui.settings_dict["BAC resolution"],
         )
 
     def start_wc_image_export(self, res_list: list):

@@ -1,0 +1,16 @@
+name: env_sidescantools_cli
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.12
+  - geopy
+  - pyproj
+  - conda-forge::gdal=3.11
+  - pyyaml
+  - scipy
+  - scikit-image
+  - pip
+  - pip:
+      - pyxtf==1.4.2
+      - utm==0.8.1

@@ -28,8 +28,7 @@ from bottom_detection_napari_ui import run_napari_btm_line
 from georef_thread import Georeferencer
 import pyqtgraph as pg
 import pyqtgraph.exporters as exporters
-
-import yaml, copy
+import copy
 from math import log
 import numpy as np
 import napari

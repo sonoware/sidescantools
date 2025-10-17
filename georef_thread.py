@@ -5,13 +5,13 @@ import numpy as np
 import utm
 import math
 from sidescan_file import SidescanFile
-import subprocess
-import itertools
-from PIL import Image
-from PIL.PngImagePlugin import PngInfo
 from pyproj import CRS, datadir
 from scipy.signal import savgol_filter
 from scipy import interpolate
+import numpy.ma as ma
+import pygmt
+import rioxarray as rio
+from decimal import Decimal
 
 
 class Georeferencer:
@@ -24,45 +24,20 @@ class Georeferencer:
     proc_data: np.array
     output_folder: str | os.PathLike
     active_proc_data: bool
-    GCP_SPLIT: list
-    POINTS_SPLIT: list
     LALO_OUTER: list
     PING: list
-    turn_rate: list
     cog_smooth: np.ndarray
-    chunk_indices: np.array
     vertical_beam_angle: int
     epsg_code: str
-    warp_options: dict = {
-        "Polynomial 1 (recommended)": "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",
-        "Homography (experimental)": "SRC_METHOD=GCP_HOMOGRAPHY",
-    }
-    resolution_options: dict = {
-        "Same": "same",
-        "Highest": "highest",
-        "Lowest": "lowest",
-        "Average": "average",
-        "Common": "common",
-    }
-    resampling_options: dict = {
-        "Near": "near",
-        "Bilinear": "bilinear",
-        "Cubic": "cubicspline",
-        "Lanczos": "lanczos",
-        "Average": "average",
-        "RMS": "rms",
-        "Mode": "mode",
-        "Maximum": "max",
-        "Minimum": "min",
-        "Median": "med",
-        "1. Quartile": "q1",
-        "3. Quartile": "q3",
-        "Weighted Sum": "sum",
-    }
     LOLA_plt: np.ndarray
     HEAD_plt: np.ndarray
     LOLA_plt_ori: np.ndarray
     HEAD_plt_ori: np.ndarray
+
+    # TODO: Adjust multithread module and main; 
+    # add fields to enter user-defined resolution and search radius () or search radius = 2*radius;
+    # Clean code (print stuff etc)
+    # remove bool export nav
 
     def __init__(
         self,
@@ -72,11 +47,12 @@ class Georeferencer:
         active_poly: bool = True,
         active_export_navdata: bool = True,
         proc_data=None,
+        nav = [],
+        pix_size: float = 0.1,
+        resolution: float = 1.0,
+        search_radius: float = 2.0,
         output_folder: str | os.PathLike = "./georef_out",
         vertical_beam_angle: int = 60,
-        warp_algorithm: str = "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",
-        resolution_mode: str = "average",
-        resampling_method: str = "near",
     ):
         self.filepath = Path(filepath)
         self.sidescan_file = SidescanFile(self.filepath)
@@ -86,15 +62,13 @@ class Georeferencer:
         self.active_export_navdata = active_export_navdata
         self.output_folder = Path(output_folder)
         self.vertical_beam_angle = vertical_beam_angle
-        self.warp_algorithm = warp_algorithm
-        self.resolution_mode = resolution_mode
-        self.resampling_method = resampling_method
         self.active_proc_data = False
-        self.GCP_SPLIT = []
-        self.POINTS_SPLIT = []
+        self.nav = nav
+        self.pix_size = pix_size
+        self.resolution = resolution
+        self.search_radius = search_radius
         self.LALO_OUTER = []
         self.PING = []
-        self.turn_rate = []
         self.cog_smooth = np.empty_like(proc_data)
         self.LOLA_plt = np.empty_like(proc_data)
         self.HEAD_plt = np.empty_like(proc_data)
@@ -114,56 +88,35 @@ class Georeferencer:
                 )
                 raise FileNotFoundError
 
-    def moving_segments(self, track_array, window_size):
-        """
-        Moving window to isolate turns within window_size.
-        """
-        for i in range(len(track_array - window_size + 1)):
-            yield track_array[i : i + window_size]
 
-    def calc_bearing(self, lo, la):
-        """
-        Calculates bearing according to haversine. Suitable for large scale datasets,
-        less for datasets that e.g. are within one UTM zone.
-        """
-        # convert to radians
-        lon_rad = np.deg2rad(lo)
-        lat_rad = np.deg2rad(la)
+    def get_pix_size(self, lo, la, res_factor):
 
-        # Create Coordinate pairs
-        lon1 = lon_rad[:-1]
-        lat1 = lat_rad[:-1]
-        lon2 = lon_rad[1:]
-        lat2 = lat_rad[1:]
-        # Differences longitudes
-        dlon = lon2 - lon1
-        # Calculate bearing based on haversine bearing on sphere
-        bearing = np.arctan2(
-            np.sin(dlon) * np.cos(lat2),
-            np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(dlon),
-        )
-        # warp from 0-360°
-        cog = (np.degrees(bearing) + 360) % 360
-        # insert same value at the beginning to avoid artificial jumps
-        cog = np.insert(cog, 0, cog[0])
-        if False:
-            # --- Smooth with moving average window size 5---
-            kernel = np.ones(30) / 30
-            cog = np.convolve(cog, kernel, mode="same")
-
-    def calculate_distance(self, lo, la):
         """
         Calculate distance between pings
+        Calculate distance between coordinates in m 
+        from a (randomly sampled) subset of coordinates array (else it takes very 
+        long and the distances should be similiar throughout the interp. coords)
+        Args: 
+            - lo/la: arrays of interpolated(!) longitudes and latitudes
         """
         import geopy.distance
 
-        DIST = np.empty_like(lo)
-        for i, (lo, la, dst) in enumerate(zip(lo, la, DIST)):
-            c_a = (la, lo)
+        start = int(len(lo)/2 - 100)
+        stop = int(len(lo)/2 + 100)
+        lo = lo[start:stop]
+        la = la[start:stop]
+        DIST = np.ones_like(lo)
+
+        for i, (lon, lat, dst) in enumerate(zip(lo, la, DIST)):
+            c_a = (lat, lon)
             c_b = (la[i - 1], lo[i - 1])
             DIST[i] = geopy.distance.distance(c_a, c_b).meters
+        
+        DIST[0] = np.nan
+        # Round pixel resolution to 3 decimals and multiply by *factor* else too small
+        self.pix_size = np.round(np.nanmedian(DIST), 3) * res_factor
+
         # Set first value to avoid jumps
-        DIST[0] = 0
 
     def calculate_cog(self, lo, la, ping_unique, ping_uniform):
         """
@@ -196,155 +149,7 @@ class Georeferencer:
         cog_intp = cog_spl(ping_uniform)
         self.cog_smooth = savgol_filter(cog_intp, 100, 3)
 
-    def generate_gcps(
-        self,
-        chunksize,
-        northing,
-        easting,
-        northing_outer,
-        easting_outer,
-        lon,
-        lat,
-        lon_outer,
-        lat_outer,
-    ):
-        """
-        Generates ground control points (GCPs) for each chunk of chunksize (usually something like 3-5 pings).
-        Paras:
-            - chunksize: number of pings that are processed together as one chunk
-            - northing/easting/lon/lat: Nadir UTM/unprojected coordinates
-            - northing_outer, easting_outer/lon_outer/lat_outer: UTM/unprojected coordinates calculated for outer swath
-
-        Returns:
-            - List of Ground control points:
-            Define corner coordinates for chunks and set gcps:
-                - ul, ur: upper left/right --> nadir coordinates
-                - ll, lr: lower left/right --> edge coordinates, calculated with ground range & heading
-                - image coordinates: im_x_right = length of chunk
-
-        """
-        swath_len = len(self.PING)
-        if self.active_proc_data:
-            swath_width = len(self.proc_data[0])
-        else:
-            swath_width = len(self.sidescan_file.data[self.channel][0])
-
-        self.chunk_indices = int(swath_len / chunksize)
-        print(f"Fixed chunk size: {chunksize} pings.")
-        print("swath_len, chunk_indices: ", swath_len, self.chunk_indices)
-
-        # UTM
-        if self.active_utm:
-            lo_split_ce = np.array_split(easting, self.chunk_indices, axis=0)
-            la_split_ce = np.array_split(northing, self.chunk_indices, axis=0)
-            lo_split_e = np.array_split(easting_outer, self.chunk_indices, axis=0)
-            la_split_e = np.array_split(northing_outer, self.chunk_indices, axis=0)
-
-        else:
-            lo_split_ce = np.array_split(lon, self.chunk_indices, axis=0)
-            la_split_ce = np.array_split(lat, self.chunk_indices, axis=0)
-            lo_split_e = np.array_split(lon_outer, self.chunk_indices, axis=0)
-            la_split_e = np.array_split(lat_outer, self.chunk_indices, axis=0)
-
-        # Calculate edge coordinates for first and last coordinates in chunks:
-        for chunk_num, (lo_chunk_ce, la_chunk_ce, lo_chunk_e, la_chunk_e) in enumerate(
-            zip(lo_split_ce, la_split_ce, lo_split_e, la_split_e)
-        ):
-
-            lo_ce_ul = lo_chunk_ce[0]
-            lo_ce_ur = lo_chunk_ce[-1]
-            la_ce_ul = la_chunk_ce[0]
-            la_ce_ur = la_chunk_ce[-1]
-            lo_e_ll = lo_chunk_e[0]
-            lo_e_lr = lo_chunk_e[-1]
-            la_e_ll = la_chunk_e[0]
-            la_e_lr = la_chunk_e[-1]
-
-            # add/substract small values to ensure overlap on outer edges (move inwards/outwards at nadir/outer edge)
-
-            im_x_left_nad = 1  # 1
-            im_x_right_nad = np.shape(lo_chunk_ce)[0] - 1
-            im_x_left_outer = 1  # -1
-            im_x_right_outer = np.shape(lo_chunk_ce)[0] - 1  # -1
-
-            im_y_outer = swath_width
-            im_y_nad = 0
-
-            gcp = np.array(
-                (
-                    (im_x_left_nad, im_y_nad, lo_ce_ul, la_ce_ul),
-                    (im_x_left_outer, im_y_outer, lo_e_ll, la_e_ll),
-                    (im_x_right_nad, im_y_nad, lo_ce_ur, la_ce_ur),
-                    (im_x_right_outer, im_y_outer, lo_e_lr, la_e_lr),
-                )
-            )
-
-            points = np.array(
-                (
-                    (lo_ce_ul, la_ce_ul, im_x_left_nad, im_y_nad),
-                    (lo_e_ll, la_e_ll, im_x_left_outer, im_y_outer * (-1)),
-                    (lo_ce_ur, la_ce_ur, im_x_right_nad, im_y_nad),
-                    (lo_e_lr, la_e_lr, im_x_right_outer, im_y_outer * (-1)),
-                )
-            )
-
-            self.GCP_SPLIT.append(gcp)
-            self.POINTS_SPLIT.append(points)
-
-    def cut_turns(self):
-        # Logic for cutting turn rates. Ignore for now.
-        # Remove spikes in course ang (e.g. when ping order is messed up in very small sections of ~5-10 pings)
-        window_spike = 10
-        start_range = int(np.abs(np.min(cog)) - np.abs(np.median(cog)))
-        stop_range = int(np.abs(np.max(cog)) - np.abs(np.median(cog)))
-        accepted_range = range(start_range, stop_range)
-        print("accepted_range: ", accepted_range, np.max(cog), np.min(cog))
-        for idx, window_spike in enumerate(self.moving_segments(cog, window_spike)):
-            if np.abs(cog[idx]) - np.abs(np.median(window_spike)) > np.abs(
-                np.median(cog)
-            ):
-                # print("idx, window_spike, np.median(window_spike),: ", idx, np.abs(self.COURSE_ANG[idx]), np.abs(np.median(window_spike)), "outliers")
-                cog[idx] = np.median(window_spike)
-
-        # calculate turn rates in [°/ping] (usually of magnitudes 0.xx°/ping) inside moving window of size X pings. to get an idea of turn rates within a distance,
-        # the rates are summed up to make the windows comparable
-        # TODO: make window size depending on between-ping distances so that segment are ~50 (high turn rate within 50m is bad),
-        # remove outliers from course_ang if order of pings is messed up  - take median as threshold maybe?
-
-        window_seg = int(np.abs(np.ceil(30 / np.median(DIST))))
-        window_seg = 100
-        self.turn_rate = []
-        TR = []
-        for window_seg in self.moving_segments(cog, window_seg):
-            tr = np.abs(np.diff(window_seg, prepend=window_seg[0]))
-            # find max turn rate within each window
-            tr_max = np.max(tr)
-            self.turn_rate.append(tr_max)
-            TR.append(tr)
-        # Find segment indices of turn rates > threshold
-        TURN_MASK = [False if rate >= 10 else True for rate in self.turn_rate]
-        threshold = (
-            np.ceil(np.max(self.turn_rate) - np.abs(np.median(self.turn_rate))) + 5
-        )
-        TURN_MASK = [np.nan if rate >= threshold else rate for rate in self.turn_rate]
-        TURN_IDX = np.where(np.isnan(TURN_MASK))
-        TURN_IDX = TURN_IDX[0]
-        # Apply turn radius mask to cut turns
-        cog[TURN_IDX] = np.nan
-        self.turn_rate = np.asarray(self.turn_rate)
-        self.turn_rate[TURN_IDX] = np.nan
-        self.PING[TURN_IDX] = np.nan
-
-        ## NAN where turn index > threshold (the other arrays into segments at TURN_IDX)
-        lo_intp[TURN_IDX] = np.nan
-        la_intp[TURN_IDX] = np.nan
-        lo_out_intp_savgol[TURN_IDX] = np.nan
-        la_out_intp_savgol[TURN_IDX] = np.nan
-        NORTH[TURN_IDX] = np.nan
-        EAST[TURN_IDX] = np.nan
-        NORTH_OUTER[TURN_IDX] = np.nan
-        EAST_OUTER[TURN_IDX] = np.nan
-
+ 
     def prep_data(self):
         # Extract metadata for each ping in sonar channel
         self.PING = self.sidescan_file.packet_no
@@ -420,7 +225,6 @@ class Georeferencer:
         la_intp = savgol_filter(la_intp, 100, 2)
 
         # Create arrays for heading and coords for plotting in GUI
-        # TODO: plot cog rather than heading?
         x = range(len(HEAD_savgol))
         x_ori = range(len(HEAD_ori))
         self.HEAD_plt = np.column_stack((x, HEAD_savgol))
@@ -524,53 +328,31 @@ class Georeferencer:
                 )
             ]
 
-        la_out_intp_savgol, lo_out_intp_savgol = map(np.array, zip(*self.LALO_OUTER))
+        la_out_intp, lo_out_intp = map(np.array, zip(*self.LALO_OUTER))
 
-        # Generate lists of gcps for each chunk
-        self.generate_gcps(
-            chunksize=5,
-            northing=north_intp,
-            easting=east_intp,
-            northing_outer=north_out_intp_savgol,
-            easting_outer=east_out_intp_savgol,
-            lon=lo_intp,
-            lat=la_intp,
-            lon_outer=lo_out_intp_savgol,
-            lat_outer=la_out_intp_savgol,
-        )
+        # linspace for coordinates along ping
+        XX = []
+        YY = []
+        for x, y, x_out, y_out in zip(lo_intp, la_intp, lo_out_intp, la_out_intp):
+            xx = np.linspace(x, x_out, swath_width)
+            yy = np.linspace(y, y_out, swath_width)
+            XX.append(xx)
+            YY.append(yy)
+        XX = np.ndarray.flatten(np.asarray(XX))
+        YY = np.ndarray.flatten(np.asarray(YY))
+        self.nav = np.column_stack((np.ndarray.flatten(XX),np.ndarray.flatten(YY)))
 
-        # Export navigation data
-        if self.active_export_navdata:
-            print(f"Saving navinfo to file")
-            nav = np.column_stack(
-                (
-                    self.PING,
-                    lo_intp,
-                    la_intp,
-                    lo_out_intp_savgol,
-                    la_out_intp_savgol,
-                    east_intp,
-                    north_intp,
-                    east_out_intp_savgol,
-                    north_out_intp_savgol,
-                    self.cog_smooth,
-                )
-            )
-            nav_ch = (
-                self.output_folder
-                / f"Navigation_{self.filepath.stem}_ch{self.channel}.csv"
-            )
+        # create empty grid with sample size as resolution (finest possible)
 
-            np.savetxt(
-                nav_ch,
-                nav,
-                fmt="%s",
-                delimiter=";",
-                header="Ping No; Nadir Longitude; Nadir Latitude; Outer Lon; Outer Lat; Nadir Easting; Nadir Northing; Outer Easting; Outer Northing; CoG [°]",
-            )
+        #xx = np.linspace(np.min(lo_intp), np.max(lo_out_intp), swath_width)
+        #yy = np.linspace(np.min(la_intp), np.max(la_out_intp), swath_width)
+        #XX,YY = np.meshgrid(xx, yy)
+        #print("np.shape(XX): ", np.shape(XX))
+        #self.nav = np.column_stack((xx,yy))
 
     def channel_stack(self):
-        """- Work on raw or processed data, depending on `self.active_proc_data`
+        """
+        Work on raw or processed data, depending on `self.active_proc_data`
         - Stack channel so that the largest axis is horizontal
         - Norm data to max 255 for pic generation
         """
@@ -581,14 +363,25 @@ class Georeferencer:
         else:
             ch_stack = self.sidescan_file.data[self.channel]
 
-        # Extract metadata for each ping in sonar channel
+        # Extract metadata for each ping in sonar channel, also longitude to mask invalid values
         PING = self.sidescan_file.packet_no
+        lon = self.sidescan_file.longitude
+        lon = np.ndarray.flatten(np.array(lon))
+        mask_x = lon != 0
+        mask_y = np.ones_like(ch_stack[0])
+
+        # 'expand' to match ch_stack shape
+        mask = mask_x[:, np.newaxis] * mask_y
+        mask = mask.astype(bool)
+
+        # Extract valid pings (same like ZERO mask for coordinates)
+        ch_stack = ch_stack[np.all(mask, axis=1)]
         swath_len = len(PING)
         swath_width = len(ch_stack[0])
         print(f"swath_len: {swath_len}, swath_width: {swath_width}")
 
         # Transpose (always!) so that the largest axis is horizontal
-        ch_stack = ch_stack.T
+        #ch_stack = ch_stack.T
 
         ch_stack = np.array(ch_stack, dtype=float)
 
@@ -597,268 +390,87 @@ class Georeferencer:
         ch_stack = np.clip(ch_stack, 1, 255)
 
         # Flip array ---> Note: different for .jsf and .xtf!
-        ch_stack = np.flip(ch_stack, axis=0)
+        #ch_stack = np.flip(ch_stack, axis=0)
+        ch_stack = np.flip(ch_stack, axis=1)
+        ch_stack_flat = np.ndarray.flatten(ch_stack)
 
-        return ch_stack.astype(np.uint8)
+        return ch_stack.astype(np.uint8), ch_stack_flat.astype(np.uint8)
 
-    @staticmethod
-    def write_img(im_path, data, alpha=None):
-        # flip data to show first ping at bottom
-        data = np.flipud(data)
-        image_to_write = Image.fromarray(data)
-        if alpha is not None:
-            alpha = Image.fromarray(alpha)
-            image_to_write.putalpha(alpha)
-        png_info = PngInfo()
-        png_info.add_text("Info", "Generated by SidescanTools")
-        image_to_write.save(im_path, pnginfo=png_info)
-        image_to_write.save(im_path)
-
-    @staticmethod
-    def run_command(command):
-        """
-        Starts a subprocess to run shell commands.
-        """
-        cur_env = copy.copy(os.environ)
-        cur_env["PROJ_LIB"] = datadir.get_data_dir()
-        cur_env["PROJ_DATA"] = datadir.get_data_dir()
-        result = subprocess.run(command, capture_output=True, text=True, env=cur_env)
-        if result.returncode != 0:
-            print(f"Error occurred: {result.stderr}")
-
-    def georeference(self, ch_stack, otiff, progress_signal=None):
-        """
-        array_split: Creates [chunk_size]-ping chunks per channel and extracts corner coordinates for chunks from GCP list. \
-        Assigns extracted corner coordinates as GCPs (gdal_translate) and projects them (gdal_warp).
-            find indices where lon/lat change (they are the same for multiple consequitive pings) 
-            and add a '1' to obtain correct index (diff-array is one index shorter than original) \
-            and another '1' to move one coordinate up, else it would be still the same coordinate
-
-        gdal GCP format: [map x-coordinate(longitude)], [map y-coordinate (latitude)], [elevation], \
-            [image column index(x)], [image row index (y)]
-
-        X:L; Y:U                   X:R; Y:U
-        LO,LA(0):CE                LO,LA(chunk):CE
-                      [       ]
-                      [       ]
-                      [       ]
-                      [       ]
-        LO,LA(0):E                LO,LA(chunk):E
-        X:L; Y:L                  X:R; Y:L
-
-        new in gdal version 3.11: homography algorithm for warping. Important note: Does not work when gcps are not in right order, i.e. if for example \
-        lower left and lower right image coorainte are switched. this can sometimes happrns when there is no vessel movement or vessel turns etc. \
-        Right now, these chunks are ignored (the data look crappy anyway). 
-        """
-        ch_split = np.array_split(ch_stack, self.chunk_indices, axis=1)
-
-        for chunk_num, (ch_chunk, gcp_chunk, points_chunk) in enumerate(
-            zip(ch_split, self.GCP_SPLIT, self.POINTS_SPLIT)
-        ):
-            # process only non-empty gcp chunks
-            if chunk_num < len(ch_split) - 1:
-                if not np.isnan(gcp_chunk).any():
-                    im_path = otiff.with_stem(
-                        f"{otiff.stem}_{chunk_num}_tmp"
-                    ).with_suffix(".png")
-                    chunk_path = otiff.with_stem(
-                        f"{otiff.stem}_{chunk_num}_chunk_tmp"
-                    ).with_suffix(".tif")
-                    warp_path = otiff.with_stem(
-                        f"{otiff.stem}_{chunk_num}_georef_chunk_tmp"
-                    ).with_suffix(".tif")
-
-                    # Flip image chunks according to side
-                    if self.channel == 0:
-                        ch_chunk_flip = np.flip(ch_chunk, 1)
-                    elif self.channel == 1:
-                        ch_chunk_flip = np.flip(ch_chunk, 0)
-
-                    alpha = np.ones(np.shape(ch_chunk_flip), dtype=np.uint8) * 255
-                    alpha[ch_chunk_flip == 0] = 0
-                    data_stack = np.stack(
-                        (ch_chunk_flip, ch_chunk_flip, ch_chunk_flip), axis=-1
-                    )
-                    image_to_write = Image.fromarray(data_stack)
-                    alpha = Image.fromarray(alpha)
-                    image_to_write.putalpha(alpha)
-                    png_info = PngInfo()
-                    png_info.add_text("Info", "Generated by SidescanTools")
-                    image_to_write.save(im_path, pnginfo=png_info)
-
-                    try:
-                        coords = [
-                            (im_x, im_y, lo, la) for (im_x, im_y, lo, la) in gcp_chunk
-                        ]
-                        im_x, im_y, lo, la = zip(*coords)
-
-                    except Exception as e:
-                        print(f"gcp chunk: {np.shape(gcp_chunk)}")
-
-                    gdal_translate = ["gdal_translate", "-of", "GTiff"]
-
-                    gdal_warp_utm = [
-                        "gdal",
-                        "raster",
-                        "reproject",
-                        "-r",
-                        self.resampling_method,
-                        "--to",
-                        self.warp_algorithm,
-                        "--co",
-                        "COMPRESS=DEFLATE",
-                        "--overwrite",
-                        "-d",
-                        self.epsg_code,
-                        "-i",
-                        str(chunk_path),
-                        "-o",
-                        str(warp_path),
-                    ]
-
-                    gdal_warp_wgs84 = [
-                        "gdal",
-                        "raster",
-                        "reproject",
-                        "-r",
-                        self.resampling_method,
-                        "--to",
-                        self.warp_algorithm,
-                        "--co",
-                        "COMPRESS=DEFLATE",
-                        "--overwrite",
-                        "-d",
-                        "EPSG:4326",
-                        "-i",
-                        str(chunk_path),
-                        "-o",
-                        str(warp_path),
-                    ]
-
-                    for i in range(len(gcp_chunk)):
-                        gdal_translate.extend(
-                            ["-gcp", str(im_x[i]), str(im_y[i]), str(lo[i]), str(la[i])]
-                        )
-
-                    gdal_translate.extend([str(im_path), str(chunk_path)])
-
-                    # gdal 3.11 syntax
-                    if self.active_utm:
-                        gdal_warp = gdal_warp_utm
-                    else:
-                        gdal_warp = gdal_warp_wgs84
-
-                    if progress_signal is not None:
-                        progress_signal.emit(1000 / (len(ch_stack[1])) * 0.005)
-
-                    self.run_command(gdal_translate)
-                    self.run_command(gdal_warp)
-
-                else:
-                    print("Contains turns")
-            elif chunk_num == len(ch_split) - 1:
-                pass
-
-    def mosaic(self, mosaic_tiff, txt_path, progress_signal=None):
-        """
-        Merges tif chunks created in the georef function.
-        Args.:
-        - path: Path to geotiffs
-        - creates temporary txt file that lists tif chunks
-        - mosaic_tiff: mosaicked output tif
-
-        """
-        # create list from warped tifs and merge
-        TIF_ch0 = []
-        TIF_ch1 = []
-
-        txt_path_ch0 = os.path.join(self.output_folder, "chunks_tif_ch0.txt")
-        txt_path_ch1 = os.path.join(self.output_folder, "chunks_tif_ch1.txt")
-
-        for root, dirs, files in os.walk(self.output_folder):
-            for name in files:
-                if (
-                    name.endswith("_georef_chunk_tmp.tif")
-                    and "ch0" in name
-                    and not name.startswith("._")
-                ):
-                    TIF_ch0.append(os.path.join(root, name))
-
-        for root, dirs, files in os.walk(self.output_folder):
-            for name in files:
-                if (
-                    name.endswith("_georef_chunk_tmp.tif")
-                    and "ch1" in name
-                    and not name.startswith("._")
-                ):
-                    TIF_ch1.append(os.path.join(root, name))
-
-        if progress_signal is not None:
-            progress_signal.emit(0.2)
-
-        np.savetxt(txt_path_ch0, TIF_ch0, fmt="%s")
-        np.savetxt(txt_path_ch1, TIF_ch1, fmt="%s")
-
-        # delete merged file if it already exists
-        if mosaic_tiff.exists():
-            mosaic_tiff.unlink()
-
-        # if self.channel == 0:
-        #    txt_path = txt_path_ch0
-        # elif self.channel == 1:
-        #    txt_path = txt_path_ch1
-
-        # gdal 3.11 syntax
-        gdal_mosaic = [
-            "gdal",
-            "raster",
-            "mosaic",
-            "-i",
-            f"@{txt_path}",
-            "-o",
-            str(mosaic_tiff),
-            "--src-nodata",
-            "0",
-            "--resolution",
-            self.resolution_mode,
-            "--co",
-            "COMPRESS=DEFLATE",
-            "--co",
-            "TILED=YES",
-        ]
-
-        self.run_command(gdal_mosaic)
-
-    def process(self, progress_signal=None):
-        file_name = self.filepath.stem
-        tif_path = self.output_folder / f"{file_name}_ch{self.channel}.tif"
-        mosaic_tif_path = self.output_folder / f"{file_name}_ch{self.channel}_stack.tif"
-        txt_path = self.output_folder / f"chunks_tif_ch{self.channel}.txt"
-
+    def process(self):
         self.prep_data()
-        ch_stack = self.channel_stack()
+        chan_stack, chan_stack_flat = self.channel_stack()
 
-        try:
-            print(
-                f"Processing chunks in channel {self.channel} with warp method {self.warp_algorithm}..."
+        # Determine pixel size based on minimum distance between coordinates
+        self.get_pix_size(self.nav[:,0], self.nav[:,1], res_factor=1)
+        print("self.pix_res: ", self.pix_size)
+
+        # Export navigation data
+        if self.active_export_navdata:
+            xyz = np.column_stack((self.nav, chan_stack_flat))
+            nav_ch = (self.output_folder/f"Navigation_{self.filepath.stem}_ch{self.channel}.csv")
+            print(f"Saving navinfo to {nav_ch}")
+            outfile_median = (self.output_folder/f"outmedian_{self.filepath.stem}_ch{self.channel}.xyz")
+            outfile_tiff = (self.output_folder/f"{self.filepath.stem}_{self.pix_size}m_ch{self.channel}_{self.epsg_code}.tif")
+            
+            np.savetxt(
+                nav_ch,
+                xyz,
+                fmt="%s", 
+                delimiter=";",
+                #header="Nadir Longitude; Nadir Latitude; BS",
             )
 
-            self.georeference(
-                ch_stack=ch_stack, otiff=tif_path, progress_signal=progress_signal
+        # Use pygmt to get region from xyz data, run blockmedian to reduce data size and then nearneighbor to produce interpolated grid.
+        # output from nearneighbor is of type xarray so it can directly be used with rioxarray to assign CRS and save to geotiff - without gdal!
+        # TODO: spatial indices, tiling/compressing? Reprojecting to utm, make radii user definable
+        
+        # Use coording precision as spacing of region parameter
+
+        crd = Decimal(xyz[0,0])
+        dgts = len(str(crd).split(".")[1]) - 2
+        prec = 1/(10**dgts)
+        region = pygmt.info(self.nav, per_column=True, spacing=(prec,prec))
+        spacing = f"{self.pix_size}e"
+        search_radius = f"{self.pix_size * 4}e"
+        print("crd, prec, spacing, search_radius: ", crd, prec, spacing, search_radius)
+
+        pygmt.blockmedian(
+            data=xyz, 
+            outfile=outfile_median, 
+            output_type="file",
+            coltypes="fg", 
+            spacing=spacing, 
+            region=region, 
+            #verbose=True, 
+            binary="o3d", 
+            ) 
+        data = pygmt.nearneighbor(
+            data=outfile_median, 
+            #outgrid=outfile_xyz, 
+            coltypes="fg", 
+            region=region, 
+            #verbose=True, 
+            binary="i3d", 
+            spacing=spacing, 
+            search_radius=search_radius 
             )
 
-        except Exception as e:
-            print(f"An error occurred during georeferencing: {str(e)}")
+        # Clip data to range between 0 - 256
+        data = data.clip(min=0.0, max=256.0)
+        
+        # Project to WGS84
+        data_pr = data.rio.write_crs("EPSG:4326", inplace=True)
 
-        try:
-            print(
-                f"Mosaicking channel {self.channel} with resolution mode {self.resolution_mode}..."
-            )
-            self.mosaic(mosaic_tif_path, txt_path, progress_signal=progress_signal)
+        # Reproject to utm if applied and save to geotiff
+        if self.active_utm:
+            self.epsg_code = self.epsg_code
+            data_rpr = data_pr.rio.reproject(self.epsg_code, inplace=True)
+            data_rpr.rio.to_raster(outfile_tiff)
 
-        except Exception as e:
-            print(f"An error occurred during mosaicking: {str(e)}")
-
+        # Save as geotiff (set epsg_code for filename)
+        else:
+            self.epsg_code = "EPSG:4326"
+            data_pr.rio.to_raster(outfile_tiff)
 
 def main():
     parser = argparse.ArgumentParser(description="Tool to process sidescan sonar data")

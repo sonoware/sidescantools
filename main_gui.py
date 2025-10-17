@@ -561,6 +561,19 @@ class SidescanToolsMain(QWidget):
     def update_ui_from_settings(self):
         self.output_picker.update_dir(self.settings_dict["Working dir"])
         self.georef_out_picker.update_dir(self.settings_dict["Georef dir"])
+        self.cfg.georef_view_params.resolution_mode = (
+            self.view_and_export_widget.resolution_mode_dropdown.currentIndex()
+        )
+        self.cfg.georef_view_params.warp_mode = (
+            self.view_and_export_widget.warp_mode_dropdown.currentIndex()
+        )
+        self.cfg.georef_view_params.resampling_mode = (
+            self.view_and_export_widget.resamp_mode_dropdown.currentIndex()
+        )
+
+    def update_ui_from_cfg(self):
+        self.output_picker.update_dir(self.cfg.meta_infos.working_dir)
+        self.georef_out_picker.update_dir(self.cfg.main_proc_params.georef_dir)
         try:
             self.egn_table_picker.update_dir(self.cfg.main_proc_params.egn_table_path)
         except:

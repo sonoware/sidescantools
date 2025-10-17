@@ -1,5 +1,5 @@
-# yaml-language-server: $schema=project_info_schema.json 
- 
+# yaml-language-server: $schema=project_info_schema.json
+
 main_proc_params:
   georef_dir: ./georef_out
   active_convert_dB: true

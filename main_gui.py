@@ -51,7 +51,7 @@ from custom_threading import (
 )
 
 import scipy.signal as scisig
-from cfg_parser import GAINSTRAT, CFGParser
+from cfg_parser import GAINSTRAT, CFG
 
 
 class SidescanToolsMain(QWidget):
@@ -62,8 +62,7 @@ class SidescanToolsMain(QWidget):
         "Gain corrected": [],
         "File size": [],
     }
-    settings_dict: dict
-    cfg_parser: CFGParser
+    cfg: CFG
 
     def __init__(self):
         super().__init__()
@@ -71,8 +70,7 @@ class SidescanToolsMain(QWidget):
         self.setWindowTitle("SidescanTools")
         self.base_layout = QHBoxLayout()
         self.setLayout(self.base_layout)
-        self.cfg_parser = CFGParser()
-        self.settings_dict = self.cfg_parser.cfg
+        self.cfg = CFG()
 
         self.initGUI()
 
@@ -113,12 +111,12 @@ class SidescanToolsMain(QWidget):
 
         ## Right side
         # Choose working directory and save/load project info
-        if not pathlib.Path.exists(pathlib.Path(self.settings_dict["Working dir"])):
-            os.mkdir(self.settings_dict["Working dir"])
+        if not pathlib.Path.exists(pathlib.Path(self.cfg.meta_infos.working_dir)):
+            os.mkdir(self.cfg.meta_infos.working_dir)
         self.output_picker = FilePicker(
             "Working directory:",
             QFileDialog.FileMode.Directory,
-            self.settings_dict["Working dir"],
+            self.cfg.meta_infos.working_dir,
             main_parent=self,
         )
         self.output_picker.dir_changed.connect(self.change_output_dir)
@@ -134,21 +132,21 @@ class SidescanToolsMain(QWidget):
         self.project_load_button.clicked.connect(self.load_project)
 
         # Choose georef out dir
-        if not pathlib.Path.exists(pathlib.Path(self.settings_dict["Georef dir"])):
-            os.mkdir(self.settings_dict["Georef dir"])
+        if not pathlib.Path.exists(pathlib.Path(self.cfg.main_proc_params.georef_dir)):
+            os.mkdir(self.cfg.main_proc_params.georef_dir)
         self.georef_out_picker = FilePicker(
             "Georef output directory:",
             QFileDialog.FileMode.Directory,
-            self.settings_dict["Georef dir"],
+            self.cfg.main_proc_params.georef_dir,
             main_parent=self,
         )
         self.georef_out_picker.dir_changed.connect(self.change_georef_dir)
 
         # Choose EGN table file
         start_egn_table_file = (
-            self.settings_dict["Working dir"]
+            self.cfg.meta_infos.working_dir
             + "/"
-            + self.settings_dict["EGN table name"]
+            + self.cfg.main_proc_params.egn_table_path
         )
         self.egn_table_picker = FilePicker(
             "EGN Table:",
@@ -182,7 +180,7 @@ class SidescanToolsMain(QWidget):
         self.left_view.addWidget(self.head_plot_widget)
         self.left_view.addWidget(self.save_button_head)
 
-        # right side widgets: meta info, project settings and all parameter
+        # right side widgets: meta info, project cfg and all parameter
         self.right_view.addWidget(self.file_info_text_box)
         self.right_view.addWidget(QHLine())
         self.right_view.addWidget(self.dir_and_path_label)
@@ -228,7 +226,7 @@ class SidescanToolsMain(QWidget):
         self.shortcut_del = QShortcut(QKeySequence("Del"), self.file_table)
         self.shortcut_del.activated.connect(self.delete_file)
         # set all std/project dependent parameter
-        self.update_ui_from_settings()
+        self.update_ui_from_cfg()
 
     def update_right_view_size(self):
         self.right_base_widget.setMinimumWidth(
@@ -274,9 +272,9 @@ class SidescanToolsMain(QWidget):
             import_manager.start_import(filenames)
 
     def import_new_files_from_manager(self, filenames: list, meta_info_list: list):
-        # append meta data to settings dict for saving/loading capabilities
+        # append meta data to cfg for saving/loading capabilities
         for new_info in meta_info_list:
-            self.settings_dict["Meta info"].update(new_info)
+            self.cfg.meta_infos.meta_info.update(new_info)
         # check for duplicates and sort full list
         full_list = self.file_dict["Path"]
         full_list.extend(filenames)
@@ -374,7 +372,7 @@ class SidescanToolsMain(QWidget):
     def check_for_btm_line_data_and_size(self):
         for idx, filepath in enumerate(self.file_dict["Path"]):
             filepath = pathlib.Path(filepath)
-            work_dir = pathlib.Path(self.settings_dict["Working dir"])
+            work_dir = pathlib.Path(self.cfg.meta_infos.working_dir)
             if filepath.exists():
                 self.file_dict["File size"][idx] = self.prettier_size(
                     filepath.stat().st_size
@@ -401,54 +399,49 @@ class SidescanToolsMain(QWidget):
         self.check_for_btm_line_data_and_size()
         file_path = self.file_dict["Path"][self.file_table.selectedIndexes()[0].row()]
         self.file_info_text_box.clear()
-        self.file_info_text_box.insertHtml(self.settings_dict["Meta info"][file_path])
+        self.file_info_text_box.insertHtml(self.cfg.meta_infos.meta_info[file_path])
 
     def always_select_row(self):
         self.file_table.selectRow(self.file_table.selectedIndexes()[0].row())
 
     def change_output_dir(self):
-        self.settings_dict["Working dir"] = self.output_picker.cur_dir
+        self.cfg.meta_infos.working_dir = self.output_picker.cur_dir
         self.load_project()
 
     def change_georef_dir(self):
-        self.settings_dict["Georef dir"] = self.georef_out_picker.cur_dir
+        self.cfg.main_proc_params.georef_dir = self.georef_out_picker.cur_dir
 
     def load_egn_table(self):
-        self.settings_dict["EGN table path"] = str(
+        self.cfg.main_proc_params.egn_table_path = str(
             pathlib.Path(self.egn_table_picker.cur_dir).absolute()
         )
         egn_table_info = np.load(self.egn_table_picker.cur_dir)
         nadir_angle = egn_table_info["nadir_angle"]
         self.processing_widget.nadir_angle_edit.line_edit.setText(str(nadir_angle))
-        self.settings_dict["Slant nadir angle"] = nadir_angle
+        self.cfg.main_proc_params.nadir_angle = nadir_angle
 
         self.update_right_view_size()
 
     def save_project(self):
-        # copy path info to settings dict for saving
-        self.update_settings_dict_from_ui()
-        filepath = pathlib.Path(self.settings_dict["Working dir"]) / pathlib.Path(
-            self.settings_dict["Project filename"]
-        )
+        # copy path info to cfg for saving
+        self.update_cfg_from_ui()
+        filepath = pathlib.Path(self.cfg.meta_infos.working_dir)
 
         # Check if file exists and warn user
         dlg = OverwriteWarnDialog(self)
         if dlg.exec():
             # Save
-            self.cfg_parser.save_cfg(filepath, self.settings_dict)
+            self.cfg.save_cfg_and_schema(filepath)
 
     def load_project(self):
 
-        filepath = pathlib.Path(self.settings_dict["Working dir"]) / pathlib.Path(
-            self.settings_dict["Project filename"]
-        )
+        filepath = pathlib.Path(self.cfg.meta_infos.working_dir)
 
         if filepath.exists():
 
-            self.settings_dict = self.cfg_parser.load_cfg(filepath)
-
-            # Check whether the dict contains the latest info
-            if not "Meta info" in self.settings_dict.keys():
+            try:
+                self.cfg = CFG.load_cfg(filepath)
+            except:
                 dlg = ErrorWarnDialog(
                     self,
                     title=f"Error while loading settings",
@@ -457,7 +450,7 @@ class SidescanToolsMain(QWidget):
                 dlg.exec()
                 return
 
-            full_list = self.settings_dict["Path"]  # downward compatibility
+            full_list = self.cfg.meta_infos.paths  # downward compatibility
             full_list.sort()
             num_files = len(full_list)
             self.file_dict["Path"] = full_list
@@ -466,193 +459,195 @@ class SidescanToolsMain(QWidget):
             self.file_dict["Gain corrected"] = ["N"] * num_files
             self.file_dict["File size"] = ["0"] * num_files
             self.update_table()
-            self.update_ui_from_settings()
+            self.update_ui_from_cfg()
         else:
             # show message that file doesn't exist
             dlg = QMessageBox(self)
             dlg.setWindowTitle("No settings found!")
-            dlg.setText("No settings file found.")
+            dlg.setText(
+                f"No settings file found. The directory {filepath} needs to contain a project_info.yml"
+            )
             button = dlg.exec()
 
         self.update_right_view_size()
 
-    def update_settings_dict_from_ui(self):
-        self.settings_dict["Path"] = self.file_dict["Path"]
-        self.settings_dict["Working dir"] = str(
+    def update_cfg_from_ui(self):
+        self.cfg.meta_infos.paths = self.file_dict["Path"]
+        self.cfg.meta_infos.working_dir = str(
             pathlib.Path(self.output_picker.cur_dir).absolute()
         )
-        self.settings_dict["Georef dir"] = str(
+        self.cfg.main_proc_params.georef_dir = str(
             pathlib.Path(self.georef_out_picker.cur_dir).absolute()
         )
-        self.settings_dict["EGN table name"] = pathlib.Path(
+        self.cfg.main_proc_params.egn_table_path = pathlib.Path(
             self.egn_table_picker.cur_dir
         ).name
-        self.settings_dict["Btm chunk size"] = int(
+        self.cfg.bottomline_params.chunk_size = int(
             self.bottom_line_detection_widget.btm_chunk_size_edit.line_edit.text()
         )
-        self.settings_dict["Btm def thresh"] = float(
+        self.cfg.bottomline_params.default_threshold = float(
             self.bottom_line_detection_widget.btm_default_thresh.line_edit.text()
         )
-        self.settings_dict["Btm downsampling"] = int(
+        self.cfg.bottomline_params.downsampling_factor = int(
             self.bottom_line_detection_widget.btm_downsample_fact.line_edit.text()
         )
-        self.settings_dict["Active convert dB"] = (
+        self.cfg.main_proc_params.active_convert_dB = (
             self.bottom_line_detection_widget.active_convert_dB_checkbox.isChecked()
         )
-        self.settings_dict["Btm equal hist"] = (
+        self.cfg.bottomline_params.active_clahe = (
             self.bottom_line_detection_widget.active_hist_equal_checkbox.isChecked()
         )
-        self.settings_dict["Active pie slice filter"] = (
+        self.cfg.main_proc_params.active_pie_slice_filter = (
             self.processing_widget.pie_slice_filter_checkbox.isChecked()
         )
-        self.settings_dict["Active sharpening filter"] = (
+        self.cfg.main_proc_params.active_sharpening_filter = (
             self.processing_widget.sharpening_filter_checkbox.isChecked()
         )
-        self.settings_dict["Active gain norm"] = (
+        self.cfg.main_proc_params.active_gain_normalization = (
             self.processing_widget.active_gain_norm_checkbox.isChecked()
         )
-        self.settings_dict["Slant vertical beam angle"] = int(
+        self.cfg.main_proc_params.vertical_beam_angle = int(
             self.processing_widget.vertical_beam_angle_edit.line_edit.text()
         )
-        self.settings_dict["Slant nadir angle"] = int(
+        self.cfg.main_proc_params.nadir_angle = int(
             self.processing_widget.nadir_angle_edit.line_edit.text()
         )
-        self.settings_dict["Slant active intern depth"] = (
+        self.cfg.slant_gain_params.active_intern_depth = (
             self.processing_widget.active_intern_depth_checkbox.isChecked()
         )
-        self.settings_dict["Slant chunk size"] = int(
+        self.cfg.slant_gain_params.chunk_size = int(
             self.processing_widget.slant_chunk_size_edit.line_edit.text()
         )
-        self.settings_dict["Slant active use downsampling"] = (
+        self.cfg.slant_gain_params.active_use_downsampling = (
             self.processing_widget.active_bottom_detection_downsampling_checkbox.isChecked()
         )
-        self.settings_dict["Slant active export proc data"] = (
+        self.cfg.slant_gain_params.active_export_proc_data = (
             self.processing_widget.export_final_proc_checkbox.isChecked()
         )
-        self.settings_dict["Slant active export slant data"] = (
+        self.cfg.slant_gain_params.active_export_slant_data = (
             self.processing_widget.export_slant_correction_checkbox.isChecked()
         )
-        self.settings_dict["View reprocess file"] = (
+        self.cfg.georef_view_params.active_view_reprocess_file = (
             self.view_and_export_widget.active_reprocess_file_checkbox.isChecked()
         )
-        self.settings_dict["Active hist equal"] = (
+        self.cfg.main_proc_params.active_hist_equalization = (
             self.view_and_export_widget.hist_equal_checkbox.isChecked()
         )
-        self.settings_dict["Img chunk size"] = (
+        self.cfg.georef_view_params.img_chunk_size = int(
             self.view_and_export_widget.img_chunk_size_edit.line_edit.text()
         )
-        self.settings_dict["Img include raw data"] = (
+        self.cfg.georef_view_params.img_include_raw_data = (
             self.view_and_export_widget.include_raw_data_checkbox.isChecked()
         )
-        self.settings_dict["Georef active proc data"] = (
+        self.cfg.georef_view_params.active_proc_data = (
             self.view_and_export_widget.active_use_proc_data_checkbox.isChecked()
         )
-        self.settings_dict["Georef UTM"] = (
+        self.cfg.georef_view_params.active_utm = (
             self.view_and_export_widget.active_utm_checkbox.isChecked()
         )
-        self.settings_dict["Georef Navigation"] = (
+        self.cfg.georef_view_params.active_export_navigation = (
             self.view_and_export_widget.active_navdata_checkbox.isChecked()
         )
-        self.settings_dict["Georef active custom colormap"] = (
+        self.cfg.georef_view_params.active_custom_colormap = (
             self.view_and_export_widget.active_colormap_checkbox.isChecked()
         )
-        self.settings_dict["Resolution Mode"] = (
+        self.cfg.georef_view_params.resolution_mode = (
             self.view_and_export_widget.resolution_mode_dropdown.currentIndex()
         )
-        self.settings_dict["Warp Mode"] = (
+        self.cfg.georef_view_params.warp_mode = (
             self.view_and_export_widget.warp_mode_dropdown.currentIndex()
         )
-        self.settings_dict["Resampling Method"] = (
+        self.cfg.georef_view_params.resampling_mode = (
             self.view_and_export_widget.resamp_mode_dropdown.currentIndex()
         )
 
-    def update_ui_from_settings(self):
-        self.output_picker.update_dir(self.settings_dict["Working dir"])
-        self.georef_out_picker.update_dir(self.settings_dict["Georef dir"])
+    def update_ui_from_cfg(self):
+        self.output_picker.update_dir(self.cfg.meta_infos.working_dir)
+        self.georef_out_picker.update_dir(self.cfg.main_proc_params.georef_dir)
         try:
-            self.egn_table_picker.update_dir(self.settings_dict["EGN table path"])
+            self.egn_table_picker.update_dir(self.cfg.main_proc_params.egn_table_path)
         except:
             pass
         self.processing_widget.egn_table_name_edit.line_edit.setText(
-            self.settings_dict["EGN table name"]
+            self.cfg.main_proc_params.egn_table_path
         )
         self.bottom_line_detection_widget.btm_chunk_size_edit.line_edit.setText(
-            str(self.settings_dict["Btm chunk size"])
+            str(self.cfg.bottomline_params.chunk_size)
         )
         self.bottom_line_detection_widget.btm_default_thresh.line_edit.setText(
-            str(self.settings_dict["Btm def thresh"])
+            str(self.cfg.bottomline_params.default_threshold)
         )
         self.bottom_line_detection_widget.btm_downsample_fact.line_edit.setText(
-            str(self.settings_dict["Btm downsampling"])
+            str(self.cfg.bottomline_params.downsampling_factor)
         )
         self.bottom_line_detection_widget.active_convert_dB_checkbox.setChecked(
-            self.settings_dict["Active convert dB"]
+            self.cfg.main_proc_params.active_convert_dB
         )
         self.bottom_line_detection_widget.active_hist_equal_checkbox.setChecked(
-            self.settings_dict["Btm equal hist"]
+            self.cfg.bottomline_params.active_clahe
         )
         self.processing_widget.pie_slice_filter_checkbox.setChecked(
-            self.settings_dict["Active pie slice filter"]
+            self.cfg.main_proc_params.active_pie_slice_filter
         )
         self.processing_widget.sharpening_filter_checkbox.setChecked(
-            self.settings_dict["Active sharpening filter"]
+            self.cfg.main_proc_params.active_sharpening_filter
         )
         self.processing_widget.active_gain_norm_checkbox.setChecked(
-            self.settings_dict["Active gain norm"]
+            self.cfg.main_proc_params.active_gain_normalization
         )
         self.processing_widget.vertical_beam_angle_edit.line_edit.setText(
-            str(self.settings_dict["Slant vertical beam angle"])
+            str(self.cfg.main_proc_params.vertical_beam_angle)
         )
         self.processing_widget.nadir_angle_edit.line_edit.setText(
-            str(self.settings_dict["Slant nadir angle"])
+            str(self.cfg.main_proc_params.nadir_angle)
         )
         self.processing_widget.active_intern_depth_checkbox.setChecked(
-            self.settings_dict["Slant active intern depth"]
+            self.cfg.slant_gain_params.active_intern_depth
         )
         self.processing_widget.slant_chunk_size_edit.line_edit.setText(
-            str(self.settings_dict["Slant chunk size"])
+            str(self.cfg.slant_gain_params.chunk_size)
         )
         self.processing_widget.active_bottom_detection_downsampling_checkbox.setChecked(
-            self.settings_dict["Slant active use downsampling"]
+            self.cfg.slant_gain_params.active_use_downsampling
         )
         self.processing_widget.export_final_proc_checkbox.setChecked(
-            self.settings_dict["Slant active export proc data"]
+            self.cfg.slant_gain_params.active_export_proc_data
         )
         self.processing_widget.export_slant_correction_checkbox.setChecked(
-            self.settings_dict["Slant active export slant data"]
+            self.cfg.slant_gain_params.active_export_slant_data
         )
         self.view_and_export_widget.active_reprocess_file_checkbox.setChecked(
-            self.settings_dict["View reprocess file"]
+            self.cfg.georef_view_params.active_view_reprocess_file
         )
         self.view_and_export_widget.hist_equal_checkbox.setChecked(
-            self.settings_dict["Active hist equal"]
+            self.cfg.main_proc_params.active_hist_equalization
         )
         self.view_and_export_widget.img_chunk_size_edit.line_edit.setText(
-            str(self.settings_dict["Img chunk size"])
+            str(self.cfg.georef_view_params.img_chunk_size)
         )
         self.view_and_export_widget.include_raw_data_checkbox.setChecked(
-            self.settings_dict["Img include raw data"]
+            self.cfg.georef_view_params.img_include_raw_data
         )
         self.view_and_export_widget.active_use_proc_data_checkbox.setChecked(
-            self.settings_dict["Georef active proc data"]
+            self.cfg.georef_view_params.active_proc_data
         )
         self.view_and_export_widget.active_utm_checkbox.setChecked(
-            self.settings_dict["Georef UTM"]
+            self.cfg.georef_view_params.active_utm
         )
         self.view_and_export_widget.active_navdata_checkbox.setChecked(
-            self.settings_dict["Georef Navigation"]
+            self.cfg.georef_view_params.active_export_navigation
         )
         self.view_and_export_widget.active_colormap_checkbox.setChecked(
-            self.settings_dict["Georef active custom colormap"]
+            self.cfg.georef_view_params.active_custom_colormap
         )
         self.view_and_export_widget.resolution_mode_dropdown.setCurrentIndex(
-            self.settings_dict["Resolution Mode"]
+            self.cfg.georef_view_params.resolution_mode
         )
         self.view_and_export_widget.warp_mode_dropdown.setCurrentIndex(
-            self.settings_dict["Warp Mode"]
+            self.cfg.georef_view_params.warp_mode
         )
         self.view_and_export_widget.resamp_mode_dropdown.setCurrentIndex(
-            self.settings_dict["Resampling Method"]
+            self.cfg.georef_view_params.resampling_mode
         )
         self.processing_widget.load_proc_strat()
 
@@ -740,7 +735,7 @@ class BottomLineDetectionWidget(QVBoxLayout):
         self.btm_chunk_size_edit = LabeledLineEdit(
             "Chunk Size:",
             QtGui.QIntValidator(100, 9999, self),
-            self.main_ui.settings_dict["Btm chunk size"],
+            self.main_ui.cfg.bottomline_params.chunk_size,
         )
         self.btm_chunk_size_edit.line_edit.editingFinished.connect(
             self.validate_chunk_size
@@ -751,7 +746,7 @@ class BottomLineDetectionWidget(QVBoxLayout):
         self.btm_default_thresh = LabeledLineEdit(
             "Default Threshold [0.0 - 1.0]:",
             QtGui.QDoubleValidator(0.0, 1.0, 2, self),
-            self.main_ui.settings_dict["Btm def thresh"],
+            self.main_ui.cfg.bottomline_params.default_threshold,
         )
         self.btm_default_thresh.label.setToolTip(
             "Threshold that is applied to normalised data to find edges between water and ground. Needs to be in range[ 0 - 1]."
@@ -759,7 +754,7 @@ class BottomLineDetectionWidget(QVBoxLayout):
         self.btm_downsample_fact = LabeledLineEdit(
             "Downsampling Factor:",
             QtGui.QIntValidator(1, 16, self),
-            self.main_ui.settings_dict["Btm downsampling"],
+            self.main_ui.cfg.bottomline_params.downsampling_factor,
         )
         self.btm_downsample_fact.label.setToolTip(
             "Integer decimation factor that is used to downsample each ping."
@@ -797,7 +792,7 @@ class BottomLineDetectionWidget(QVBoxLayout):
         if len(self.main_ui.file_table.selectedIndexes()) > 0:
             file_idx = self.main_ui.file_table.selectedIndexes()[0].row()
         run_napari_btm_line(
-            self.main_ui.file_dict["Path"][file_idx],
+            self.main_ui.cfg.meta_infos.paths[file_idx],
             chunk_size=int(self.btm_chunk_size_edit.line_edit.text()),
             default_threshold=float(self.btm_default_thresh.line_edit.text()),
             downsampling_factor=int(self.btm_downsample_fact.line_edit.text()),
@@ -869,7 +864,7 @@ class ProcessingWidget(QVBoxLayout):
         self.vertical_beam_angle_edit = LabeledLineEdit(
             "Vertical Beam Angle:",
             QtGui.QIntValidator(0, 90, self),
-            self.main_ui.settings_dict["Slant vertical beam angle"],
+            self.main_ui.cfg.main_proc_params.vertical_beam_angle,
         )
         self.vertical_beam_angle_edit.label.setToolTip(
             "Only relevant if internal depth is unknown: Horizontal angle by which the instrument is tilted (usually found in the manual)."
@@ -877,7 +872,7 @@ class ProcessingWidget(QVBoxLayout):
         self.nadir_angle_edit = LabeledLineEdit(
             "Nadir Angle:",
             QtGui.QIntValidator(0, 90, self),
-            self.main_ui.settings_dict["Slant nadir angle"],
+            self.main_ui.cfg.main_proc_params.nadir_angle,
         )
         self.nadir_angle_edit.label.setToolTip(
             "Angle between perpendicular and first bottom return (usually unknown, default is 0°)"
@@ -889,12 +884,12 @@ class ProcessingWidget(QVBoxLayout):
             "Use internal depth information for slant range correction. Otherwise depth is estimated from detected bottom line."
         )
         self.active_intern_depth_checkbox.setChecked(
-            self.main_ui.settings_dict["Slant active intern depth"]
+            self.main_ui.cfg.slant_gain_params.active_intern_depth
         )
         self.slant_chunk_size_edit = LabeledLineEdit(
             "Chunk Size:",
             QtGui.QIntValidator(100, 9999, self),
-            self.main_ui.settings_dict["Slant chunk size"],
+            self.main_ui.cfg.slant_gain_params.chunk_size,
         )
         self.slant_chunk_size_edit.line_edit.editingFinished.connect(
             self.validate_chunk_size
@@ -909,12 +904,12 @@ class ProcessingWidget(QVBoxLayout):
             "Use downsampling factor from bottom line detection to do processing on downsampled data."
         )
         self.active_bottom_detection_downsampling_checkbox.setChecked(
-            self.main_ui.settings_dict["Slant active use downsampling"]
+            self.main_ui.cfg.slant_gain_params.active_use_downsampling
         )
         self.egn_table_name_edit = LabeledLineEdit(
             "EGN Table Name:",
             validator=None,
-            start_val=self.main_ui.settings_dict["EGN table name"],
+            start_val=self.main_ui.cfg.meta_infos.egn_table_name,
         )
         self.egn_table_name_edit.label.setToolTip(
             "Set name of EGN Table that is written as .npz file."
@@ -974,7 +969,7 @@ class ProcessingWidget(QVBoxLayout):
     def run_generate_slant_and_egn_files(self):
         # check if EGN file exist
         egn_path = pathlib.Path(
-            self.main_ui.settings_dict["Working dir"]
+            self.main_ui.cfg.meta_infos.working_dir
             + "/"
             + self.egn_table_name_edit.line_edit.text()
         )
@@ -984,7 +979,7 @@ class ProcessingWidget(QVBoxLayout):
                 return
 
         sonar_file_path_list = []
-        for sonar_file in self.main_ui.file_dict["Path"]:
+        for sonar_file in self.main_ui.cfg.meta_infos.paths:
             sonar_file_path_list.append(pathlib.Path(sonar_file))
         egn_table_builder = EGNTableBuilder(egn_path)
         egn_table_builder.table_finished.connect(lambda: self.data_changed.emit())
@@ -993,13 +988,14 @@ class ProcessingWidget(QVBoxLayout):
         )
         egn_table_builder.build_egn_table(
             sonar_file_path_list,
-            self.main_ui.settings_dict["Working dir"],
+            self.main_ui.cfg.meta_infos.working_dir,
             int(self.nadir_angle_edit.line_edit.text()),
             self.active_intern_depth_checkbox.isChecked(),
             int(self.slant_chunk_size_edit.line_edit.text()),
             self.active_bottom_detection_downsampling_checkbox.isChecked(),
-            egn_table_parameters=self.main_ui.settings_dict[
-                "EGN table resolution parameters"
+            egn_table_parameters=[
+                self.main_ui.cfg.slant_gain_params.egn_table_resolution_angle,
+                self.main_ui.cfg.slant_gain_params.egn_table_resolution_range_factor,
             ],
         )
 
@@ -1009,7 +1005,7 @@ class ProcessingWidget(QVBoxLayout):
 
     def process_all_files(self):
         path_list = []
-        for idx, path in enumerate(self.main_ui.file_dict["Path"]):
+        for idx, path in enumerate(self.main_ui.cfg.meta_infos.paths):
             if self.main_ui.file_dict["Bottom line"][idx] == "Y":
                 path_list.append(pathlib.Path(path))
 
@@ -1018,17 +1014,17 @@ class ProcessingWidget(QVBoxLayout):
     def process_single_file(self):
         if len(self.main_ui.file_table.selectedIndexes()) > 0:
             filepath = pathlib.Path(
-                self.main_ui.file_dict["Path"][
+                self.main_ui.cfg.meta_infos.paths[
                     self.main_ui.file_table.selectedIndexes()[0].row()
                 ]
             )
         else:
-            filepath = pathlib.Path(self.main_ui.file_dict["Path"][0])
+            filepath = pathlib.Path(self.main_ui.cfg.meta_infos.paths[0])
 
         self.start_intern_processing_manager([filepath])
 
     def start_intern_processing_manager(self, files: list):
-        work_dir = pathlib.Path(self.main_ui.settings_dict["Working dir"])
+        work_dir = pathlib.Path(self.main_ui.cfg.meta_infos.working_dir)
         pre_proc_mng = PreProcManager()
         pre_proc_mng.processing_finished.connect(lambda: self.data_changed.emit())
         pre_proc_mng.aborted_signal.connect(
@@ -1050,24 +1046,20 @@ class ProcessingWidget(QVBoxLayout):
             active_egn=self.egn_radio_btn.isChecked(),
             active_bac=self.beam_ang_corr_radio_btn.isChecked(),
             active_sharpening_filter=self.sharpening_filter_checkbox.isChecked(),
-            num_angle_bac=self.main_ui.settings_dict["BAC resolution"],
+            num_angle_bac=self.main_ui.cfg.slant_gain_params.bac_resolution,
         )
 
     def proc_strat_changed(self, btn_object):
         if self.beam_ang_corr_radio_btn.isChecked():
-            self.main_ui.settings_dict["Slant gain norm strategy"] = GAINSTRAT.BAC.value
+            self.main_ui.cfg.main_proc_params.gain_norm_strategy = GAINSTRAT.BAC.value
         elif self.egn_radio_btn.isChecked():
-            self.main_ui.settings_dict["Slant gain norm strategy"] = GAINSTRAT.EGN.value
+            self.main_ui.cfg.main_proc_params.gain_norm_strategy = GAINSTRAT.EGN.value
 
     def load_proc_strat(self):
-        if (
-            self.main_ui.settings_dict["Slant gain norm strategy"]
-            == GAINSTRAT.BAC.value
-        ):
+        if self.main_ui.cfg.main_proc_params.gain_norm_strategy == GAINSTRAT.BAC.value:
             self.beam_ang_corr_radio_btn.setChecked(True)
         elif (
-            self.main_ui.settings_dict["Slant gain norm strategy"]
-            == GAINSTRAT.EGN.value
+            self.main_ui.cfg.main_proc_params.gain_norm_strategy == GAINSTRAT.EGN.value
         ):
             self.egn_radio_btn.setChecked(True)
 
@@ -1122,7 +1114,7 @@ class ViewAndExportWidget(QVBoxLayout):
         self.img_chunk_size_edit = LabeledLineEdit(
             "Chunk Size:",
             QtGui.QIntValidator(100, 9999, self),
-            self.main_ui.settings_dict["Img chunk size"],
+            self.main_ui.cfg.georef_view_params.img_chunk_size,
         )
         self.img_chunk_size_edit.line_edit.editingFinished.connect(
             self.validate_chunk_size
@@ -1238,7 +1230,7 @@ class ViewAndExportWidget(QVBoxLayout):
         file_idx = 0
         if len(self.main_ui.file_table.selectedIndexes()) > 0:
             file_idx = self.main_ui.file_table.selectedIndexes()[0].row()
-        filepath = pathlib.Path(self.main_ui.file_dict["Path"][file_idx])
+        filepath = pathlib.Path(self.main_ui.cfg.meta_infos.paths[file_idx])
         load_slant = self.main_ui.file_dict["Slant corrected"][file_idx] == "Y"
         load_egn = self.main_ui.file_dict["Gain corrected"][file_idx] == "Y"
         if self.active_reprocess_file_checkbox.isChecked():
@@ -1246,7 +1238,7 @@ class ViewAndExportWidget(QVBoxLayout):
             load_slant = False
         # load data or start processing and trigger napari when data is present
         pre_proc_mng = PreProcManager()
-        work_dir = pathlib.Path(self.main_ui.settings_dict["Working dir"])
+        work_dir = pathlib.Path(self.main_ui.cfg.meta_infos.working_dir)
         pre_proc_mng.processing_finished.connect(
             lambda res_list: self.preproc_to_run_napari(res_list)
         )
@@ -1273,7 +1265,7 @@ class ViewAndExportWidget(QVBoxLayout):
             active_egn=self.main_ui.processing_widget.egn_radio_btn.isChecked(),
             active_bac=self.main_ui.processing_widget.beam_ang_corr_radio_btn.isChecked(),
             active_sharpening_filter=self.main_ui.processing_widget.sharpening_filter_checkbox.isChecked(),
-            num_angle_bac=self.main_ui.settings_dict["BAC resolution"],
+            num_angle_bac=self.main_ui.cfg.slant_gain_params.bac_resolution,
         )
 
     def preproc_to_run_napari(self, res: list):
@@ -1359,15 +1351,15 @@ class ViewAndExportWidget(QVBoxLayout):
     def run_sidescan_georef(self, active_all_files=False):
 
         if active_all_files:
-            file_list = self.main_ui.file_dict["Path"]
+            file_list = self.main_ui.cfg.meta_infos.paths
         else:
             file_idx = 0
             if len(self.main_ui.file_table.selectedIndexes()) > 0:
                 file_idx = self.main_ui.file_table.selectedIndexes()[0].row()
-            file_list = [pathlib.Path(self.main_ui.file_dict["Path"][file_idx])]
+            file_list = [pathlib.Path(self.main_ui.cfg.meta_infos.paths[file_idx])]
 
-        filepath = pathlib.Path(self.main_ui.file_dict["Path"][file_idx])
-        work_dir = pathlib.Path(self.main_ui.settings_dict["Working dir"])
+        filepath = pathlib.Path(self.main_ui.cfg.meta_infos.paths[file_idx])
+        work_dir = pathlib.Path(self.main_ui.cfg.meta_infos.working_dir)
         for filepath in file_list:
             filepath = pathlib.Path(filepath)
             load_slant_data = False
@@ -1406,11 +1398,11 @@ class ViewAndExportWidget(QVBoxLayout):
             active_egn=self.main_ui.processing_widget.egn_radio_btn.isChecked(),
             active_bac=self.main_ui.processing_widget.beam_ang_corr_radio_btn.isChecked(),
             active_sharpening_filter=self.main_ui.processing_widget.sharpening_filter_checkbox.isChecked(),
-            num_angle_bac=self.main_ui.settings_dict["BAC resolution"],
+            num_angle_bac=self.main_ui.cfg.slant_gain_params.bac_resolution,
         )
 
     def start_georeferencer(self, res_list: list):
-        output_folder = pathlib.Path(self.main_ui.settings_dict["Georef dir"])
+        output_folder = pathlib.Path(self.main_ui.cfg.main_proc_params.georef_dir)
         sidescan_file = res_list[0]
         preproc = res_list[1]
         filepath = sidescan_file.filepath
@@ -1457,23 +1449,23 @@ class ViewAndExportWidget(QVBoxLayout):
     def generate_wc_img(self, active_generate_all: bool):
         if len(self.main_ui.file_table.selectedIndexes()) > 0:
             filepath = pathlib.Path(
-                self.main_ui.file_dict["Path"][
+                self.main_ui.cfg.meta_infos.paths[
                     self.main_ui.file_table.selectedIndexes()[0].row()
                 ]
             )
         else:
-            filepath = pathlib.Path(self.main_ui.file_dict["Path"][0])
+            filepath = pathlib.Path(self.main_ui.cfg.meta_infos.paths[0])
         if active_generate_all:
             pathlist = []
-            for path_idx in range(len(self.main_ui.file_dict["Path"])):
+            for path_idx in range(len(self.main_ui.cfg.meta_infos.paths)):
                 if self.main_ui.file_dict["Gain corrected"][path_idx] == "Y":
                     pathlist.append(
-                        pathlib.Path(self.main_ui.file_dict["Path"][path_idx])
+                        pathlib.Path(self.main_ui.cfg.meta_infos.paths[path_idx])
                     )
         else:
             pathlist = [filepath]
 
-        work_dir = pathlib.Path(self.main_ui.settings_dict["Working dir"])
+        work_dir = pathlib.Path(self.main_ui.cfg.meta_infos.working_dir)
 
         load_slant_data = True
         load_egn_data = True
@@ -1504,7 +1496,7 @@ class ViewAndExportWidget(QVBoxLayout):
             active_egn=self.main_ui.processing_widget.egn_radio_btn.isChecked(),
             active_bac=self.main_ui.processing_widget.beam_ang_corr_radio_btn.isChecked(),
             active_sharpening_filter=self.main_ui.processing_widget.sharpening_filter_checkbox.isChecked(),
-            num_angle_bac=self.main_ui.settings_dict["BAC resolution"],
+            num_angle_bac=self.main_ui.cfg.slant_gain_params.bac_resolution,
         )
 
     def start_wc_image_export(self, res_list: list):
@@ -1515,7 +1507,7 @@ class ViewAndExportWidget(QVBoxLayout):
         sidescan_file = res_list[0]
         preproc = res_list[1]
         chunk_size = int(self.img_chunk_size_edit.line_edit.text())
-        work_dir = pathlib.Path(self.main_ui.settings_dict["Working dir"])
+        work_dir = pathlib.Path(self.main_ui.cfg.meta_infos.working_dir)
         data = copy.copy(preproc.egn_corrected_mat)
         if self.active_convert_dB_checkbox.isChecked():
             data = convert_to_dB(data)

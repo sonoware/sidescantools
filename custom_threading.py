@@ -658,9 +658,10 @@ class GeoreferencerWorker(QtCore.QRunnable):
     chunk_indices: np.array
     vertical_beam_angle: int
     epsg_code: str
-    warp_options: str
-    resolution_options: str
-    resampling_options: str
+    nav: list
+    pix_size: float
+    resolution: float
+    search_radius: float
 
     def __init__(
         self,
@@ -672,9 +673,10 @@ class GeoreferencerWorker(QtCore.QRunnable):
         proc_data=None,
         output_folder: str | os.PathLike = "./georef_out",
         vertical_beam_angle: int = 60,
-        warp_algorithm: str = "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",
-        resolution_mode: str = "average",
-        resampling_method: str = "near",
+        nav = [],
+        pix_size: float = 0.1,
+        resolution: float = 1.0,
+        search_radius: float = 2.0,
     ):
         super().__init__()
         self.filepath = filepath
@@ -685,10 +687,10 @@ class GeoreferencerWorker(QtCore.QRunnable):
         self.active_export_navdata = active_export_navdata
         self.output_folder = output_folder
         self.vertical_beam_angle = vertical_beam_angle
-        self.warp_algorithm = warp_algorithm
-        self.resolution_mode = resolution_mode
-        self.resampling_method = resampling_method
         self.active_proc_data = False
+        self.nav = nav
+        self.pix_size = pix_size
+        self.resolution = resolution
         if proc_data is not None:
             self.proc_data = proc_data
             self.active_proc_data = True
@@ -713,9 +715,9 @@ class GeoreferencerWorker(QtCore.QRunnable):
             output_folder=self.output_folder,
             proc_data=self.proc_data,
             vertical_beam_angle=self.vertical_beam_angle,
-            warp_algorithm=self.warp_algorithm,
-            resolution_mode=self.resolution_mode,
-            resampling_method=self.resampling_method,
+            nav = self.nav
+            pix_size = self.pix_size
+            resolution = self.resolution
         )  # from georef.py
 
         processor.process(self.signals.progress_signal)
@@ -767,10 +769,11 @@ class GeoreferencerManager(QWidget):
         proc_data: list,
         output_folder: os.PathLike,
         vertical_beam_angle: int,
-        warp_algorithm: str,
-        resolution_mode: str,
-        resampling_method: str,
-    ):
+        nav: list,
+        pix_size: float,
+        resolution: float,
+        search_radius: float,
+        ):
         self.output_folder = pathlib.Path(output_folder)
 
         georef_worker_0 = GeoreferencerWorker(
@@ -782,9 +785,10 @@ class GeoreferencerManager(QWidget):
             proc_data[0],
             output_folder,
             vertical_beam_angle,
-            warp_algorithm,
-            resolution_mode,
-            resampling_method,
+            nav,
+            pix_size,
+            resolution,
+            search_radius,
         )
         georef_worker_0.signals.progress_signal.connect(
             lambda progress: self.update_pbar(progress)
@@ -804,9 +808,10 @@ class GeoreferencerManager(QWidget):
             proc_data[1],
             output_folder,
             vertical_beam_angle,
-            warp_algorithm,
-            resolution_mode,
-            resampling_method,
+            nav,
+            pix_size,
+            resolution,
+            search_radius,
         )
         georef_worker_1.signals.progress_signal.connect(
             lambda progress: self.update_pbar(progress)
@@ -838,12 +843,8 @@ class GeoreferencerManager(QWidget):
             for file in os.listdir(self.output_folder):
                 file_path = os.path.join(self.output_folder, file)
                 if (
-                    str(file_path).endswith(".png")
-                    # or str(file_path).endswith(".txt")
-                    or str(file_path).endswith("tmp.tif")
-                    or str(file_path).endswith(".points")
+                    str(file_path).startswith("outmedian")
                     or str(file_path).endswith(".xml")
-                    or str(file_path).endswith(".vrt")
                 ):
                     try:
                         os.remove(file_path)

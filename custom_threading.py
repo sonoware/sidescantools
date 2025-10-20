@@ -650,7 +650,6 @@ class GeoreferencerWorker(QtCore.QRunnable):
     sidescan_file: SidescanFile
     channel: int
     active_utm: bool
-    active_poly: bool
     active_export_navdata: bool
     proc_data: np.array
     output_folder: str | os.PathLike
@@ -666,7 +665,6 @@ class GeoreferencerWorker(QtCore.QRunnable):
         filepath: str | os.PathLike,
         channel: int,
         active_utm: bool = True,
-        active_poly: bool = True,
         active_export_navdata: bool = True,
         proc_data=None,
         output_folder: str | os.PathLike = "./georef_out",
@@ -679,7 +677,6 @@ class GeoreferencerWorker(QtCore.QRunnable):
         self.sidescan_file = SidescanFile(self.filepath)
         self.channel = channel
         self.active_utm = active_utm
-        self.active_poly = active_poly
         self.active_export_navdata = active_export_navdata
         self.output_folder = output_folder
         self.vertical_beam_angle = vertical_beam_angle
@@ -705,7 +702,7 @@ class GeoreferencerWorker(QtCore.QRunnable):
             filepath=self.filepath,
             channel=self.channel,
             active_utm=self.active_utm,
-           active_export_navdata=self.active_export_navdata,
+            active_export_navdata=self.active_export_navdata,
             output_folder=self.output_folder,
             proc_data=self.proc_data,
             vertical_beam_angle=self.vertical_beam_angle,
@@ -757,7 +754,6 @@ class GeoreferencerManager(QWidget):
         self,
         filepath: str | os.PathLike,
         active_utm: bool,
-        active_poly: bool,
         active_export_navdata: bool,
         proc_data: list,
         output_folder: os.PathLike,
@@ -771,7 +767,6 @@ class GeoreferencerManager(QWidget):
             filepath,
             0,
             active_utm,
-            active_poly,
             active_export_navdata,
             proc_data[0],
             output_folder,
@@ -792,7 +787,6 @@ class GeoreferencerManager(QWidget):
             filepath,
             1,
             active_utm,
-            active_poly,
             active_export_navdata,
             proc_data[1],
             output_folder,
@@ -832,6 +826,7 @@ class GeoreferencerManager(QWidget):
                 if (
                     str(file_path).startswith("outmedian")
                     or str(file_path).endswith(".xml")
+                    or str(file_path).endswith(".xyz")
                 ):
                     try:
                         os.remove(file_path)

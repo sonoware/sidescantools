@@ -557,16 +557,12 @@ class SidescanToolsMain(QWidget):
         self.settings_dict["Georef active custom colormap"] = (
             self.view_and_export_widget.active_colormap_checkbox.isChecked()
         )
-        self.settings_dict["Resolution Mode"] = (
-            self.view_and_export_widget.resolution_mode_dropdown.currentIndex()
+        self.settings_dict["Resolution"] = (
+            self.view_and_export_widget.resolution_edit.line_edit.text()
         )
-        self.settings_dict["Warp Mode"] = (
-            self.view_and_export_widget.warp_mode_dropdown.currentIndex()
+        self.settings_dict["Search Radius"] = (
+            self.view_and_export_widget.search_radius_edit.line_edit.text()
         )
-        self.settings_dict["Resampling Method"] = (
-            self.view_and_export_widget.resamp_mode_dropdown.currentIndex()
-        )
-
     def update_ui_from_settings(self):
         self.output_picker.update_dir(self.settings_dict["Working dir"])
         self.georef_out_picker.update_dir(self.settings_dict["Georef dir"])
@@ -646,14 +642,11 @@ class SidescanToolsMain(QWidget):
         self.view_and_export_widget.active_colormap_checkbox.setChecked(
             self.settings_dict["Georef active custom colormap"]
         )
-        self.view_and_export_widget.resolution_mode_dropdown.setCurrentIndex(
-            self.settings_dict["Resolution Mode"]
+        self.view_and_export_widget.resolution_edit.line_edit.setText(
+            str(self.settings_dict["Resolution"])
         )
-        self.view_and_export_widget.warp_mode_dropdown.setCurrentIndex(
-            self.settings_dict["Warp Mode"]
-        )
-        self.view_and_export_widget.resamp_mode_dropdown.setCurrentIndex(
-            self.settings_dict["Resampling Method"]
+        self.view_and_export_widget.search_radius_edit.line_edit.setText(
+            str(self.settings_dict["Search Radius"])
         )
         self.processing_widget.load_proc_strat()
 
@@ -1137,40 +1130,27 @@ class ViewAndExportWidget(QVBoxLayout):
         self.active_use_proc_data_checkbox = QCheckBox("Use processed Data")
         self.active_use_proc_data_checkbox.setToolTip(
             "Export pictures using the processed (filtered and corrected) data. Otherwise raw data is exported."
-        )
-        self.res_mode_label = QLabel("Resolution Mode")
-        self.res_mode_label.setToolTip(
-            "Set mode for final resolution. Leave average, if unsure."
-        )
-        self.warp_mode_label = QLabel("Warp Method")
-        self.warp_mode_label.setToolTip(
-            "Set method for warping algorithm. Leave polynomial 1 if unsure, homography is in expermental state."
-        )
-        self.resamp_mode_label = QLabel("Resampling Method")
-        self.resamp_mode_label.setToolTip(
-            "Select resampling method. Leave near neighbour, if unsure (least interpolation)."
+        )     
+        self.resolution_edit = LabeledLineEdit(
+            "Resolution:",
+            QtGui.QDoubleValidator(0.00001, 1000.0, 3, self),
+            self.main_ui.settings_dict["Resolution"],
         )
 
-        self.resolution_mode_dropdown = QComboBox()
-        self.resolution_mode_dropdown.setToolTip(
-            "Set mode for final resolution. Chose average, if unsure."
+        self.search_radius_edit = LabeledLineEdit(
+            "Search Radius:",
+            QtGui.QDoubleValidator(0.00001, 2000.0, 3, self),
+            self.main_ui.settings_dict["Search Radius"],
         )
-        for res_disp, res_int in Georeferencer.resolution_options.items():
-            self.resolution_mode_dropdown.addItem(res_disp, res_int)
-
-        self.warp_mode_dropdown = QComboBox()
-        self.warp_mode_dropdown.setToolTip(
-            "Set method for warping algorithm. Leave polynomial 1 if unsure, homography is in experimental state."
+        self.resolution_edit.label.setToolTip(
+           "Set resolution for final raster. If left empty, the resolution " \
+            "will be the median distance between sample points in original data."
         )
-        for warp_disp, warp_int in Georeferencer.warp_options.items():
-            self.warp_mode_dropdown.addItem(warp_disp, warp_int)
-
-        self.resamp_mode_dropdown = QComboBox()
-        self.resamp_mode_dropdown.setToolTip(
-            "Select resampling method. Leave near neighbour, if unsure (least interpolation)."
+        self.search_radius_edit.label.setToolTip(
+            "Search radius limits the points considered to interpolate between samples according to the given radius and " \
+            "thus restricts how points inside the search radius contribute to the value at the node. " \
+            "Default is search_radius = 2 * resolution."
         )
-        for resamp_disp, resamp_int in Georeferencer.resampling_options.items():
-            self.resamp_mode_dropdown.addItem(resamp_disp, resamp_int)
 
         self.active_utm_checkbox = QCheckBox("UTM")
         self.active_utm_checkbox.setToolTip(
@@ -1208,12 +1188,8 @@ class ViewAndExportWidget(QVBoxLayout):
         self.addWidget(QHLine())
         self.addWidget(self.georef_label)
         self.addWidget(self.active_use_proc_data_checkbox)
-        self.addWidget(self.warp_mode_label)
-        self.addWidget(self.warp_mode_dropdown)
-        self.addWidget(self.resamp_mode_label)
-        self.addWidget(self.resamp_mode_dropdown)
-        self.addWidget(self.res_mode_label)
-        self.addWidget(self.resolution_mode_dropdown)
+        self.addLayout(self.resolution_edit)
+        self.addLayout(self.search_radius_edit)
         self.addWidget(self.active_utm_checkbox)
         self.addWidget(self.active_navdata_checkbox)
         self.addWidget(self.active_colormap_checkbox)
@@ -1450,9 +1426,8 @@ class ViewAndExportWidget(QVBoxLayout):
             vertical_beam_angle=int(
                 self.main_ui.processing_widget.vertical_beam_angle_edit.line_edit.text()
             ),
-            warp_algorithm=self.warp_mode_dropdown.currentData(),
-            resolution_mode=self.resolution_mode_dropdown.currentData(),
-            resampling_method=self.resamp_mode_dropdown.currentData(),
+            resolution=self.resolution_edit.line_edit.text(),
+            search_radius=self.search_radius_edit.line_edit.text(),
         )
 
     def generate_wc_img(self, active_generate_all: bool):

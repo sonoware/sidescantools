@@ -47,8 +47,5 @@ meta_infos:
   working_dir: ./sidescan_out
   project_filename: project_info.yml
   egn_table_name: EGN_table.npz
-  paths:
-  - '1'
-  - '2'
-  meta_info:
-    a: b
+  paths: []
+  meta_info: {}

@@ -10,7 +10,7 @@ from timeit import default_timer as timer
 import os
 from egn_table_build import generate_egn_info, generate_egn_table_from_infos
 from datetime import datetime
-from cfg_parser import CFGParser
+from cfg_parser import CFG
 
 PLOTTING = False
 if PLOTTING:
@@ -22,8 +22,7 @@ class SidescanToolsMain:
     filepath: Path
     cfg_path: Path
     sidescan_files_path: list
-    cfg_parser: CFGParser
-    cfg: dict
+    cfg: CFG
     active_georef: bool
 
     def __init__(self, file_path, cfg_path, no_georef):
@@ -45,9 +44,9 @@ class SidescanToolsMain:
             )
 
         # Read CFG
-        self.cfg_parser = CFGParser()
+        self.cfg = CFG()
         if self.cfg_path.is_file() and self.cfg_path.suffix == ".yml":
-            self.cfg = self.cfg_parser.load_cfg(self.cfg_path)
+            self.cfg = CFG.load_cfg(self.cfg_path)
         else:
             raise ValueError(
                 f"CFG can't be found or is no valid yml file: {self.cfg_path}"
@@ -61,8 +60,9 @@ class SidescanToolsMain:
             f"Processed PNGs will be written to: {self.sidescan_files_path[0].parent}"
         )
         if self.active_georef:
-            georef_dir = self.cfg["Georef dir"]
-            print(f"Georeferencing will be working in: {georef_dir}")
+            print(
+                f"Georeferencing will be working in: {self.cfg.main_proc_params.georef_dir}"
+            )
         else:
             print("Georeferencing disabled")
 
@@ -75,21 +75,25 @@ class SidescanToolsMain:
 
             preproc = SidescanPreprocessor(
                 sidescan_file=sidescan_file,
-                chunk_size=self.cfg["Slant chunk size"],
+                chunk_size=self.cfg.slant_gain_params.chunk_size,
             )
 
             # Refine altitude
             # Therefore apply pie slice filter beforehand to remove artifacts
-            if self.cfg["Active pie slice filter"]:
+            if self.cfg.main_proc_params.active_pie_slice_filter:
                 print(f"Pie slice filtering {sidescan_path}")
                 preproc.apply_pie_slice_filter()
-            search_range = self.cfg["Bottom line refinement search range"]
-            active_depth_refine = self.cfg["Active bottom line refinement"]
-            active_single_altitude_offset = self.cfg[
-                "Active btm refinement shift by offset"
-            ]
-            active_btm_smoothing = self.cfg["Active bottom line smoothing"]
-            additional_inset = self.cfg["Additional bottom line inset"]
+            search_range = self.cfg.main_proc_params.btm_refinement_search_range
+            active_depth_refine = (
+                self.cfg.main_proc_params.active_bottom_line_refinement
+            )
+            active_single_altitude_offset = (
+                self.cfg.main_proc_params.active_btm_refinement_shift_by_offset
+            )
+            active_btm_smoothing = (
+                self.cfg.main_proc_params.active_bottom_line_smoothing
+            )
+            additional_inset = self.cfg.main_proc_params.additional_bottom_line_inset
             use_intern_altitude = True
             if active_depth_refine:
                 preproc.refine_detected_bottom_line(
@@ -103,21 +107,21 @@ class SidescanToolsMain:
             # --- Processing
             print(f"Slant range correcting {sidescan_path}")
             preproc.slant_range_correction(
-                nadir_angle=self.cfg["Slant nadir angle"],
+                nadir_angle=self.cfg.main_proc_params.nadir_angle,
                 use_intern_altitude=use_intern_altitude,
             )
 
-            if self.cfg["Slant gain norm strategy"] == 0:
+            if self.cfg.main_proc_params.gain_norm_strategy == 0:
                 print(f"Apply BAC to {sidescan_path}")
                 preproc.apply_beam_pattern_correction(
-                    angle_num=self.cfg["BAC resolution"]
+                    angle_num=self.cfg.slant_gain_params.bac_resolution
                 )
                 preproc.apply_energy_normalization()
-            elif self.cfg["Slant gain norm strategy"] == 1:
+            elif self.cfg.main_proc_params.gain_norm_strategy == 1:
                 print(f"Apply EGN to {sidescan_path}")
-                preproc.do_EGN_correction(self.cfg["EGN table path"])
+                preproc.do_EGN_correction(self.cfg.main_proc_params.egn_table_path)
             else:
-                strat_idx = self.cfg["Slant gain norm strategy"]
+                strat_idx = self.cfg.main_proc_params.gain_norm_strategy
                 raise NotImplementedError(
                     f"Gain normalization strategy {strat_idx} not implemented. Valid options are:\n 0: BAC\n 1: EGN"
                 )
@@ -136,11 +140,11 @@ class SidescanToolsMain:
             proc_data_1 = preproc.egn_corrected_mat[:, ping_len:]
             proc_data_1 = np.nan_to_num(proc_data_1)
             # Convert data to dB
-            if self.cfg["Active convert dB"]:
+            if self.cfg.main_proc_params.active_convert_dB:
                 proc_data_out_0 = convert_to_dB(proc_data_0)
                 proc_data_out_1 = convert_to_dB(proc_data_1)
             # Apply CLAHE
-            if self.cfg["Active hist equal"]:
+            if self.cfg.main_proc_params.active_hist_equalization:
                 proc_data_out_0 = hist_equalization(proc_data_out_0)
                 proc_data_out_1 = hist_equalization(proc_data_out_1)
 
@@ -150,62 +154,63 @@ class SidescanToolsMain:
             if self.active_georef:
                 start_timer_georef = timer()
 
-                georeferencer = Georeferencer(
-                    filepath=sidescan_path,
-                    channel=0,
-                    active_utm=self.cfg["Georef UTM"],
-                    active_export_navdata=self.cfg["Georef Navigation"],
-                    output_folder=self.cfg["Georef dir"],
-                    proc_data=proc_data_out_0,
-                    vertical_beam_angle=self.cfg["Slant vertical beam angle"],
-                    warp_algorithm=list(Georeferencer.warp_options.values())[
-                        self.cfg["Warp Mode"]
-                    ],
-                    resolution_mode=list(Georeferencer.resolution_options.values())[
-                        self.cfg["Resolution Mode"]
-                    ],
-                    resampling_method=list(Georeferencer.resampling_options.values())[
-                        self.cfg["Resampling Method"]
-                    ],
-                )
-                georeferencer.process()
-                georeferencer = Georeferencer(
-                    filepath=sidescan_path,
-                    channel=1,
-                    active_utm=self.cfg["Georef UTM"],
-                    active_export_navdata=self.cfg["Georef Navigation"],
-                    output_folder=self.cfg["Georef dir"],
-                    proc_data=proc_data_out_1,
-                    vertical_beam_angle=self.cfg["Slant vertical beam angle"],
-                    warp_algorithm=list(Georeferencer.warp_options.values())[
-                        self.cfg["Warp Mode"]
-                    ],
-                    resolution_mode=list(Georeferencer.resolution_options.values())[
-                        self.cfg["Resolution Mode"]
-                    ],
-                    resampling_method=list(Georeferencer.resampling_options.values())[
-                        self.cfg["Resampling Method"]
-                    ],
-                )
-                georeferencer.process()
+                # TODO: Implement new georef VErsion
+                # georeferencer = Georeferencer(
+                #     filepath=sidescan_path,
+                #     channel=0,
+                #     active_utm=self.cfg["Georef UTM"],
+                #     active_export_navdata=self.cfg["Georef Navigation"],
+                #     output_folder=self.cfg["Georef dir"],
+                #     proc_data=proc_data_out_0,
+                #     vertical_beam_angle=self.cfg["Slant vertical beam angle"],
+                #     warp_algorithm=list(Georeferencer.warp_options.values())[
+                #         self.cfg["Warp Mode"]
+                #     ],
+                #     resolution_mode=list(Georeferencer.resolution_options.values())[
+                #         self.cfg["Resolution Mode"]
+                #     ],
+                #     resampling_method=list(Georeferencer.resampling_options.values())[
+                #         self.cfg["Resampling Method"]
+                #     ],
+                # )
+                # georeferencer.process()
+                # georeferencer = Georeferencer(
+                #     filepath=sidescan_path,
+                #     channel=1,
+                #     active_utm=self.cfg["Georef UTM"],
+                #     active_export_navdata=self.cfg["Georef Navigation"],
+                #     output_folder=self.cfg["Georef dir"],
+                #     proc_data=proc_data_out_1,
+                #     vertical_beam_angle=self.cfg["Slant vertical beam angle"],
+                #     warp_algorithm=list(Georeferencer.warp_options.values())[
+                #         self.cfg["Warp Mode"]
+                #     ],
+                #     resolution_mode=list(Georeferencer.resolution_options.values())[
+                #         self.cfg["Resolution Mode"]
+                #     ],
+                #     resampling_method=list(Georeferencer.resampling_options.values())[
+                #         self.cfg["Resampling Method"]
+                #     ],
+                # )
+                # georeferencer.process()
 
-                print(f"Cleaning ...")
-                for file in os.listdir(self.cfg["Georef dir"]):
-                    file_path = os.path.join(self.cfg["Georef dir"], file)
-                    if (
-                        str(file_path).endswith(".png")
-                        or str(file_path).endswith(".txt")
-                        or str(file_path).endswith("tmp.tif")
-                        or str(file_path).endswith(".points")
-                        or str(file_path).endswith(".xml")
-                        or str(file_path).endswith("tmp.csv")
-                    ):
-                        try:
-                            os.remove(file_path)
-                        except FileNotFoundError:
-                            print(f"File Not Found: {file_path}")
+                # print(f"Cleaning ...")
+                # for file in os.listdir(self.cfg.main_proc_params.georef_dir):
+                #     file_path = os.path.join(self.cfg.main_proc_params, file)
+                #     if (
+                #         str(file_path).endswith(".png")
+                #         or str(file_path).endswith(".txt")
+                #         or str(file_path).endswith("tmp.tif")
+                #         or str(file_path).endswith(".points")
+                #         or str(file_path).endswith(".xml")
+                #         or str(file_path).endswith("tmp.csv")
+                #     ):
+                #         try:
+                #             os.remove(file_path)
+                #         except FileNotFoundError:
+                #             print(f"File Not Found: {file_path}")
 
-                print("Cleanup done")
+                # print("Cleanup done")
 
                 end_timer_georef = timer()
 
@@ -261,7 +266,7 @@ class SidescanToolsMain:
                 if active_depth_refine:
                     plt.imshow(btm_line_mat_star_intern, cmap=overlay_cmap_2)
 
-                if self.cfg["Active pie slice filter"]:
+                if self.cfg.main_proc_params.active_pie_slice_filter:
                     plt.figure()
                     plt.imshow(20 * np.log10(preproc.dat_pie_slice_copy[0]))
                     plt.imshow(btm_line_mat_port, cmap=overlay_cmap)
@@ -286,6 +291,10 @@ class SidescanToolsMain:
         egn_table_path = Path(self.sidescan_files_path[0]).parent / (
             "egn_table_" + time_str + ".npz"
         )
+        print("-----------------------------------")
+        print("Generating EGN Table")
+        print(f"Result will be written to: {egn_table_path}")
+        print("-----------------------------------")
         for sidescan_path in self.sidescan_files_path:
             sonar_file_path = Path(sidescan_path)
             bottom_path = sonar_file_path.parent / (
@@ -293,17 +302,20 @@ class SidescanToolsMain:
             )
             out_path = sonar_file_path.parent / (sonar_file_path.stem + "_egn_info.npz")
             active_btm_detection_downsampling = False
-            if self.cfg["Btm downsampling"] > 1:
+            if self.cfg.bottomline_params.downsampling_factor > 1:
                 active_btm_detection_downsampling = True
             generate_egn_info(
                 filename=sidescan_path,
                 bottom_file=bottom_path,
                 out_path=out_path,
-                chunk_size=self.cfg["Slant chunk size"],
-                nadir_angle=self.cfg["Slant nadir angle"],
-                active_intern_depth=self.cfg["Slant active intern depth"],
+                chunk_size=self.cfg.slant_gain_params.chunk_size,
+                nadir_angle=self.cfg.main_proc_params.nadir_angle,
+                active_intern_depth=self.cfg.slant_gain_params.active_intern_depth,
                 active_bottom_detection_downsampling=active_btm_detection_downsampling,
-                egn_table_parameters=self.cfg["EGN table resolution parameters"],
+                egn_table_parameters=[
+                    self.cfg.slant_gain_params.egn_table_resolution_angle,
+                    self.cfg.slant_gain_params.egn_table_resolution_range_factor,
+                ],
             )
             egn_infos.append(out_path)
 
@@ -337,12 +349,9 @@ if __name__ == "__main__":
     print("args:", args)
 
     if args.write_cfg:
-        cfg_parser = CFGParser()
+        cfg = CFG()
         dst_path = Path(args.filepath)
-        if Path.is_dir(dst_path):
-            cfg_parser.save_cfg(dst_path / "project_info.yml", cfg_parser.cfg)
-        else:
-            print(f"{dst_path} - is no valid directory.")
+        cfg.save_cfg_and_schema(dst_path)
     else:
         sidescantools = SidescanToolsMain(args.filepath, args.cfg, args.no_georef)
         if args.gen_egn:

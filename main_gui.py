@@ -431,11 +431,11 @@ class SidescanToolsMain(QWidget):
         dlg = OverwriteWarnDialog(self)
         if dlg.exec():
             # Save
-            self.cfg.save_cfg_and_schema(filepath)
+            self.cfg.save_cfg_and_schema(filepath / "project_info.yml")
 
     def load_project(self):
 
-        filepath = pathlib.Path(self.cfg.meta_infos.working_dir)
+        filepath = pathlib.Path(self.cfg.meta_infos.working_dir) / "project_info.yml"
 
         if filepath.exists():
 

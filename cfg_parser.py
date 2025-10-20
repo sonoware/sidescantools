@@ -252,28 +252,31 @@ class CFG(BaseModel):
 
     def save_cfg_and_schema(self, dst_path: os.PathLike):
         dst_path = Path(dst_path)
-        if dst_path.exists():
-            # schema
-            with open(dst_path / "project_info_schema.json", "w") as fd:
-                json.dump(self.model_json_schema(), fd, indent=4)
+        if dst_path.is_dir():
+            dst_path = dst_path / "project_info.yml"
+        if dst_path.parent.exists():
+            if dst_path.suffix == ".yml":
+                # schema
+                with open(
+                    dst_path.parent / (dst_path.stem + "_schema.json"), "w"
+                ) as fd:
+                    json.dump(self.model_json_schema(), fd, indent=4)
 
-            # cfg
-            with open(dst_path / "project_info.yml", "w") as fd:
-                # schema usage
-                fd.write(
-                    f"# yaml-language-server: $schema=project_info_schema.json \n \n"
-                )
-                # dump all to yml
-                model = self.model_dump(by_alias=True)
-                yaml.safe_dump(model, fd, sort_keys=False)
+                # cfg
+                with open(dst_path, "w") as fd:
+                    # schema usage
+                    fd.write(
+                        f"# yaml-language-server: $schema={dst_path.stem}_schema.json \n \n"
+                    )
+                    # dump all to yml
+                    model = self.model_dump(by_alias=True)
+                    yaml.safe_dump(model, fd, sort_keys=False)
         else:
-            raise FileNotFoundError(
-                f"Trying to save CFG to {dst_path}. Directory does not exist."
-            )
+            raise FileNotFoundError(f"Failed to save CFG to {dst_path}.")
 
     @classmethod
     def load_cfg(cls, src_path: os.PathLike):
-        with open(Path(src_path) / "project_info.yml") as fd:
+        with open(Path(src_path)) as fd:
             data = fd.read()
 
         return cls(**yaml.full_load(data))
@@ -281,10 +284,9 @@ class CFG(BaseModel):
 
 if __name__ == "__main__":
     default_model = CFG()
-    dst = "./sidescan_out"
-    default_model.meta_infos.paths = ["1", "2"]
-    default_model.meta_infos.meta_info = {"a": "b"}
+    dst = "./sidescan_out/project_info.yml"
     default_model.save_cfg_and_schema(dst)
 
+    # check loading
     loaded_model = CFG.load_cfg(dst)
-    print(loaded_model)
+    # print(loaded_model)

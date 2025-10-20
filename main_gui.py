@@ -1417,11 +1417,14 @@ class ViewAndExportWidget(QVBoxLayout):
             proc_data_out_1 = hist_equalization(proc_data_out_1)
 
         georeferencer = GeoreferencerManager()
+        # Set resolution in case left empty by user
         try:
             resolution=float(self.resolution_edit.line_edit.text()),
             search_radius=float(self.search_radius_edit.line_edit.text())
         except ValueError:
-            pass
+            resolution = 1
+            search_radius = 2
+            
         georeferencer.start_georef(
             filepath,
             active_utm=self.active_utm_checkbox.isChecked(),
@@ -1431,8 +1434,8 @@ class ViewAndExportWidget(QVBoxLayout):
             vertical_beam_angle=int(
                 self.main_ui.processing_widget.vertical_beam_angle_edit.line_edit.text()
             ),
-            resolution=float(self.resolution_edit.line_edit.text()),
-            search_radius=float(self.search_radius_edit.line_edit.text()),
+            resolution=resolution,
+            search_radius=search_radius,
         )
 
     def generate_wc_img(self, active_generate_all: bool):

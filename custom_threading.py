@@ -658,8 +658,6 @@ class GeoreferencerWorker(QtCore.QRunnable):
     chunk_indices: np.array
     vertical_beam_angle: int
     epsg_code: str
-    nav: list
-    pix_size: float
     resolution: float
     search_radius: float
 
@@ -673,8 +671,6 @@ class GeoreferencerWorker(QtCore.QRunnable):
         proc_data=None,
         output_folder: str | os.PathLike = "./georef_out",
         vertical_beam_angle: int = 60,
-        nav = [],
-        pix_size: float = 0.1,
         resolution: float = 1.0,
         search_radius: float = 2.0,
     ):
@@ -688,9 +684,8 @@ class GeoreferencerWorker(QtCore.QRunnable):
         self.output_folder = output_folder
         self.vertical_beam_angle = vertical_beam_angle
         self.active_proc_data = False
-        self.nav = nav
-        self.pix_size = pix_size
         self.resolution = resolution
+        self.search_radius = search_radius
         if proc_data is not None:
             self.proc_data = proc_data
             self.active_proc_data = True
@@ -710,14 +705,12 @@ class GeoreferencerWorker(QtCore.QRunnable):
             filepath=self.filepath,
             channel=self.channel,
             active_utm=self.active_utm,
-            active_poly=self.active_poly,
-            active_export_navdata=self.active_export_navdata,
+           active_export_navdata=self.active_export_navdata,
             output_folder=self.output_folder,
             proc_data=self.proc_data,
             vertical_beam_angle=self.vertical_beam_angle,
-            nav = self.nav
-            pix_size = self.pix_size
-            resolution = self.resolution
+            resolution = self.resolution,
+            search_radius=self.search_radius
         )  # from georef.py
 
         processor.process(self.signals.progress_signal)
@@ -769,8 +762,6 @@ class GeoreferencerManager(QWidget):
         proc_data: list,
         output_folder: os.PathLike,
         vertical_beam_angle: int,
-        nav: list,
-        pix_size: float,
         resolution: float,
         search_radius: float,
         ):
@@ -785,8 +776,6 @@ class GeoreferencerManager(QWidget):
             proc_data[0],
             output_folder,
             vertical_beam_angle,
-            nav,
-            pix_size,
             resolution,
             search_radius,
         )
@@ -808,8 +797,6 @@ class GeoreferencerManager(QWidget):
             proc_data[1],
             output_folder,
             vertical_beam_angle,
-            nav,
-            pix_size,
             resolution,
             search_radius,
         )

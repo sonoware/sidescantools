@@ -154,7 +154,7 @@ class SidescanToolsMain:
             if self.active_georef:
                 start_timer_georef = timer()
 
-                # TODO: Implement new georef VErsion
+                # TODO: Implement new georef Version
                 # georeferencer = Georeferencer(
                 #     filepath=sidescan_path,
                 #     channel=0,
@@ -295,6 +295,7 @@ class SidescanToolsMain:
         print("Generating EGN Table")
         print(f"Result will be written to: {egn_table_path}")
         print("-----------------------------------")
+
         for sidescan_path in self.sidescan_files_path:
             sonar_file_path = Path(sidescan_path)
             bottom_path = sonar_file_path.parent / (

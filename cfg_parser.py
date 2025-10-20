@@ -41,9 +41,8 @@ class CFGParser:
             "Georef active proc data": True,
             "Georef UTM": True,
             "Georef Navigation": True,
-            "Resolution Mode": 3,
-            "Warp Mode": 0,
-            "Resampling Method": 0,
+            "Resolution": 0.2,
+            "Search Radius": 0.4,
             "Georef active custom colormap": False,
             "Path": [],
             "Meta info": dict(),
@@ -116,9 +115,8 @@ class CFGParser:
                 CFGParser.get_kv_pair(cfg, "Georef active proc data"),
                 CFGParser.get_kv_pair(cfg, "Georef UTM"),
                 CFGParser.get_kv_pair(cfg, "Georef Navigation"),
-                CFGParser.get_kv_pair(cfg, "Resolution Mode"),
-                CFGParser.get_kv_pair(cfg, "Warp Mode"),
-                CFGParser.get_kv_pair(cfg, "Resampling Method"),
+                CFGParser.get_kv_pair(cfg, "Resolution"),
+                CFGParser.get_kv_pair(cfg, "Search Radius"),
                 CFGParser.get_kv_pair(cfg, "Georef active custom colormap"),
             ]
         )

@@ -391,8 +391,9 @@ class Georeferencer:
         ch_stack = np.clip(ch_stack, 1, 255)
 
         # Flip array ---> Note: different for .jsf and .xtf!
-        #ch_stack = np.flip(ch_stack, axis=0)
-        ch_stack = np.flip(ch_stack, axis=1)
+        if self.channel == 0:
+            ch_stack = np.flip(ch_stack, axis=1)
+
         ch_stack_flat = np.ndarray.flatten(ch_stack)
 
         return ch_stack_flat.astype(np.uint8)
@@ -425,22 +426,21 @@ class Georeferencer:
         """
         # TODO: spatial indices, tiling/compressing? Reprojecting to utm, make radii user definable
 
-        # Define out file paths
-        epsg_name = str(self.epsg_code).replace(":", "")
+        # Define output file names
         out_median = (self.output_folder/f"outmedian_{self.filepath.stem}_ch{self.channel}.xyz")
-        out_tiff_utm = (self.output_folder/f"{self.filepath.stem}_{str(self.resolution).strip("e")}m_ch{self.channel}_{epsg_name}.tif")
-        out_tiff_wgs = (self.output_folder/f"{self.filepath.stem}_{str(self.resolution).strip("e")}m_ch{self.channel}_EPSG4326.tif")
+        if self.active_utm:
+            epsg_name = str(self.epsg_code).replace(":", "")
+            out_tiff = (self.output_folder/f"{self.filepath.stem}_{str(self.resolution).strip("e")}m_ch{self.channel}_{epsg_name}.tif")
+        else:
+            out_tiff = (self.output_folder/f"{self.filepath.stem}_{str(self.resolution).strip("e")}m_ch{self.channel}_EPSG4326.tif")
 
         # Determine pixel size based on minimum distance between coordinates
         self.get_pix_size(self.nav[:,0], self.nav[:,1], res_factor=1)
-        print("self.resolution, self.search_radius: ", self.resolution, self.search_radius)
 
         if self.resolution == "" or self.search_radius == "":
-            print("self.resolution, self.search_radius not set: ", self.resolution, self.search_radius)
             resolution = f"{self.pix_size}e"
             search_radius = f"{self.pix_size * 2}e"
         else:
-            print("self.resolution, self.search_radius set: ", self.resolution, self.search_radius)
             resolution = f"{self.resolution}e"
             search_radius = f"{self.search_radius}e"
 
@@ -449,12 +449,11 @@ class Georeferencer:
         dgts = len(str(crd).split(".")[1]) - 2
         prec = 1/(10**dgts)
         region = pygmt.info(self.nav, per_column=True, spacing=(prec,prec))
-        print("crd, dgts, prec, region: ", crd, dgts, prec, type(region))
 
         if self.active_utm:
-            print(f"Georeferencing with resolution {str(resolution).strip('e')}m and {str(search_radius).strip('e')}m in {self.epsg_code}.")
+            print(f"Georeferencing with resolution {str(resolution).strip('e')}m and {str(self.search_radius).strip('e')}m in {self.epsg_code}.")
         else:
-            print(f"Georeferencing with resolution {str(resolution).strip('e')}m and {str(search_radius).strip('e')}m in WGS84/EPSG:4326.")
+            print(f"Georeferencing with resolution {str(resolution).strip('e')}m and {str(self.search_radius).strip('e')}m in WGS84/EPSG:4326.")
 
         pygmt.blockmedian(
             data=xybs, 
@@ -463,7 +462,6 @@ class Georeferencer:
             coltypes="fg", 
             spacing=resolution, 
             region=region, 
-            #verbose=True, 
             binary="o3d", 
             ) 
         
@@ -474,65 +472,35 @@ class Georeferencer:
             data=out_median, 
             coltypes="fg", 
             region=region, 
-            #verbose=True, 
             binary="i3d", 
             spacing=resolution, 
             search_radius=search_radius 
             )
-        print("data_nn: ", np.shape(data_nn), type(data_nn))
-
-        if region:
-            print("deleting region")
-            del region
-        else:
-            print("No region")
+        
 
         # Clip data to range between 0 - 256
-        #data_clp = data_nn.clip(min=0.0, max=255.0)
-        data_clp = np.clip(data_nn, 0.0, 255.0)
-        print("data_clp: ", np.shape(data_clp), type(data_clp))
+        data_clp = data_nn.clip(min=0.0, max=255.0)
 
         # Reproject to utm if applied and save to geotiff
         if self.active_utm:
-            print(f"Saving to: {out_tiff_utm}")
+            print(f"Saving to: {out_tiff}")
             data_pr = data_clp.rio.write_crs("EPSG:4326", inplace=True)
             data_rpr = data_pr.rio.reproject(self.epsg_code)
-            data_rpr.rio.to_raster(out_tiff_utm, compress='LZMA', tiled=True)
-            del data_rpr
+            data_rpr.rio.to_raster(out_tiff, compress='deflate', tiled=True)
 
         # Save as geotiff (set epsg_code for filename)
         else:
-            print(f"Saving to: {out_tiff_wgs}")
+            print(f"Saving to: {out_tiff}")
             self.epsg_code = "EPSG:4326"
             data_pr = data_clp.rio.write_crs(self.epsg_code, inplace=True)
-            data_pr.rio.to_raster(out_tiff_wgs, compress='LZMA', tiled=True)
-            del data_pr
-
-        # Ensures that no existing data arrary is overwritten/avoid segmentation fault
-        if data_nn:
-            del data_nn
-        else:
-            print("no data_nn")
-        if data_clp:
-            del data_clp
-        else:
-            print("no data_clp")
-        
-        if out_median.exists():
-            out_median.unlink()
-        if out_tiff_utm.exists():
-            out_tiff_utm.unlink()
-        if out_tiff_wgs.exists():
-            out_tiff_wgs.unlink()
+            data_pr.rio.to_raster(out_tiff, compress='deflate', tiled=True)
 
         if progress_signal is not None:
             progress_signal.emit(0.5)
 
 
     def process(self, progress_signal=None):
-        #out_median = (self.output_folder/f"outmedian_{self.filepath.stem}_ch{self.channel}.xyz")
-        #out_tiff = (self.output_folder/f"{self.filepath.stem}_{self.pix_size}m_ch{self.channel}.tif")
-            
+
         self.prep_data()
         chan_stack_flat = self.channel_stack()
 
@@ -542,8 +510,7 @@ class Georeferencer:
             print(str(e))
 
         # Export navigation data
-        if False:
-
+        if self.active_export_navdata:
             xyz = np.column_stack((self.nav, chan_stack_flat))
             nav_ch = (self.output_folder/f"Navigation_{self.filepath.stem}_ch{self.channel}.csv")
             print(f"Saving navinfo to {nav_ch}")
@@ -555,9 +522,6 @@ class Georeferencer:
                 delimiter=";",
                 header="Nadir Longitude; Nadir Latitude; BS",
             )
-            if nav_ch.exists():
-                nav_ch.unlink()
-
 
 
 def main():
@@ -570,13 +534,13 @@ def main():
         help="Channel number (can be 0 or 1, default: 0)",
     )
     parser.add_argument(
-        "--res",
+        "--resolution",
         type=float,
         default=0.1,
         help="Output raster resolution",
     )
     parser.add_argument(
-        "--s_rad",
+        "--search_radius",
         type=float,
         default=0.2,
         help="Search Radius for output raster creation. Usually 2 * resolution.",
@@ -591,7 +555,7 @@ def main():
     parser.add_argument(
         "--navdata",
         type=bool,
-        default=True,
+        default=False,
         help="If true, exports navigation data to csv",
     )
 
@@ -599,7 +563,12 @@ def main():
     print("args:", args)
 
     georeferencer = Georeferencer(
-        args.xtf, args.channel, args.res, args.s_rad, args.UTM, args.navdata
+        filepath = args.xtf, 
+        channel=args.channel, 
+        active_utm = args.UTM, 
+        active_export_navdata = args.navdata,
+        resolution = args.resolution, 
+        search_radius = args.search_radius
     )
     georeferencer.process()
 

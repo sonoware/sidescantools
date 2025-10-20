@@ -1132,24 +1132,25 @@ class ViewAndExportWidget(QVBoxLayout):
             "Export pictures using the processed (filtered and corrected) data. Otherwise raw data is exported."
         )     
         self.resolution_edit = LabeledLineEdit(
-            "Resolution:",
+            "Resolution [m]:",
             QtGui.QDoubleValidator(0.00001, 1000.0, 3, self),
             self.main_ui.settings_dict["Resolution"],
         )
 
         self.search_radius_edit = LabeledLineEdit(
-            "Search Radius:",
+            "Search Radius [m]:",
             QtGui.QDoubleValidator(0.00001, 2000.0, 3, self),
             self.main_ui.settings_dict["Search Radius"],
         )
         self.resolution_edit.label.setToolTip(
            "Set resolution for final raster. If left empty, the resolution " \
-            "will be the median distance between sample points in original data."
+            "will be the median distance between sample points in original data." \
+            "Unit is meters [m]."
         )
         self.search_radius_edit.label.setToolTip(
             "Search radius limits the points considered to interpolate between samples according to the given radius and " \
             "thus restricts how points inside the search radius contribute to the value at the node. " \
-            "Default is search_radius = 2 * resolution."
+            "Default is search_radius = 2 * resolution. Unit is meters [m]."
         )
 
         self.active_utm_checkbox = QCheckBox("UTM")
@@ -1416,18 +1417,22 @@ class ViewAndExportWidget(QVBoxLayout):
             proc_data_out_1 = hist_equalization(proc_data_out_1)
 
         georeferencer = GeoreferencerManager()
+        try:
+            resolution=float(self.resolution_edit.line_edit.text()),
+            search_radius=float(self.search_radius_edit.line_edit.text())
+        except ValueError:
+            pass
         georeferencer.start_georef(
             filepath,
             active_utm=self.active_utm_checkbox.isChecked(),
-            active_poly=True,
             active_export_navdata=self.active_navdata_checkbox.isChecked(),
             proc_data=[proc_data_out_0, proc_data_out_1],
             output_folder=output_folder,
             vertical_beam_angle=int(
                 self.main_ui.processing_widget.vertical_beam_angle_edit.line_edit.text()
             ),
-            resolution=self.resolution_edit.line_edit.text(),
-            search_radius=self.search_radius_edit.line_edit.text(),
+            resolution=float(self.resolution_edit.line_edit.text()),
+            search_radius=float(self.search_radius_edit.line_edit.text()),
         )
 
     def generate_wc_img(self, active_generate_all: bool):

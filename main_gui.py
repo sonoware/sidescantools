@@ -710,15 +710,6 @@ class SidescanToolsMain(QWidget):
                 exporter_im.parameters()["height"] = 500
                 exporter_im.export(outpath)
 
-        print("Sucessfully saved plots as png & svg.")
-        msg = QMessageBox()
-        font = QtGui.QFont("Arial", 12)
-        msg.setText(f"Sucessfully saved: {outpath}")
-        msg.setWindowTitle("Save Dialogue")
-        msg.setIcon(QMessageBox.Information)
-        msg.setFont(font)
-        msg.exec_()
-
 
 # Bottom line detection widget
 class BottomLineDetectionWidget(QVBoxLayout):
@@ -1416,27 +1407,28 @@ class ViewAndExportWidget(QVBoxLayout):
             proc_data_out_0 = hist_equalization(proc_data_out_0)
             proc_data_out_1 = hist_equalization(proc_data_out_1)
 
-        georeferencer = GeoreferencerManager()
-        # Set resolution in case left empty by user
-        try:
-            resolution=float(self.resolution_edit.line_edit.text()),
-            search_radius=float(self.search_radius_edit.line_edit.text())
-        except ValueError:
-            resolution = 1
-            search_radius = 2
-            
-        georeferencer.start_georef(
-            filepath,
-            active_utm=self.active_utm_checkbox.isChecked(),
-            active_export_navdata=self.active_navdata_checkbox.isChecked(),
-            proc_data=[proc_data_out_0, proc_data_out_1],
-            output_folder=output_folder,
-            vertical_beam_angle=int(
-                self.main_ui.processing_widget.vertical_beam_angle_edit.line_edit.text()
-            ),
-            resolution=resolution,
-            search_radius=search_radius,
-        )
+        if self.resolution_edit.line_edit.text() == '' or self.search_radius_edit.line_edit.text() == '':
+            msg = QMessageBox()
+            font = QtGui.QFont("Arial", 15)
+            msg.setText(f"Must enter some number for resolution and search radius field")
+            msg.setWindowTitle("Empty Value error")
+            msg.setIcon(QMessageBox.Warning)
+            msg.setFont(font)
+            msg.exec_()
+
+        else:
+            georeferencer = GeoreferencerManager()            
+            georeferencer.start_georef(
+                filepath,
+                active_utm=self.active_utm_checkbox.isChecked(),
+                active_export_navdata=self.active_navdata_checkbox.isChecked(),
+                proc_data=[proc_data_out_0, proc_data_out_1],
+                output_folder=output_folder,
+                vertical_beam_angle=int(
+                    self.main_ui.processing_widget.vertical_beam_angle_edit.line_edit.text()),
+                resolution = float(self.resolution_edit.line_edit.text()),
+                search_radius = float(self.search_radius_edit.line_edit.text())
+                )
 
     def generate_wc_img(self, active_generate_all: bool):
         if len(self.main_ui.file_table.selectedIndexes()) > 0:

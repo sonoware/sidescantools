@@ -3,6 +3,7 @@ from qtpy.QtWidgets import (
     QVBoxLayout,
     QProgressBar,
     QWidget,
+    QMessageBox,
 )
 import qtpy.QtCore as QtCore
 import qtpy.QtGui as QtGui
@@ -635,20 +636,79 @@ class NavPlotter(QtCore.QThread):
             (lola_data, lola_data_ori, head_data, head_data_ori)
         )
 
-
-class GeoreferencerSignals(QtCore.QObject):
+class GeoreferencerThread(QtCore.QThread):
     finished = QtCore.Signal()
     progress_signal = QtCore.Signal(float)
+    aborted_signal = QtCore.Signal(str)
     error_signal = QtCore.Signal(Exception)
+    status_signal = QtCore.Signal(str)
+
+    def __init__(
+            self,  
+            filepath: pathlib.Path, 
+            active_utm: bool,
+            active_export_navdata: bool,
+            proc_data: list,
+            output_folder: os.PathLike,
+            vertical_beam_angle: int,
+            resolution: float,
+            search_radius: float,
+            parent=None,
+        ):
+        super().__init__(parent)
+        self.filepath = filepath
+        self.active_utm = active_utm
+        self.active_export_navdata = active_export_navdata
+        self.proc_data = proc_data
+        self.output_folder = output_folder
+        self.vertical_beam_angle = vertical_beam_angle
+        self.resolution = resolution
+        self.search_radius = search_radius
+
+    def georef(self):
+        georef_success = True
+        err_msg = f"Error while Georeferencing {self.filepath}"
+
+        processor_0 = Georeferencer(
+            filepath=self.filepath,
+            channel=0,
+            active_utm=self.active_utm,
+            active_export_navdata=self.active_export_navdata,
+            proc_data=None,
+            output_folder=self.output_folder,
+            vertical_beam_angle=self.vertical_beam_angle,
+            resolution=self.resolution,
+            search_radius=self.search_radius,
+        )  # from georef.py
+        processor_0.process(self.progress_signal)
+
+        processor_1 = Georeferencer(
+            filepath=self.filepath,
+            channel=1,
+            active_utm=self.active_utm,
+            active_export_navdata=self.active_export_navdata,
+            proc_data=None,
+            output_folder=self.output_folder,
+            vertical_beam_angle=self.vertical_beam_angle,
+            resolution=self.resolution,
+            search_radius=self.search_radius,
+        )  # from georef.py
+        processor_1.process(self.progress_signal)
+
+        if georef_success:
+            self.status_signal.emit("Georeferencing finished")
+            self.finished.emit()
+        else:
+            self.error_signal.emit(str(err_msg))
+
+    def run(self):
+        self.georef()
 
 class GeoreferencerManager(QWidget):
-
     processing_finished = QtCore.Signal(list)
     aborted = QtCore.Signal(str)
     pbar_val: float
-    num_files: int
     cleanup_cnt: int  # fix for now
-    progress_signal = QtCore.Signal(float)
 
     def __init__(self):
         super().__init__()
@@ -676,52 +736,42 @@ class GeoreferencerManager(QWidget):
         self.setStyleSheet(
             "background-color:black;border-color:darkgrey;border-style:solid;border-width:3px;"
         )
-        self.thread_pool = QtCore.QThreadPool()
         self.show()
 
-    def start_georef(
-        self,
-        filepath: str | os.PathLike,
-        active_utm: bool,
-        active_export_navdata: bool,
-        proc_data: list,
-        output_folder: os.PathLike,
-        vertical_beam_angle: int,
-        resolution: float,
-        search_radius: float,
-        ):
-        self.output_folder = pathlib.Path(output_folder)
+    #@Slot()
+    def start_georef(self, 
+                     filepath, 
+                     active_utm, 
+                     active_export_navdata, 
+                     proc_data,
+                     output_folder,
+                     vertical_beam_angle,
+                     resolution,
+                     search_radius
+                     ):
 
-        processor_0 = Georeferencer(
-            filepath=filepath,
-            channel=0,
-            active_utm=active_utm,
-            active_export_navdata=active_export_navdata,
-            proc_data=None,
-            output_folder=output_folder,
-            vertical_beam_angle=vertical_beam_angle,
-            resolution=resolution,
-            search_radius=search_radius,
-        )  # from georef.py
-
-        processor_0.process(self.progress_signal)
-
-        processor_1 = Georeferencer(
-            filepath=filepath,
-            channel=1,
-            active_utm=active_utm,
-            active_export_navdata=active_export_navdata,
-            proc_data=None,
-            output_folder=output_folder,
-            vertical_beam_angle=vertical_beam_angle,
-            resolution=resolution,
-            search_radius=search_radius,
-        )  # from georef.py
-
-        processor_1.process(self.progress_signal)
+        self.georef_thread = GeoreferencerThread(
+            filepath, 
+            active_utm, 
+            active_export_navdata,
+            proc_data,
+            output_folder,
+            vertical_beam_angle,
+            resolution,
+            search_radius
+            )
+        self.georef_thread.progress_signal.connect(
+            lambda progress: self.update_pbar(progress)
+            )
+        self.georef_thread.finished.connect(self.cleanup)
+        self.georef_thread.finished.connect(self.georef_thread.deleteLater)
+        self.georef_thread.aborted_signal.connect(            
+            lambda msg_str: self.import_aborted(msg_str)
+        )
+        self.georef_thread.start()
     
     def update_pbar(self, progress: float):
-        self.pbar_val += progress / 2  # for 2 channels
+        self.pbar_val += progress  # for 2 channels
         disp_var = self.pbar_val
         self.pbar.setValue(int(100 * disp_var))
 
@@ -729,6 +779,10 @@ class GeoreferencerManager(QWidget):
         msg_str = str(err)
         print(msg_str)
         self.cleanup()
+
+    def import_aborted(self, msg_str: str):
+        self.aborted_signal.emit(msg_str)
+        self.deleteLater()
 
     def cleanup(self):
         self.cleanup_cnt += 1

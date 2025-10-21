@@ -752,6 +752,8 @@ class GeoreferencerManager(QWidget):
                      resolution,
                      search_radius
                      ):
+        
+        self.output_folder = pathlib.Path(output_folder)
 
         self.georef_thread = GeoreferencerThread(
             filepath, 

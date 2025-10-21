@@ -702,7 +702,12 @@ class GeoreferencerThread(QtCore.QThread):
             self.error_signal.emit(str(err_msg))
 
     def run(self):
-        self.georef()
+        try:
+            self.georef()
+        except Exception as e:
+            self.error_signal.emit(e)
+        finally:
+            self.finished.emit()
 
 class GeoreferencerManager(QWidget):
     processing_finished = QtCore.Signal(list)
@@ -712,7 +717,6 @@ class GeoreferencerManager(QWidget):
 
     def __init__(self):
         super().__init__()
-
         self.pbar_val = 0
         self.cleanup_cnt = 0
         self.pbar = QProgressBar(self)
@@ -738,7 +742,6 @@ class GeoreferencerManager(QWidget):
         )
         self.show()
 
-    #@Slot()
     def start_georef(self, 
                      filepath, 
                      active_utm, 
@@ -766,7 +769,7 @@ class GeoreferencerManager(QWidget):
         self.georef_thread.finished.connect(self.cleanup)
         self.georef_thread.finished.connect(self.georef_thread.deleteLater)
         self.georef_thread.aborted_signal.connect(            
-            lambda msg_str: self.import_aborted(msg_str)
+            lambda msg_str: self.georef_aborted(msg_str)
         )
         self.georef_thread.start()
     
@@ -780,9 +783,10 @@ class GeoreferencerManager(QWidget):
         print(msg_str)
         self.cleanup()
 
-    def import_aborted(self, msg_str: str):
+    def georef_aborted(self, msg_str: str):
         self.aborted_signal.emit(msg_str)
         self.deleteLater()
+        self.cleanup()
 
     def cleanup(self):
         self.cleanup_cnt += 1

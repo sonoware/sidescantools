@@ -38,10 +38,8 @@ class Georeferencer:
     LOLA_plt_ori: np.ndarray
     HEAD_plt_ori: np.ndarray
 
-    # TODO: Adjust multithread module and main and GUI; 
+    # TODO: Adjust multithread module and main and GUI; add error message if empty string 
     # add fields to enter user-defined resolution and search radius () or search radius = 2*radius;
-    # Clean code (print stuff etc)
-    # remove bool export nav
 
     def __init__(
         self,
@@ -53,9 +51,9 @@ class Georeferencer:
         nav = [],
         output_folder: str | os.PathLike = "./georef_out",
         vertical_beam_angle: int = 60,
-        pix_size = 0.0,
-        resolution = 0.0,
-        search_radius = 0.0
+        pix_size: float = 0.0,
+        resolution: float = 0.0,
+        search_radius: float = 0.0
     ):
         self.filepath = Path(filepath)
         self.sidescan_file = SidescanFile(self.filepath)
@@ -437,12 +435,8 @@ class Georeferencer:
         # Determine pixel size based on minimum distance between coordinates
         self.get_pix_size(self.nav[:,0], self.nav[:,1], res_factor=1)
 
-        if self.resolution == "" or self.search_radius == "":
-            resolution = f"{self.pix_size}e"
-            search_radius = f"{self.pix_size * 2}e"
-        else:
-            resolution = f"{self.resolution}e"
-            search_radius = f"{self.search_radius}e"
+        resolution = f"{self.resolution}e"
+        search_radius = f"{self.search_radius}e"
 
         xybs = np.column_stack((self.nav, bs_data))
         crd = Decimal(xybs[0,0])

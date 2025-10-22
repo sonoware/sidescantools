@@ -1143,7 +1143,10 @@ class ViewAndExportWidget(QVBoxLayout):
             "thus restricts how points inside the search radius contribute to the value at the node. " \
             "Default is search_radius = 2 * resolution. Unit is meters [m]."
         )
-
+        self.active_blockmedian_checkbox = QCheckBox("Blockmedian")
+        self.active_blockmedian_checkbox.setToolTip(
+            "If selected, uses blockmedian before nearneighbour alg. for gridding to reduce noise and data size."
+        )
         self.active_utm_checkbox = QCheckBox("UTM")
         self.active_utm_checkbox.setToolTip(
             "Coordinates in UTM (default). WGS84 if unchecked."
@@ -1182,6 +1185,7 @@ class ViewAndExportWidget(QVBoxLayout):
         self.addWidget(self.active_use_proc_data_checkbox)
         self.addLayout(self.resolution_edit)
         self.addLayout(self.search_radius_edit)
+        self.addWidget(self.active_blockmedian_checkbox)
         self.addWidget(self.active_utm_checkbox)
         self.addWidget(self.active_navdata_checkbox)
         self.addWidget(self.active_colormap_checkbox)
@@ -1422,6 +1426,7 @@ class ViewAndExportWidget(QVBoxLayout):
                 filepath,
                 active_utm=self.active_utm_checkbox.isChecked(),
                 active_export_navdata=self.active_navdata_checkbox.isChecked(),
+                active_blockmedian = self.active_blockmedian_checkbox.isChecked(),
                 proc_data=[proc_data_out_0, proc_data_out_1],
                 output_folder=output_folder,
                 vertical_beam_angle=int(

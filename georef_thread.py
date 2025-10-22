@@ -22,6 +22,7 @@ class Georeferencer:
     channel: int
     active_utm: bool
     active_export_navdata: bool
+    active_blockmedian: bool
     proc_data: np.array
     output_folder: str | os.PathLike
     active_proc_data: bool
@@ -44,6 +45,7 @@ class Georeferencer:
         channel: int = 0,
         active_utm: bool = True,
         active_export_navdata: bool = True,
+        active_blockmedian: bool = True,
         proc_data=None,
         nav = [],
         output_folder: str | os.PathLike = "./georef_out",
@@ -57,6 +59,7 @@ class Georeferencer:
         self.channel = channel
         self.active_utm = active_utm
         self.active_export_navdata = active_export_navdata
+        self.active_blockmedian = active_blockmedian
         self.output_folder = Path(output_folder)
         self.vertical_beam_angle = vertical_beam_angle
         self.active_proc_data = False
@@ -84,7 +87,6 @@ class Georeferencer:
                     f"Error setting up output folder. Path might be invalid: {self.output_folder}"
                 )
                 raise FileNotFoundError
-
 
     def get_pix_size(self, lo, la, res_factor):
 
@@ -437,27 +439,40 @@ class Georeferencer:
         else:
             print(f"Georeferencing with resolution {str(resolution).strip('e')}m and {str(self.search_radius).strip('e')}m in WGS84/EPSG:4326.")
 
-        pygmt.blockmedian(
-            data=xybs, 
-            outfile=out_median, 
-            output_type="file",
-            coltypes="fg", 
-            spacing=resolution, 
-            region=region, 
-            binary="o3d", 
-            ) 
+        if self.active_blockmedian:
+            print("Applying GMT Blockmedian...")
+            pygmt.blockmedian(
+                data=xybs, 
+                outfile=out_median, 
+                output_type="file",
+                coltypes="fg", 
+                spacing=resolution, 
+                region=region, 
+                binary="o3d", 
+                ) 
         
-        if progress_signal is not None:
-            progress_signal.emit((1000/len(bs_data)) * 0.005)
+            if progress_signal is not None:
+                progress_signal.emit((1000/len(bs_data)) * 0.05)
 
-        data_nn = pygmt.nearneighbor(
-            data=out_median, 
-            coltypes="fg", 
-            region=region, 
-            binary="i3d", 
-            spacing=resolution, 
-            search_radius=search_radius 
-            )
+            print("Applying GMT Nearneighbour alg...")
+            data_nn = pygmt.nearneighbor(
+                data=out_median, 
+                coltypes="fg", 
+                region=region, 
+                binary="i3d", 
+                spacing=resolution, 
+                search_radius=search_radius 
+                )
+        else:
+            print("Blockmedian off, using nearneighbor only")
+            data_nn = pygmt.nearneighbor(
+                data=xybs, 
+                coltypes="fg", 
+                region=region, 
+                binary="i3d", 
+                spacing=resolution, 
+                search_radius=search_radius 
+                )        
         
 
         # Clip data to range between 0 - 256
@@ -533,12 +548,17 @@ def main():
         default=True,
         help="Uses UTM projection rather than WGS84. Default is UTM",
     )
-
     parser.add_argument(
         "--navdata",
         type=bool,
         default=False,
         help="If true, exports navigation data to csv",
+    )
+    parser.add_argument(
+        "--blockmedian",
+        type=bool,
+        default=True,
+        help="If True, uses blockmedian before nearneighbour alg. for gridding to reduce noise and data size. Default True.",
     )
 
     args = parser.parse_args()
@@ -549,6 +569,7 @@ def main():
         channel=args.channel, 
         active_utm = args.UTM, 
         active_export_navdata = args.navdata,
+        active_blockmedian = args.blockmedian,
         resolution = args.resolution, 
         search_radius = args.search_radius
     )

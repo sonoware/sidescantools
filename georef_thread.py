@@ -414,19 +414,26 @@ class Georeferencer:
             - out_tiff, out_median: paths to output files
         """
 
-        # Define output file names
-        out_median = (self.output_folder/f"outmedian_{self.filepath.stem}_ch{self.channel}.xyz")
-        if self.active_utm:
-            epsg_name = str(self.epsg_code).replace(":", "")
-            out_tiff = (self.output_folder/f"{self.filepath.stem}_{str(self.resolution).strip("e")}m_ch{self.channel}_{epsg_name}.tif")
-        else:
-            out_tiff = (self.output_folder/f"{self.filepath.stem}_{str(self.resolution).strip("e")}m_ch{self.channel}_EPSG4326.tif")
 
         # Determine pixel size based on minimum distance between coordinates
         self.get_pix_size(self.nav[:,0], self.nav[:,1], res_factor=1)
 
         resolution = f"{self.resolution}e"
         search_radius = f"{self.search_radius}e"
+
+        # Define output file names
+        # Convert resolution to mm to avoid "." in file name 
+        out_median = (self.output_folder/f"outmedian_{self.filepath.stem}_ch{self.channel}.xyz")
+        if self.resolution < 1.0:
+            res_name = str(int(self.resolution*100)) + "mm"
+        else:
+            res_name = str(int(self.resolution)) + "m"
+        if self.active_utm:
+            epsg_name = str(self.epsg_code).replace(":", "")
+            out_tiff = (self.output_folder/f"{self.filepath.stem}_{res_name}_ch{self.channel}_{epsg_name}.tif")
+        else:
+            out_tiff = (self.output_folder/f"{self.filepath.stem}_{res_name}_ch{self.channel}_EPSG4326.tif")
+
 
         xybs = np.column_stack((self.nav, bs_data))
         crd = Decimal(xybs[0,0])

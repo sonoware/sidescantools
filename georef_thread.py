@@ -44,7 +44,7 @@ class Georeferencer:
         filepath: str | os.PathLike,
         channel: int = 0,
         active_utm: bool = True,
-        active_export_navdata: bool = True,
+        active_export_navdata: bool = False,
         active_blockmedian: bool = True,
         proc_data=None,
         nav = [],

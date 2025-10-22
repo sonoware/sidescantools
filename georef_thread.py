@@ -38,9 +38,6 @@ class Georeferencer:
     LOLA_plt_ori: np.ndarray
     HEAD_plt_ori: np.ndarray
 
-    # TODO: Adjust multithread module and main and GUI; add error message if empty string 
-    # add fields to enter user-defined resolution and search radius () or search radius = 2*radius;
-
     def __init__(
         self,
         filepath: str | os.PathLike,
@@ -341,14 +338,6 @@ class Georeferencer:
         YY = np.ndarray.flatten(np.asarray(YY))
         self.nav = np.column_stack((np.ndarray.flatten(XX),np.ndarray.flatten(YY)))
 
-        # create empty grid with sample size as resolution (finest possible)
-
-        #xx = np.linspace(np.min(lo_intp), np.max(lo_out_intp), swath_width)
-        #yy = np.linspace(np.min(la_intp), np.max(la_out_intp), swath_width)
-        #XX,YY = np.meshgrid(xx, yy)
-        #print("np.shape(XX): ", np.shape(XX))
-        #self.nav = np.column_stack((xx,yy))
-
     def channel_stack(self):
         """
         Work on raw or processed data, depending on `self.active_proc_data`
@@ -422,7 +411,6 @@ class Georeferencer:
             - data: 1D array of backscatter data (can be amplitudes or greyscales)
             - out_tiff, out_median: paths to output files
         """
-        # TODO: spatial indices, tiling/compressing? Reprojecting to utm, make radii user definable
 
         # Define output file names
         out_median = (self.output_folder/f"outmedian_{self.filepath.stem}_ch{self.channel}.xyz")

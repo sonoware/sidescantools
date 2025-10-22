@@ -648,6 +648,7 @@ class GeoreferencerThread(QtCore.QThread):
             filepath: pathlib.Path, 
             active_utm: bool,
             active_export_navdata: bool,
+            active_blockmedian: bool,
             proc_data: list,
             output_folder: os.PathLike,
             vertical_beam_angle: int,
@@ -659,6 +660,7 @@ class GeoreferencerThread(QtCore.QThread):
         self.filepath = filepath
         self.active_utm = active_utm
         self.active_export_navdata = active_export_navdata
+        self.active_blockmedian = active_blockmedian
         self.proc_data = proc_data
         self.output_folder = output_folder
         self.vertical_beam_angle = vertical_beam_angle
@@ -674,6 +676,7 @@ class GeoreferencerThread(QtCore.QThread):
             channel=0,
             active_utm=self.active_utm,
             active_export_navdata=self.active_export_navdata,
+            active_blockmedian = self.active_blockmedian,
             proc_data=self.proc_data[0],
             output_folder=self.output_folder,
             vertical_beam_angle=self.vertical_beam_angle,
@@ -687,6 +690,7 @@ class GeoreferencerThread(QtCore.QThread):
             channel=1,
             active_utm=self.active_utm,
             active_export_navdata=self.active_export_navdata,
+            active_blockmedian = self.active_blockmedian,
             proc_data=self.proc_data[1],
             output_folder=self.output_folder,
             vertical_beam_angle=self.vertical_beam_angle,
@@ -746,6 +750,7 @@ class GeoreferencerManager(QWidget):
                      filepath, 
                      active_utm, 
                      active_export_navdata, 
+                     active_blockmedian,
                      proc_data,
                      output_folder,
                      vertical_beam_angle,
@@ -759,6 +764,7 @@ class GeoreferencerManager(QWidget):
             filepath, 
             active_utm, 
             active_export_navdata,
+            active_blockmedian,
             proc_data,
             output_folder,
             vertical_beam_angle,

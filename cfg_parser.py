@@ -40,7 +40,7 @@ class CFGParser:
             "Img include raw data": False,
             "Georef active proc data": True,
             "Georef UTM": True,
-            "Georef Navigation": True,
+            "Georef Navigation": False,
             "Resolution": 0.2,
             "Search Radius": 0.4,
             "Georef active custom colormap": False,

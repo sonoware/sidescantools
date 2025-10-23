@@ -204,10 +204,17 @@ class Georeferencer:
         ]
         LON_unique = LON_ori[UNIQUE_MASK]
         LAT_unique = LAT_ori[UNIQUE_MASK]
-        PING_UNIQUE = self.PING[UNIQUE_MASK]
+        if str(self.filepath).endswith(".jsf"):
+            PING_UNIQUE = [ping_no for ping_no in range(len(LON_unique))]
+        else:
+            PING_UNIQUE = self.PING[UNIQUE_MASK]
 
         # make uniform ping sequence for smooth curvature
-        PING_uniform = np.linspace(self.PING[0], self.PING[-1], len(self.PING))
+        if str(self.filepath).endswith(".jsf"):
+            PING_uniform = np.linspace(PING_UNIQUE[0], PING_UNIQUE[-1], len(self.PING))
+        else:
+            PING_uniform = np.linspace(self.PING[0], self.PING[-1], len(self.PING))
+
 
         # B-Spline lon/lats and filter to obtain esqual-interval, unique coordinates for each ping
         lo_spl = interpolate.make_interp_spline(

@@ -3,7 +3,6 @@ from qtpy.QtWidgets import (
     QVBoxLayout,
     QProgressBar,
     QWidget,
-    QMessageBox,
 )
 import qtpy.QtCore as QtCore
 import qtpy.QtGui as QtGui

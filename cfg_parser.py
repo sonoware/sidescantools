@@ -1,7 +1,6 @@
 from enum import Enum
 import os
 import yaml
-from georef_thread import Georeferencer
 
 GAINSTRAT = Enum("GAINSTRAT", [("BAC", 0), ("EGN", 1)])
 

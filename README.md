@@ -112,7 +112,7 @@ When using BAC or EGN for Gain Normalisation, the resolution of the estimated be
 - Use `Blockmedian` to reduce noise and data size. More info [here:](https://www.pygmt.org/latest/api/generated/pygmt.blockmedian.html#pygmt.blockmedian)
 - Untick `UTM` if you prefer WGS84 (unprojected) 
 - `Apply Custom Colormap`: Select from a range of colormaps; if unticked, greyscale values are used
-- `Generate Geotiff for selected file`: Uses [pygmt: 0.17.0](https://www.pygmt.org/latest/index.html) with `blockmedian` (optional) and `nearneighbour` as gridding algortihm of xyz data (x/y: lon/lat, z: backscatter as amplitudes or greyscale). Use blockmedian to further noise and output grid size.
+- `Generate Geotiff for selected file`: Uses [pygmt: 0.17.0](https://www.pygmt.org/latest/index.html) with `blockmedian` (optional) and `nearneighbour` as gridding algortihm of xyz data (x/y: lon/lat, z: backscatter as amplitudes or greyscale). Use blockmedian to further noise and output grid size. Output raster if saved as 1-band geotiff with intensities as values.
 - `Include raw data in waterfall image`: produces additional png with raw undprocessed data
 - `Generate Waterfall Image`: Generates a non-georeferenced png file from processed data. Adjust chunk size if you need one file instead of several.
 

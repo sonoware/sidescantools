@@ -35,7 +35,6 @@ As of now, SidescanTools can process and read data from two formats:
 
 # Issues and Planned Features
 The following features are still under development and will be improved in future releases:
-- **Georeferencing** currently uses [gdal v3.11](https://gdal.org/) and `homography` or `polynomial 1` as warping algortihm along with ground control points. Usually, homography is more precise but can in some cases produce wavy structures and/or shifts in the data. In this case, use `Polynomial` (preserves parallel lines) -- _custom georeferencing to be implemented_
 - **Bottom line detection** sometimes failes, especially when there are a lot of reflections in the water coloumn. Therefore a strategy to counter this should be examined.
 - When creating a docker image, add **- conda-forge::sqlite=3.50.0** & **- conda-forge::libsqlite=3.50.0** to the environment.yaml
 
@@ -108,13 +107,12 @@ When using BAC or EGN for Gain Normalisation, the resolution of the estimated be
 
 ### Georeferencing and image generation
 - Tick `Use processed Data` if above processing steps should be applied, otherwise a waterfall image based on the raw data will be created
-- Warp Method: Set transformation method for output chunks. Leave `Polynomial 1` if unsure - Sometimes, if e.g. vessel movement is irregular, the polynomial tranformation type works more reliable. If in doubt, compare geotiff with the (ungeoreferenced) waterfall image. Find more infos at [gdal](https://gdal.org/en/stable/programs/gdal_raster_reproject.html)
-- Resampling Method: Set resampling method for output chunks. Find more infos at [gdal](https://gdal.org/en/stable/programs/gdal_raster_reproject.html)
-- Resolution Mode: Set output file resolution. Find more infos at [gdal](https://gdal.org/en/stable/programs/gdal_raster_mosaic.html)
-- `Dynamic Chunking` chooses number of pings within one chunk for georeferencing based on distance between GPS points. Only apply when GPS data are bad! If unticked, chunk size is 5 pings.
+- `Resolution`: Set output file resolution. Currently, default is 0.2m. **Planned:** Use sample size as resolution default.
+- `Search Radius`: Set value to include <search_radius> neighbours for nearneighbor algorithm. Default: 2 * resolutiopn. More info [here:](https://www.pygmt.org/latest/api/generated/pygmt.nearneighbor.html)
+- Use `Blockmedian` to reduce noise and data size. More info [here:](https://www.pygmt.org/latest/api/generated/pygmt.blockmedian.html#pygmt.blockmedian)
 - Untick `UTM` if you prefer WGS84 (unprojected) 
 - `Apply Custom Colormap`: Select from a range of colormaps; if unticked, greyscale values are used
-- `Generate Geotiff`: Uses gdal reproject (with either homography or polynomial order 1) and ground control points (gcps) to georeference data chunk wise and export as Geotiff
+- `Generate Geotiff for selected file`: Uses [pygmt: 0.17.0](https://www.pygmt.org/latest/index.html) with `blockmedian` (optional) and `nearneighbour` as gridding algortihm of xyz data (x/y: lon/lat, z: backscatter as amplitudes or greyscale). Use blockmedian to further noise and output grid size.
 - `Include raw data in waterfall image`: produces additional png with raw undprocessed data
 - `Generate Waterfall Image`: Generates a non-georeferenced png file from processed data. Adjust chunk size if you need one file instead of several.
 

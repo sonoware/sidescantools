@@ -1,14 +1,13 @@
 import argparse
 from pathlib import Path
-import os, copy
+import os
 import numpy as np
 import utm
 import math
 from sidescan_file import SidescanFile
-from pyproj import CRS, datadir
+from pyproj import CRS
 from scipy.signal import savgol_filter
 from scipy import interpolate
-import numpy.ma as ma
 import pygmt
 import rioxarray as rio
 from decimal import Decimal

@@ -478,9 +478,9 @@ class SidescanToolsMain(QWidget):
         self.cfg.main_proc_params.georef_dir = str(
             pathlib.Path(self.georef_out_picker.cur_dir).absolute()
         )
-        self.cfg.main_proc_params.egn_table_path = pathlib.Path(
-            self.egn_table_picker.cur_dir
-        ).name
+        self.cfg.main_proc_params.egn_table_path = str(
+            pathlib.Path(self.egn_table_picker.cur_dir).absolute()
+        )
         self.cfg.bottomline_params.chunk_size = int(
             self.bottom_line_detection_widget.btm_chunk_size_edit.line_edit.text()
         )

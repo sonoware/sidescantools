@@ -166,7 +166,7 @@ class GeoreferencingAndViewingParameter(BaseModel):
         description="Use UTM for export, otherwise WGS84 (unprojected) is used",
     )
     active_export_navigation: bool = Field(
-        default=True, description="Export additional navigation data file"
+        default=False, description="Export additional navigation data file"
     )
     tiff_resolution: float = Field(
         default=0.2, gt=0, description=f"Output Geotiff resolution"
@@ -174,7 +174,7 @@ class GeoreferencingAndViewingParameter(BaseModel):
     tiff_search_radius: float = Field(
         default=0.4,
         gt=0,
-        description="Set value to include <search_radius> neighbors for nearneighbor algorithm. Default: 2 * resolution",
+        description="Set value to include `search_radius` neighbors for nearneighbor algorithm. Default: 2 * resolution",
     )
     active_blockmedian: bool = Field(
         default=True, description="Use Blockmedian to reduce noise and data size"

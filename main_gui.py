@@ -560,6 +560,9 @@ class SidescanToolsMain(QWidget):
         self.cfg.georef_view_params.active_custom_colormap = (
             self.view_and_export_widget.active_colormap_checkbox.isChecked()
         )
+        self.cfg.meta_infos.egn_table_name = (
+            self.processing_widget.egn_table_name_edit.line_edit.text()
+        )
 
     def update_ui_from_cfg(self):
         self.output_picker.update_dir(self.cfg.meta_infos.working_dir)
@@ -569,7 +572,7 @@ class SidescanToolsMain(QWidget):
         except:
             pass
         self.processing_widget.egn_table_name_edit.line_edit.setText(
-            self.cfg.main_proc_params.egn_table_path
+            self.cfg.meta_infos.egn_table_name
         )
         self.bottom_line_detection_widget.btm_chunk_size_edit.line_edit.setText(
             str(self.cfg.bottomline_params.chunk_size)

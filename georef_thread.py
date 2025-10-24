@@ -77,6 +77,8 @@ class Georeferencer:
             self.proc_data = proc_data
             self.active_proc_data = True
         self.setup_output_folder()
+        self.PING = self.sidescan_file.packet_no
+
 
     def setup_output_folder(self):
         if not self.output_folder.exists():
@@ -152,7 +154,6 @@ class Georeferencer:
 
     def prep_data(self):
         # Extract metadata for each ping in sonar channel
-        self.PING = self.sidescan_file.packet_no
         LON_ori = self.sidescan_file.longitude
         LAT_ori = self.sidescan_file.latitude
         HEAD_ori = self.sidescan_file.sensor_heading
@@ -504,28 +505,31 @@ class Georeferencer:
 
 
     def process(self, progress_signal=None):
+        # Check if enough data are present, otherwise quit
+        if len(self.PING) > 300:
+            self.prep_data()
+            chan_stack_flat = self.channel_stack()
 
-        self.prep_data()
-        chan_stack_flat = self.channel_stack()
+            try:
+                self.georeference(bs_data=chan_stack_flat, progress_signal=progress_signal)
+            except Exception as e:
+                print(str(e))
 
-        try:
-            self.georeference(bs_data=chan_stack_flat, progress_signal=progress_signal)
-        except Exception as e:
-            print(str(e))
+            # Export navigation data
+            if self.active_export_navdata:
+                xyz = np.column_stack((self.nav, chan_stack_flat))
+                nav_ch = (self.output_folder/f"Navigation_{self.filepath.stem}_ch{self.channel}.csv")
+                print(f"Saving navinfo to {nav_ch}")
 
-        # Export navigation data
-        if self.active_export_navdata:
-            xyz = np.column_stack((self.nav, chan_stack_flat))
-            nav_ch = (self.output_folder/f"Navigation_{self.filepath.stem}_ch{self.channel}.csv")
-            print(f"Saving navinfo to {nav_ch}")
-
-            np.savetxt(
-                nav_ch,
-                xyz,
-                fmt="%s", 
-                delimiter=";",
-                header="Nadir Longitude; Nadir Latitude; BS",
-            )
+                np.savetxt(
+                    nav_ch,
+                    xyz,
+                    fmt="%s", 
+                    delimiter=";",
+                    header="Nadir Longitude; Nadir Latitude; BS",
+                )
+        else:
+            print("Only {len(self.PING)} pings present. Quitting.")
 
 
 def main():

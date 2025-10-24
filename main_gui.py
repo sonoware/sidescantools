@@ -548,6 +548,15 @@ class SidescanToolsMain(QWidget):
         self.cfg.georef_view_params.active_export_navigation = (
             self.view_and_export_widget.active_navdata_checkbox.isChecked()
         )
+        self.cfg.georef_view_params.tiff_resolution = float(
+            self.view_and_export_widget.resolution_edit.line_edit.text()
+        )
+        self.cfg.georef_view_params.tiff_search_radius = float(
+            self.view_and_export_widget.search_radius_edit.line_edit.text()
+        )
+        self.cfg.georef_view_params.active_blockmedian = (
+            self.view_and_export_widget.active_blockmedian_checkbox.isChecked()
+        )
         self.cfg.georef_view_params.active_custom_colormap = (
             self.view_and_export_widget.active_colormap_checkbox.isChecked()
         )
@@ -556,19 +565,6 @@ class SidescanToolsMain(QWidget):
         )
         self.settings_dict["Search Radius"] = (
             self.view_and_export_widget.search_radius_edit.line_edit.text()
-        )
-
-    def update_ui_from_settings(self):
-        self.output_picker.update_dir(self.settings_dict["Working dir"])
-        self.georef_out_picker.update_dir(self.settings_dict["Georef dir"])
-        self.cfg.georef_view_params.resolution_mode = (
-            self.view_and_export_widget.resolution_mode_dropdown.currentIndex()
-        )
-        self.cfg.georef_view_params.warp_mode = (
-            self.view_and_export_widget.warp_mode_dropdown.currentIndex()
-        )
-        self.cfg.georef_view_params.resampling_mode = (
-            self.view_and_export_widget.resamp_mode_dropdown.currentIndex()
         )
 
     def update_ui_from_cfg(self):
@@ -651,10 +647,13 @@ class SidescanToolsMain(QWidget):
             self.cfg.georef_view_params.active_custom_colormap
         )
         self.view_and_export_widget.resolution_edit.line_edit.setText(
-            str(self.settings_dict["Resolution"])
+            str(self.cfg.georef_view_params.tiff_resolution)
         )
         self.view_and_export_widget.search_radius_edit.line_edit.setText(
-            str(self.settings_dict["Search Radius"])
+            str(self.cfg.georef_view_params.tiff_search_radius)
+        )
+        self.view_and_export_widget.active_blockmedian_checkbox.setChecked(
+            self.cfg.georef_view_params.active_blockmedian
         )
         self.processing_widget.load_proc_strat()
 

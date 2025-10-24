@@ -1,6 +1,5 @@
 from pathlib import Path
 import argparse
-import yaml
 import numpy as np
 from sidescan_file import SidescanFile
 from sidescan_preproc import SidescanPreprocessor
@@ -154,63 +153,47 @@ class SidescanToolsMain:
             if self.active_georef:
                 start_timer_georef = timer()
 
-                # TODO: Implement new georef Version
-                # georeferencer = Georeferencer(
-                #     filepath=sidescan_path,
-                #     channel=0,
-                #     active_utm=self.cfg["Georef UTM"],
-                #     active_export_navdata=self.cfg["Georef Navigation"],
-                #     output_folder=self.cfg["Georef dir"],
-                #     proc_data=proc_data_out_0,
-                #     vertical_beam_angle=self.cfg["Slant vertical beam angle"],
-                #     warp_algorithm=list(Georeferencer.warp_options.values())[
-                #         self.cfg["Warp Mode"]
-                #     ],
-                #     resolution_mode=list(Georeferencer.resolution_options.values())[
-                #         self.cfg["Resolution Mode"]
-                #     ],
-                #     resampling_method=list(Georeferencer.resampling_options.values())[
-                #         self.cfg["Resampling Method"]
-                #     ],
-                # )
-                # georeferencer.process()
-                # georeferencer = Georeferencer(
-                #     filepath=sidescan_path,
-                #     channel=1,
-                #     active_utm=self.cfg["Georef UTM"],
-                #     active_export_navdata=self.cfg["Georef Navigation"],
-                #     output_folder=self.cfg["Georef dir"],
-                #     proc_data=proc_data_out_1,
-                #     vertical_beam_angle=self.cfg["Slant vertical beam angle"],
-                #     warp_algorithm=list(Georeferencer.warp_options.values())[
-                #         self.cfg["Warp Mode"]
-                #     ],
-                #     resolution_mode=list(Georeferencer.resolution_options.values())[
-                #         self.cfg["Resolution Mode"]
-                #     ],
-                #     resampling_method=list(Georeferencer.resampling_options.values())[
-                #         self.cfg["Resampling Method"]
-                #     ],
-                # )
-                # georeferencer.process()
+                georeferencer = Georeferencer(
+                    filepath=sidescan_path,
+                    channel=0,
+                    active_utm=self.cfg.georef_view_params.active_utm,
+                    active_export_navdata=self.cfg.georef_view_params.active_export_navigation,
+                    active_blockmedian=self.cfg.georef_view_params.active_blockmedian,
+                    proc_data=proc_data_out_0,
+                    output_folder=self.cfg.main_proc_params.georef_dir,
+                    vertical_beam_angle=self.cfg.main_proc_params.vertical_beam_angle,
+                    resolution=self.cfg.georef_view_params.tiff_resolution,
+                    search_radius=self.cfg.georef_view_params.tiff_search_radius,
+                )
+                georeferencer.process()
+                georeferencer = Georeferencer(
+                    filepath=sidescan_path,
+                    channel=1,
+                    active_utm=self.cfg.georef_view_params.active_utm,
+                    active_export_navdata=self.cfg.georef_view_params.active_export_navigation,
+                    active_blockmedian=self.cfg.georef_view_params.active_blockmedian,
+                    proc_data=proc_data_out_1,
+                    output_folder=self.cfg.main_proc_params.georef_dir,
+                    vertical_beam_angle=self.cfg.main_proc_params.vertical_beam_angle,
+                    resolution=self.cfg.georef_view_params.tiff_resolution,
+                    search_radius=self.cfg.georef_view_params.tiff_search_radius,
+                )
+                georeferencer.process()
 
-                # print(f"Cleaning ...")
-                # for file in os.listdir(self.cfg.main_proc_params.georef_dir):
-                #     file_path = os.path.join(self.cfg.main_proc_params, file)
-                #     if (
-                #         str(file_path).endswith(".png")
-                #         or str(file_path).endswith(".txt")
-                #         or str(file_path).endswith("tmp.tif")
-                #         or str(file_path).endswith(".points")
-                #         or str(file_path).endswith(".xml")
-                #         or str(file_path).endswith("tmp.csv")
-                #     ):
-                #         try:
-                #             os.remove(file_path)
-                #         except FileNotFoundError:
-                #             print(f"File Not Found: {file_path}")
+                print(f"Cleaning ...")
+                for file in os.listdir(self.cfg.main_proc_params.georef_dir):
+                    file_path = os.path.join(self.cfg.main_proc_params.georef_dir, file)
+                    if (
+                        str(file_path).startswith("outmedian")
+                        or str(file_path).endswith(".xml")
+                        or str(file_path).endswith(".xyz")
+                    ):
+                        try:
+                            os.remove(file_path)
+                        except FileNotFoundError:
+                            print(f"File Not Found: {file_path}")
 
-                # print("Cleanup done")
+                print("Cleanup done")
 
                 end_timer_georef = timer()
 

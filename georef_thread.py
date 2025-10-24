@@ -127,9 +127,8 @@ class Georeferencer:
         Paras:
             - lo: Longitude or Easting, unique and smoothed (savgol filteres) if neccessary
             - la: Latitude or Northing, unique and smoothed (savgol filteres) if neccessary
-
-        Returns:
-            - Course over ground in degrees (-180° -> 180°)
+            - ping_unique: array of unique pings (without duplicates) to build spline
+            - ping_uniform: ping array for original length with monotonous ping numbers to evaluate spline
         """
         cog = np.empty_like(lo)
         LON_DIFF = np.diff(lo, prepend=np.nan)
@@ -416,8 +415,7 @@ class Georeferencer:
         be used with rioxarray to assign CRS and save to geotiff.
         
         - Parameters:
-            - data: 1D array of backscatter data (can be amplitudes or greyscales)
-            - out_tiff, out_median: paths to output files
+            - bs_data: 1D array of backscatter data (can be amplitudes or greyscales)
         """
 
 

@@ -361,7 +361,6 @@ class Georeferencer:
             ch_stack = self.sidescan_file.data[self.channel]
 
         # Extract metadata for each ping in sonar channel, also longitude to mask invalid values
-        PING = self.sidescan_file.packet_no
         lon = self.sidescan_file.longitude
         lon = np.ndarray.flatten(np.array(lon))
         mask_x = lon != 0
@@ -373,7 +372,7 @@ class Georeferencer:
 
         # Extract valid pings (same like ZERO mask for coordinates)
         ch_stack = ch_stack[np.all(mask, axis=1)]
-        swath_len = len(PING)
+        swath_len = len(lon)
         swath_width = len(ch_stack[0])
         print(f"swath_len: {swath_len}, swath_width: {swath_width}")
 

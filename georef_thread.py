@@ -349,7 +349,6 @@ class Georeferencer:
     def channel_stack(self):
         """
         Work on raw or processed data, depending on `self.active_proc_data`
-        - Stack channel so that the largest axis is horizontal
         - Norm data to max 255 for pic generation
         """
 
@@ -374,9 +373,6 @@ class Georeferencer:
         swath_len = len(lon)
         swath_width = len(ch_stack[0])
         print(f"swath_len: {swath_len}, swath_width: {swath_width}")
-
-        # Transpose (always!) so that the largest axis is horizontal
-        #ch_stack = ch_stack.T
 
         ch_stack = np.array(ch_stack, dtype=float)
 

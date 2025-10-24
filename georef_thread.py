@@ -95,7 +95,8 @@ class Georeferencer:
         from a (randomly sampled) subset of coordinates array (else it takes very 
         long and the distances should be similiar throughout the interp. coords)
         Args: 
-            - lo/la: arrays of interpolated(!) longitudes and latitudes
+            - lo: array of interpolated(!) longitudes
+            - la: array of interpolated(!) latitudes
         """
         import geopy.distance
 
@@ -203,14 +204,14 @@ class Georeferencer:
         ]
         LON_unique = LON_ori[UNIQUE_MASK]
         LAT_unique = LAT_ori[UNIQUE_MASK]
+        PING_UNIQUE = [ping_no for ping_no in range(len(LON_unique))]
 
-        # make uniform ping sequence for smooth curvature
-        if str(self.filepath).endswith(".jsf"):
-            PING_UNIQUE = [ping_no for ping_no in range(len(LON_unique))]
-            PING_uniform = np.linspace(PING_UNIQUE[0], PING_UNIQUE[-1], len(self.PING))
-        else:
-            PING_UNIQUE = self.PING[UNIQUE_MASK]
-            PING_uniform = np.linspace(self.PING[0], self.PING[-1], len(self.PING))
+        # create uniform ping sequence for smooth curvature with original number of pings as length and last entry of unique ping for
+        # maximum ping number, else b-spline will extrapolate which messes up coordinates
+        #PING_uniform = np.linspace(1, len(self.PING), len(self.PING))
+        PING_uniform = np.linspace(0, len(PING_UNIQUE)-1, len(self.PING))
+        print("PING_uniform[0], PING_uniform[-1], len(PING_uniform): ", PING_uniform[0], PING_uniform[-1], len(PING_uniform))
+        print("PING_UNIQUE[0], PING_UNIQUE[-1], len(PING_UNIQUE): ", PING_UNIQUE[0], PING_UNIQUE[-1], len(PING_UNIQUE))
 
         # B-Spline lon/lats and filter to obtain esqual-interval, unique coordinates for each ping
         lo_spl = interpolate.make_interp_spline(
@@ -219,9 +220,11 @@ class Georeferencer:
         la_spl = interpolate.make_interp_spline(
             PING_UNIQUE, LAT_unique, k=3, bc_type="not-a-knot"
         )
+
         # Evaluate spline at equally spaced pings and smooth again with savgol filter
         lo_intp = lo_spl(PING_uniform)
         la_intp = la_spl(PING_uniform)
+
         lo_intp = savgol_filter(lo_intp, 100, 2)
         la_intp = savgol_filter(la_intp, 100, 2)
 
@@ -292,6 +295,7 @@ class Georeferencer:
 
             east_out_intp_savgol = savgol_filter(EAST_OUTER, 300, 2)
             north_out_intp_savgol = savgol_filter(NORTH_OUTER, 300, 2)
+
 
             self.LALO_OUTER = [
                 utm.to_latlon(east_ch1, north_ch1, utm_zone, utm_let)

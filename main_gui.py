@@ -18,7 +18,6 @@ from qtpy.QtWidgets import (
     QSpacerItem,
     QRadioButton,
     QButtonGroup,
-    QComboBox,
 )
 from qtpy.QtGui import QPalette, QColor, QShortcut, QKeySequence
 import qtpy.QtCore as QtCore

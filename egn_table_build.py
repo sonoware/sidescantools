@@ -1,6 +1,5 @@
 from sidescan_file import SidescanFile
 from sidescan_preproc import SidescanPreprocessor
-from georef_thread import Georeferencer
 import numpy as np
 import os
 import pathlib

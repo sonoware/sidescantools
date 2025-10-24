@@ -72,29 +72,25 @@
                     "title": "Active Export Navigation",
                     "type": "boolean"
                 },
-                "resolution_mode": {
-                    "default": 3,
-                    "description": "Set output file resolution. \n Options: \n 0: Same\n1: Highest\n2: Lowest\n3: Average\n4: Common \n Find more infos at gdal doc.",
-                    "maximum": 5,
-                    "minimum": 0,
-                    "title": "Resolution Mode",
-                    "type": "integer"
+                "tiff_resolution": {
+                    "default": 0.2,
+                    "description": "Output Geotiff resolution",
+                    "exclusiveMinimum": 0,
+                    "title": "Tiff Resolution",
+                    "type": "number"
                 },
-                "warp_mode": {
-                    "default": 0,
-                    "description": "Set transformation method for output chunks. \n Options: \n 0: Polynomial1\n1: Homography \n Find more infos at gdal doc.",
-                    "maximum": 2,
-                    "minimum": 0,
-                    "title": "Warp Mode",
-                    "type": "integer"
+                "tiff_search_radius": {
+                    "default": 0.4,
+                    "description": "Set value to include <search_radius> neighbors for nearneighbor algorithm. Default: 2 * resolution",
+                    "exclusiveMinimum": 0,
+                    "title": "Tiff Search Radius",
+                    "type": "number"
                 },
-                "resampling_mode": {
-                    "default": 0,
-                    "description": "Set resampling method for output chunks. \n Options: \n 0: Near\n1: Bilinear\n2: Cubic\n3: Lanczos\n4: Average\n5: RMS\n6: Mode\n7: Maximum\n8: Minimum\n9: Median\n10: 1. Quartile\n11: 3. Quartile\n12: Weighted Sum \n Find more infos at gdal doc.",
-                    "maximum": 13,
-                    "minimum": 0,
-                    "title": "Resampling Mode",
-                    "type": "integer"
+                "active_blockmedian": {
+                    "default": true,
+                    "description": "Use Blockmedian to reduce noise and data size",
+                    "title": "Active Blockmedian",
+                    "type": "boolean"
                 },
                 "active_custom_colormap": {
                     "default": false,
@@ -240,6 +236,7 @@
                     "type": "array"
                 },
                 "meta_info": {
+                    "additionalProperties": true,
                     "description": "Dictionary of meta information for each imported file.",
                     "title": "Meta Info",
                     "type": "object"

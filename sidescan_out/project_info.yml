@@ -39,9 +39,9 @@ georef_view_params:
   active_proc_data: true
   active_utm: true
   active_export_navigation: true
-  resolution_mode: 3
-  warp_mode: 0
-  resampling_mode: 0
+  tiff_resolution: 0.2
+  tiff_search_radius: 0.4
+  active_blockmedian: true
   active_custom_colormap: false
 meta_infos:
   working_dir: ./sidescan_out

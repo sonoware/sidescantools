@@ -560,12 +560,6 @@ class SidescanToolsMain(QWidget):
         self.cfg.georef_view_params.active_custom_colormap = (
             self.view_and_export_widget.active_colormap_checkbox.isChecked()
         )
-        self.settings_dict["Resolution"] = (
-            self.view_and_export_widget.resolution_edit.line_edit.text()
-        )
-        self.settings_dict["Search Radius"] = (
-            self.view_and_export_widget.search_radius_edit.line_edit.text()
-        )
 
     def update_ui_from_cfg(self):
         self.output_picker.update_dir(self.cfg.meta_infos.working_dir)
@@ -1129,13 +1123,13 @@ class ViewAndExportWidget(QVBoxLayout):
         self.resolution_edit = LabeledLineEdit(
             "Resolution [m]:",
             QtGui.QDoubleValidator(0.00001, 1000.0, 3, self),
-            self.main_ui.settings_dict["Resolution"],
+            self.main_ui.cfg.georef_view_params.tiff_resolution,
         )
 
         self.search_radius_edit = LabeledLineEdit(
             "Search Radius [m]:",
             QtGui.QDoubleValidator(0.00001, 2000.0, 3, self),
-            self.main_ui.settings_dict["Search Radius"],
+            self.main_ui.cfg.georef_view_params.tiff_search_radius,
         )
         self.resolution_edit.label.setToolTip(
             "Set resolution for final raster. If left empty, the resolution "

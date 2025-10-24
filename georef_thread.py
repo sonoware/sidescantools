@@ -100,10 +100,13 @@ class Georeferencer:
         """
         import geopy.distance
 
-        start = int(len(lo)/2 - 100)
-        stop = int(len(lo)/2 + 100)
-        lo = lo[start:stop]
-        la = la[start:stop]
+        # define subset if array length is larger than 300 pings. 
+        if len(lo) > 300:
+            start = int(len(lo)/2 - 100)
+            stop = int(len(lo)/2 + 100)
+            lo = lo[start:stop]
+            la = la[start:stop]
+
         DIST = np.ones_like(lo)
 
         for i, (lon, lat, dst) in enumerate(zip(lo, la, DIST)):
@@ -208,10 +211,7 @@ class Georeferencer:
 
         # create uniform ping sequence for smooth curvature with original number of pings as length and last entry of unique ping for
         # maximum ping number, else b-spline will extrapolate which messes up coordinates
-        #PING_uniform = np.linspace(1, len(self.PING), len(self.PING))
         PING_uniform = np.linspace(0, len(PING_UNIQUE)-1, len(self.PING))
-        print("PING_uniform[0], PING_uniform[-1], len(PING_uniform): ", PING_uniform[0], PING_uniform[-1], len(PING_uniform))
-        print("PING_UNIQUE[0], PING_UNIQUE[-1], len(PING_UNIQUE): ", PING_UNIQUE[0], PING_UNIQUE[-1], len(PING_UNIQUE))
 
         # B-Spline lon/lats and filter to obtain esqual-interval, unique coordinates for each ping
         lo_spl = interpolate.make_interp_spline(

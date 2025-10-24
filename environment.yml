@@ -5,13 +5,16 @@ channels:
 dependencies:
   - python=3.12
   - geopy
+  - numpy==2.3.3
   - conda-forge::napari
   - conda-forge::pyqt=5.*
+  - conda-forge::gdal==3.10.3
+  - pyyaml
   - qtpy
   - pyproj
-  - pygmt
-  - rioxarray
-  - rasterio
+  - pygmt==0.17.0
+  - rioxarray==0.18.1
+  - rasterio==1.4.3
   - pyqtgraph
   - pip
   - pip:

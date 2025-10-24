@@ -304,7 +304,6 @@ class Georeferencer:
             east_out_intp_savgol = savgol_filter(EAST_OUTER, 300, 2)
             north_out_intp_savgol = savgol_filter(NORTH_OUTER, 300, 2)
 
-
             self.LALO_OUTER = [
                 utm.to_latlon(east_ch1, north_ch1, utm_zone, utm_let)
                 for (east_ch1, north_ch1, utm_zone, utm_let) in zip(

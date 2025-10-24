@@ -551,19 +551,16 @@ class SidescanToolsMain(QWidget):
         self.cfg.georef_view_params.active_custom_colormap = (
             self.view_and_export_widget.active_colormap_checkbox.isChecked()
         )
-        self.cfg.georef_view_params.resolution_mode = (
-            self.view_and_export_widget.resolution_mode_dropdown.currentIndex()
+        self.settings_dict["Resolution"] = (
+            self.view_and_export_widget.resolution_edit.line_edit.text()
         )
-        self.cfg.georef_view_params.warp_mode = (
-            self.view_and_export_widget.warp_mode_dropdown.currentIndex()
-        )
-        self.cfg.georef_view_params.resampling_mode = (
-            self.view_and_export_widget.resamp_mode_dropdown.currentIndex()
+        self.settings_dict["Search Radius"] = (
+            self.view_and_export_widget.search_radius_edit.line_edit.text()
         )
 
-    def update_ui_from_cfg(self):
-        self.output_picker.update_dir(self.cfg.meta_infos.working_dir)
-        self.georef_out_picker.update_dir(self.cfg.main_proc_params.georef_dir)
+    def update_ui_from_settings(self):
+        self.output_picker.update_dir(self.settings_dict["Working dir"])
+        self.georef_out_picker.update_dir(self.settings_dict["Georef dir"])
         try:
             self.egn_table_picker.update_dir(self.cfg.main_proc_params.egn_table_path)
         except:
@@ -640,14 +637,11 @@ class SidescanToolsMain(QWidget):
         self.view_and_export_widget.active_colormap_checkbox.setChecked(
             self.cfg.georef_view_params.active_custom_colormap
         )
-        self.view_and_export_widget.resolution_mode_dropdown.setCurrentIndex(
-            self.cfg.georef_view_params.resolution_mode
+        self.view_and_export_widget.resolution_edit.line_edit.setText(
+            str(self.settings_dict["Resolution"])
         )
-        self.view_and_export_widget.warp_mode_dropdown.setCurrentIndex(
-            self.cfg.georef_view_params.warp_mode
-        )
-        self.view_and_export_widget.resamp_mode_dropdown.setCurrentIndex(
-            self.cfg.georef_view_params.resampling_mode
+        self.view_and_export_widget.search_radius_edit.line_edit.setText(
+            str(self.settings_dict["Search Radius"])
         )
         self.processing_widget.load_proc_strat()
 
@@ -710,15 +704,6 @@ class SidescanToolsMain(QWidget):
                 exporter_im.parameters()["width"] = 500
                 exporter_im.parameters()["height"] = 500
                 exporter_im.export(outpath)
-
-        print("Sucessfully saved plots as png & svg.")
-        msg = QMessageBox()
-        font = QtGui.QFont("Arial", 12)
-        msg.setText(f"Sucessfully saved: {outpath}")
-        msg.setWindowTitle("Save Dialogue")
-        msg.setIcon(QMessageBox.Information)
-        msg.setFont(font)
-        msg.exec_()
 
 
 # Bottom line detection widget
@@ -1129,40 +1114,31 @@ class ViewAndExportWidget(QVBoxLayout):
         self.active_use_proc_data_checkbox.setToolTip(
             "Export pictures using the processed (filtered and corrected) data. Otherwise raw data is exported."
         )
-        self.res_mode_label = QLabel("Resolution Mode")
-        self.res_mode_label.setToolTip(
-            "Set mode for final resolution. Leave average, if unsure."
-        )
-        self.warp_mode_label = QLabel("Warp Method")
-        self.warp_mode_label.setToolTip(
-            "Set method for warping algorithm. Leave polynomial 1 if unsure, homography is in expermental state."
-        )
-        self.resamp_mode_label = QLabel("Resampling Method")
-        self.resamp_mode_label.setToolTip(
-            "Select resampling method. Leave near neighbour, if unsure (least interpolation)."
+        self.resolution_edit = LabeledLineEdit(
+            "Resolution [m]:",
+            QtGui.QDoubleValidator(0.00001, 1000.0, 3, self),
+            self.main_ui.settings_dict["Resolution"],
         )
 
-        self.resolution_mode_dropdown = QComboBox()
-        self.resolution_mode_dropdown.setToolTip(
-            "Set mode for final resolution. Chose average, if unsure."
+        self.search_radius_edit = LabeledLineEdit(
+            "Search Radius [m]:",
+            QtGui.QDoubleValidator(0.00001, 2000.0, 3, self),
+            self.main_ui.settings_dict["Search Radius"],
         )
-        for res_disp, res_int in Georeferencer.resolution_options.items():
-            self.resolution_mode_dropdown.addItem(res_disp, res_int)
-
-        self.warp_mode_dropdown = QComboBox()
-        self.warp_mode_dropdown.setToolTip(
-            "Set method for warping algorithm. Leave polynomial 1 if unsure, homography is in experimental state."
+        self.resolution_edit.label.setToolTip(
+            "Set resolution for final raster. If left empty, the resolution "
+            "will be the median distance between sample points in original data."
+            "Unit is meters [m]."
         )
-        for warp_disp, warp_int in Georeferencer.warp_options.items():
-            self.warp_mode_dropdown.addItem(warp_disp, warp_int)
-
-        self.resamp_mode_dropdown = QComboBox()
-        self.resamp_mode_dropdown.setToolTip(
-            "Select resampling method. Leave near neighbour, if unsure (least interpolation)."
+        self.search_radius_edit.label.setToolTip(
+            "Search radius limits the points considered to interpolate between samples according to the given radius and "
+            "thus restricts how points inside the search radius contribute to the value at the node. "
+            "Default is search_radius = 2 * resolution. Unit is meters [m]."
         )
-        for resamp_disp, resamp_int in Georeferencer.resampling_options.items():
-            self.resamp_mode_dropdown.addItem(resamp_disp, resamp_int)
-
+        self.active_blockmedian_checkbox = QCheckBox("Blockmedian")
+        self.active_blockmedian_checkbox.setToolTip(
+            "If selected, uses blockmedian before nearneighbour alg. for gridding to reduce noise and data size."
+        )
         self.active_utm_checkbox = QCheckBox("UTM")
         self.active_utm_checkbox.setToolTip(
             "Coordinates in UTM (default). WGS84 if unchecked."
@@ -1199,12 +1175,9 @@ class ViewAndExportWidget(QVBoxLayout):
         self.addWidget(QHLine())
         self.addWidget(self.georef_label)
         self.addWidget(self.active_use_proc_data_checkbox)
-        self.addWidget(self.warp_mode_label)
-        self.addWidget(self.warp_mode_dropdown)
-        self.addWidget(self.resamp_mode_label)
-        self.addWidget(self.resamp_mode_dropdown)
-        self.addWidget(self.res_mode_label)
-        self.addWidget(self.resolution_mode_dropdown)
+        self.addLayout(self.resolution_edit)
+        self.addLayout(self.search_radius_edit)
+        self.addWidget(self.active_blockmedian_checkbox)
         self.addWidget(self.active_utm_checkbox)
         self.addWidget(self.active_navdata_checkbox)
         self.addWidget(self.active_colormap_checkbox)
@@ -1430,21 +1403,35 @@ class ViewAndExportWidget(QVBoxLayout):
             proc_data_out_0 = hist_equalization(proc_data_out_0)
             proc_data_out_1 = hist_equalization(proc_data_out_1)
 
-        georeferencer = GeoreferencerManager()
-        georeferencer.start_georef(
-            filepath,
-            active_utm=self.active_utm_checkbox.isChecked(),
-            active_poly=True,
-            active_export_navdata=self.active_navdata_checkbox.isChecked(),
-            proc_data=[proc_data_out_0, proc_data_out_1],
-            output_folder=output_folder,
-            vertical_beam_angle=int(
-                self.main_ui.processing_widget.vertical_beam_angle_edit.line_edit.text()
-            ),
-            warp_algorithm=self.warp_mode_dropdown.currentData(),
-            resolution_mode=self.resolution_mode_dropdown.currentData(),
-            resampling_method=self.resamp_mode_dropdown.currentData(),
-        )
+        if (
+            self.resolution_edit.line_edit.text() == ""
+            or self.search_radius_edit.line_edit.text() == ""
+        ):
+            msg = QMessageBox()
+            font = QtGui.QFont("Arial", 15)
+            msg.setText(
+                f"Must enter some number for resolution and search radius field"
+            )
+            msg.setWindowTitle("Empty Value error")
+            msg.setIcon(QMessageBox.Warning)
+            msg.setFont(font)
+            msg.exec_()
+
+        else:
+            georeferencer = GeoreferencerManager()
+            georeferencer.start_georef(
+                filepath,
+                active_utm=self.active_utm_checkbox.isChecked(),
+                active_export_navdata=self.active_navdata_checkbox.isChecked(),
+                active_blockmedian=self.active_blockmedian_checkbox.isChecked(),
+                proc_data=[proc_data_out_0, proc_data_out_1],
+                output_folder=output_folder,
+                vertical_beam_angle=int(
+                    self.main_ui.processing_widget.vertical_beam_angle_edit.line_edit.text()
+                ),
+                resolution=float(self.resolution_edit.line_edit.text()),
+                search_radius=float(self.search_radius_edit.line_edit.text()),
+            )
 
     def generate_wc_img(self, active_generate_all: bool):
         if len(self.main_ui.file_table.selectedIndexes()) > 0:

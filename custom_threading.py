@@ -635,103 +635,91 @@ class NavPlotter(QtCore.QThread):
             (lola_data, lola_data_ori, head_data, head_data_ori)
         )
 
-
-class GeoreferencerSignals(QtCore.QObject):
+class GeoreferencerThread(QtCore.QThread):
     finished = QtCore.Signal()
     progress_signal = QtCore.Signal(float)
+    aborted_signal = QtCore.Signal(str)
     error_signal = QtCore.Signal(Exception)
-
-
-class GeoreferencerWorker(QtCore.QRunnable):
-    # class variable declaration (optional)
-
-    error_signal = QtCore.Signal(Exception)
-    filepath: str | os.PathLike
-    sidescan_file: SidescanFile
-    channel: int
-    active_utm: bool
-    active_poly: bool
-    active_export_navdata: bool
-    proc_data: np.array
-    output_folder: str | os.PathLike
-    active_proc_data: bool
-    chunk_indices: np.array
-    vertical_beam_angle: int
-    epsg_code: str
-    warp_options: str
-    resolution_options: str
-    resampling_options: str
+    status_signal = QtCore.Signal(str)
 
     def __init__(
-        self,
-        filepath: str | os.PathLike,
-        channel: int,
-        active_utm: bool = True,
-        active_poly: bool = True,
-        active_export_navdata: bool = True,
-        proc_data=None,
-        output_folder: str | os.PathLike = "./georef_out",
-        vertical_beam_angle: int = 60,
-        warp_algorithm: str = "SRC_METHOD=GCP_POLYNOMIAL, ORDER=1",
-        resolution_mode: str = "average",
-        resampling_method: str = "near",
-    ):
-        super().__init__()
+            self,  
+            filepath: pathlib.Path, 
+            active_utm: bool,
+            active_export_navdata: bool,
+            active_blockmedian: bool,
+            proc_data: list,
+            output_folder: os.PathLike,
+            vertical_beam_angle: int,
+            resolution: float,
+            search_radius: float,
+            parent=None,
+        ):
+        super().__init__(parent)
         self.filepath = filepath
-        self.sidescan_file = SidescanFile(self.filepath)
-        self.channel = channel
         self.active_utm = active_utm
-        self.active_poly = active_poly
         self.active_export_navdata = active_export_navdata
+        self.active_blockmedian = active_blockmedian
+        self.proc_data = proc_data
         self.output_folder = output_folder
         self.vertical_beam_angle = vertical_beam_angle
-        self.warp_algorithm = warp_algorithm
-        self.resolution_mode = resolution_mode
-        self.resampling_method = resampling_method
-        self.active_proc_data = False
-        if proc_data is not None:
-            self.proc_data = proc_data
-            self.active_proc_data = True
-        self.signals = GeoreferencerSignals()
+        self.resolution = resolution
+        self.search_radius = search_radius
 
-    @QtCore.Slot()
+    def georef(self):
+        georef_success = True
+        err_msg = f"Error while Georeferencing {self.filepath}"
+
+        processor_0 = Georeferencer(
+            filepath=self.filepath,
+            channel=0,
+            active_utm=self.active_utm,
+            active_export_navdata=self.active_export_navdata,
+            active_blockmedian = self.active_blockmedian,
+            proc_data=self.proc_data[0],
+            output_folder=self.output_folder,
+            vertical_beam_angle=self.vertical_beam_angle,
+            resolution=self.resolution,
+            search_radius=self.search_radius,
+        )  # from georef.py
+        processor_0.process(self.progress_signal)
+
+        processor_1 = Georeferencer(
+            filepath=self.filepath,
+            channel=1,
+            active_utm=self.active_utm,
+            active_export_navdata=self.active_export_navdata,
+            active_blockmedian = self.active_blockmedian,
+            proc_data=self.proc_data[1],
+            output_folder=self.output_folder,
+            vertical_beam_angle=self.vertical_beam_angle,
+            resolution=self.resolution,
+            search_radius=self.search_radius,
+        )  # from georef.py
+        processor_1.process(self.progress_signal)
+
+        if georef_success:
+            self.status_signal.emit("Georeferencing finished")
+            self.finished.emit()
+        else:
+            self.error_signal.emit(str(err_msg))
+
     def run(self):
         try:
-            self.start_georeferencing()
+            self.georef()
         except Exception as e:
-            self.signals.error_signal.emit(e)
+            self.error_signal.emit(e)
         finally:
-            self.signals.finished.emit()
-
-    def start_georeferencing(self):
-        processor = Georeferencer(
-            filepath=self.filepath,
-            channel=self.channel,
-            active_utm=self.active_utm,
-            active_poly=self.active_poly,
-            active_export_navdata=self.active_export_navdata,
-            output_folder=self.output_folder,
-            proc_data=self.proc_data,
-            vertical_beam_angle=self.vertical_beam_angle,
-            warp_algorithm=self.warp_algorithm,
-            resolution_mode=self.resolution_mode,
-            resampling_method=self.resampling_method,
-        )  # from georef.py
-
-        processor.process(self.signals.progress_signal)
-
+            self.finished.emit()
 
 class GeoreferencerManager(QWidget):
-
     processing_finished = QtCore.Signal(list)
     aborted = QtCore.Signal(str)
     pbar_val: float
-    num_files: int
     cleanup_cnt: int  # fix for now
 
     def __init__(self):
         super().__init__()
-
         self.pbar_val = 0
         self.cleanup_cnt = 0
         self.pbar = QProgressBar(self)
@@ -755,78 +743,56 @@ class GeoreferencerManager(QWidget):
         self.setStyleSheet(
             "background-color:black;border-color:darkgrey;border-style:solid;border-width:3px;"
         )
-        self.thread_pool = QtCore.QThreadPool()
         self.show()
 
-    def start_georef(
-        self,
-        filepath: str | os.PathLike,
-        active_utm: bool,
-        active_poly: bool,
-        active_export_navdata: bool,
-        proc_data: list,
-        output_folder: os.PathLike,
-        vertical_beam_angle: int,
-        warp_algorithm: str,
-        resolution_mode: str,
-        resampling_method: str,
-    ):
+    def start_georef(self, 
+                     filepath, 
+                     active_utm, 
+                     active_export_navdata, 
+                     active_blockmedian,
+                     proc_data,
+                     output_folder,
+                     vertical_beam_angle,
+                     resolution,
+                     search_radius
+                     ):
+        
         self.output_folder = pathlib.Path(output_folder)
 
-        georef_worker_0 = GeoreferencerWorker(
-            filepath,
-            0,
-            active_utm,
-            active_poly,
+        self.georef_thread = GeoreferencerThread(
+            filepath, 
+            active_utm, 
             active_export_navdata,
-            proc_data[0],
+            active_blockmedian,
+            proc_data,
             output_folder,
             vertical_beam_angle,
-            warp_algorithm,
-            resolution_mode,
-            resampling_method,
-        )
-        georef_worker_0.signals.progress_signal.connect(
+            resolution,
+            search_radius
+            )
+        self.georef_thread.progress_signal.connect(
             lambda progress: self.update_pbar(progress)
+            )
+        self.georef_thread.finished.connect(self.cleanup)
+        self.georef_thread.finished.connect(self.georef_thread.deleteLater)
+        self.georef_thread.aborted_signal.connect(            
+            lambda msg_str: self.georef_aborted(msg_str)
         )
-        georef_worker_0.signals.error_signal.connect(
-            lambda err: self.build_aborted(err)
-        )
-        georef_worker_0.signals.error_signal.connect(self.cleanup)
-        georef_worker_0.signals.finished.connect(self.cleanup)
-
-        georef_worker_1 = GeoreferencerWorker(
-            filepath,
-            1,
-            active_utm,
-            active_poly,
-            active_export_navdata,
-            proc_data[1],
-            output_folder,
-            vertical_beam_angle,
-            warp_algorithm,
-            resolution_mode,
-            resampling_method,
-        )
-        georef_worker_1.signals.progress_signal.connect(
-            lambda progress: self.update_pbar(progress)
-        )
-        georef_worker_1.signals.error_signal.connect(
-            lambda err: self.build_aborted(err)
-        )
-        georef_worker_1.signals.finished.connect(self.cleanup)
-
-        self.thread_pool.start(georef_worker_0)
-        self.thread_pool.start(georef_worker_1)
-
+        self.georef_thread.start()
+    
     def update_pbar(self, progress: float):
-        self.pbar_val += progress / 2  # for 2 channels
+        self.pbar_val += progress  # for 2 channels
         disp_var = self.pbar_val
         self.pbar.setValue(int(100 * disp_var))
 
     def build_aborted(self, err: Exception):
         msg_str = str(err)
         print(msg_str)
+        self.cleanup()
+
+    def georef_aborted(self, msg_str: str):
+        self.aborted_signal.emit(msg_str)
+        self.deleteLater()
         self.cleanup()
 
     def cleanup(self):
@@ -838,12 +804,9 @@ class GeoreferencerManager(QWidget):
             for file in os.listdir(self.output_folder):
                 file_path = os.path.join(self.output_folder, file)
                 if (
-                    str(file_path).endswith(".png")
-                    # or str(file_path).endswith(".txt")
-                    or str(file_path).endswith("tmp.tif")
-                    or str(file_path).endswith(".points")
+                    str(file_path).startswith("outmedian")
                     or str(file_path).endswith(".xml")
-                    or str(file_path).endswith(".vrt")
+                    or str(file_path).endswith(".xyz")
                 ):
                     try:
                         os.remove(file_path)

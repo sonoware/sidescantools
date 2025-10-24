@@ -9,7 +9,9 @@ dependencies:
   - conda-forge::pyqt=5.*
   - qtpy
   - pyproj
-  - conda-forge::gdal=3.11
+  - pygmt
+  - rioxarray
+  - rasterio
   - pyqtgraph
   - pip
   - pip:

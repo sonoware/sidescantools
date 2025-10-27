@@ -72,18 +72,24 @@
                     "title": "Active Export Navigation",
                     "type": "boolean"
                 },
-                "tiff_resolution": {
-                    "default": 0.2,
+                "active_automatic_resolution": {
+                    "default": false,
+                    "description": "Determine resolution of Geotiff automatically from sample spacing.",
+                    "title": "Active Automatic Resolution",
+                    "type": "boolean"
+                },
+                "output_resolution": {
+                    "default": 0.1,
                     "description": "Output Geotiff resolution",
                     "exclusiveMinimum": 0,
-                    "title": "Tiff Resolution",
+                    "title": "Output Resolution",
                     "type": "number"
                 },
-                "tiff_search_radius": {
+                "output_search_radius": {
                     "default": 0.4,
                     "description": "Set value to include `search_radius` neighbors for nearneighbor algorithm. Default: 2 * resolution",
                     "exclusiveMinimum": 0,
-                    "title": "Tiff Search Radius",
+                    "title": "Output Search Radius",
                     "type": "number"
                 },
                 "active_blockmedian": {

@@ -153,6 +153,21 @@ class SidescanToolsMain:
             if self.active_georef:
                 start_timer_georef = timer()
 
+                # determine resolution if wanted
+                if self.cfg.georef_view_params.active_automatic_resolution:
+                    ground_range = sidescan_file.slant_range * np.sin(
+                        np.deg2rad(self.cfg.main_proc_params.vertical_beam_angle)
+                    )
+                    resolution = np.nanmax(ground_range) / sidescan_file.ping_len
+                    search_range = np.max((0.1, 4 * resolution))
+                    self.cfg.georef_view_params.output_resolution = np.round(
+                        resolution, 3
+                    )
+                    self.cfg.georef_view_params.output_search_radius = np.round(
+                        search_range, 3
+                    )
+
+                # start georeferencing
                 georeferencer = Georeferencer(
                     filepath=sidescan_path,
                     channel=0,
@@ -162,8 +177,8 @@ class SidescanToolsMain:
                     proc_data=proc_data_out_0,
                     output_folder=self.cfg.main_proc_params.georef_dir,
                     vertical_beam_angle=self.cfg.main_proc_params.vertical_beam_angle,
-                    resolution=self.cfg.georef_view_params.tiff_resolution,
-                    search_radius=self.cfg.georef_view_params.tiff_search_radius,
+                    resolution=self.cfg.georef_view_params.output_resolution,
+                    search_radius=self.cfg.georef_view_params.output_search_radius,
                 )
                 georeferencer.process()
                 georeferencer = Georeferencer(
@@ -175,8 +190,8 @@ class SidescanToolsMain:
                     proc_data=proc_data_out_1,
                     output_folder=self.cfg.main_proc_params.georef_dir,
                     vertical_beam_angle=self.cfg.main_proc_params.vertical_beam_angle,
-                    resolution=self.cfg.georef_view_params.tiff_resolution,
-                    search_radius=self.cfg.georef_view_params.tiff_search_radius,
+                    resolution=self.cfg.georef_view_params.output_resolution,
+                    search_radius=self.cfg.georef_view_params.output_search_radius,
                 )
                 georeferencer.process()
 

@@ -4,6 +4,7 @@ channels:
   - conda-forge
 dependencies:
   - python=3.12
+  - conda-forge::pydantic
   - geopy
   - numpy==2.3.3
   - conda-forge::napari

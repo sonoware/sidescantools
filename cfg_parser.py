@@ -168,10 +168,14 @@ class GeoreferencingAndViewingParameter(BaseModel):
     active_export_navigation: bool = Field(
         default=False, description="Export additional navigation data file"
     )
-    tiff_resolution: float = Field(
-        default=0.2, gt=0, description=f"Output Geotiff resolution"
+    active_automatic_resolution: bool = Field(
+        default=False,
+        description="Determine resolution of Geotiff automatically from sample spacing.",
     )
-    tiff_search_radius: float = Field(
+    output_resolution: float = Field(
+        default=0.1, gt=0, description=f"Output Geotiff resolution"
+    )
+    output_search_radius: float = Field(
         default=0.4,
         gt=0,
         description="Set value to include `search_radius` neighbors for nearneighbor algorithm. Default: 2 * resolution",

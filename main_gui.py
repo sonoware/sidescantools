@@ -51,6 +51,8 @@ from custom_threading import (
 
 import scipy.signal as scisig
 from cfg_parser import GAINSTRAT, CFG
+from georef_thread import Georeferencer
+from sidescan_file import SidescanFile
 
 
 class SidescanToolsMain(QWidget):
@@ -399,6 +401,7 @@ class SidescanToolsMain(QWidget):
         file_path = self.file_dict["Path"][self.file_table.selectedIndexes()[0].row()]
         self.file_info_text_box.clear()
         self.file_info_text_box.insertHtml(self.cfg.meta_infos.meta_info[file_path])
+        self.view_and_export_widget.on_automatic_resolution_changed()
 
     def always_select_row(self):
         self.file_table.selectRow(self.file_table.selectedIndexes()[0].row())
@@ -547,10 +550,13 @@ class SidescanToolsMain(QWidget):
         self.cfg.georef_view_params.active_export_navigation = (
             self.view_and_export_widget.active_navdata_checkbox.isChecked()
         )
-        self.cfg.georef_view_params.tiff_resolution = float(
+        self.cfg.georef_view_params.active_automatic_resolution = (
+            self.view_and_export_widget.active_automatic_resolution_checkbox.isChecked()
+        )
+        self.cfg.georef_view_params.output_resolution = float(
             self.view_and_export_widget.resolution_edit.line_edit.text()
         )
-        self.cfg.georef_view_params.tiff_search_radius = float(
+        self.cfg.georef_view_params.output_search_radius = float(
             self.view_and_export_widget.search_radius_edit.line_edit.text()
         )
         self.cfg.georef_view_params.active_blockmedian = (
@@ -642,11 +648,14 @@ class SidescanToolsMain(QWidget):
         self.view_and_export_widget.active_colormap_checkbox.setChecked(
             self.cfg.georef_view_params.active_custom_colormap
         )
+        self.view_and_export_widget.active_automatic_resolution_checkbox.setChecked(
+            self.cfg.georef_view_params.active_automatic_resolution
+        )
         self.view_and_export_widget.resolution_edit.line_edit.setText(
-            str(self.cfg.georef_view_params.tiff_resolution)
+            str(self.cfg.georef_view_params.output_resolution)
         )
         self.view_and_export_widget.search_radius_edit.line_edit.setText(
-            str(self.cfg.georef_view_params.tiff_search_radius)
+            str(self.cfg.georef_view_params.output_search_radius)
         )
         self.view_and_export_widget.active_blockmedian_checkbox.setChecked(
             self.cfg.georef_view_params.active_blockmedian
@@ -1120,18 +1129,27 @@ class ViewAndExportWidget(QVBoxLayout):
         self.georef_label.setFont(title_font)
         self.active_use_proc_data_checkbox = QCheckBox("Use processed Data")
         self.active_use_proc_data_checkbox.setToolTip(
-            "Export pictures using the processed (filtered and corrected) data. Otherwise raw data is exported."
+            "Export images using the processed (filtered and corrected) data. Otherwise raw data is exported."
+        )
+        self.active_automatic_resolution_checkbox = QCheckBox(
+            "Determine resolution automatically"
+        )
+        self.active_automatic_resolution_checkbox.setToolTip(
+            "Determine resolution of Geotiff automatically from sample spacing."
+        )
+        self.active_automatic_resolution_checkbox.stateChanged.connect(
+            self.on_automatic_resolution_changed
         )
         self.resolution_edit = LabeledLineEdit(
             "Resolution [m]:",
             QtGui.QDoubleValidator(0.00001, 1000.0, 3, self),
-            self.main_ui.cfg.georef_view_params.tiff_resolution,
+            self.main_ui.cfg.georef_view_params.output_resolution,
         )
 
         self.search_radius_edit = LabeledLineEdit(
             "Search Radius [m]:",
             QtGui.QDoubleValidator(0.00001, 2000.0, 3, self),
-            self.main_ui.cfg.georef_view_params.tiff_search_radius,
+            self.main_ui.cfg.georef_view_params.output_search_radius,
         )
         self.resolution_edit.label.setToolTip(
             "Set resolution for final raster. If left empty, the resolution "
@@ -1183,6 +1201,7 @@ class ViewAndExportWidget(QVBoxLayout):
         self.addWidget(QHLine())
         self.addWidget(self.georef_label)
         self.addWidget(self.active_use_proc_data_checkbox)
+        self.addWidget(self.active_automatic_resolution_checkbox)
         self.addLayout(self.resolution_edit)
         self.addLayout(self.search_radius_edit)
         self.addWidget(self.active_blockmedian_checkbox)
@@ -1206,6 +1225,45 @@ class ViewAndExportWidget(QVBoxLayout):
         self.main_ui.bottom_line_detection_widget.active_convert_dB_checkbox.setChecked(
             self.active_convert_dB_checkbox.isChecked()
         )
+
+    def on_automatic_resolution_changed(self):
+        self.main_ui.cfg.georef_view_params.active_automatic_resolution = (
+            self.active_automatic_resolution_checkbox.isChecked()
+        )
+        if self.main_ui.cfg.georef_view_params.active_automatic_resolution:
+            # determine optimal resolution for selected file
+            self.resolution_edit.line_edit.setEnabled(False)
+            file_idx = 0
+            if len(self.main_ui.file_table.selectedIndexes()) > 0:
+                file_idx = self.main_ui.file_table.selectedIndexes()[0].row()
+                filepath = pathlib.Path(self.main_ui.cfg.meta_infos.paths[file_idx])
+                sidescan_file = SidescanFile(filepath)
+
+                ground_range = sidescan_file.slant_range * np.sin(
+                    np.deg2rad(self.main_ui.cfg.main_proc_params.vertical_beam_angle)
+                )
+                resolution = np.nanmax(ground_range) / sidescan_file.ping_len
+                search_range = np.max((0.1, 4 * resolution))
+                self.main_ui.cfg.georef_view_params.output_resolution = np.round(
+                    resolution, 3
+                )
+                self.main_ui.cfg.georef_view_params.output_search_radius = np.round(
+                    search_range, 3
+                )
+                self.main_ui.update_ui_from_cfg()
+
+                # mark line edit as not editable
+                self.resolution_edit.line_edit.setStyleSheet(
+                    """
+                    QLineEdit:disabled {
+                        background-color: darkgray;
+                        color: lightgray;
+                    }
+                """
+                )
+
+        else:
+            self.resolution_edit.line_edit.setEnabled(True)
 
     def show_proc_file_in_napari(self):
         file_idx = 0

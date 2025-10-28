@@ -170,13 +170,13 @@ class GeoreferencingAndViewingParameter(BaseModel):
     )
     active_automatic_resolution: bool = Field(
         default=False,
-        description="Determine resolution of Geotiff automatically from sample spacing.",
+        description="Determine resolution of output raster automatically from sample spacing.",
     )
     output_resolution: float = Field(
-        default=0.1, gt=0, description=f"Output Geotiff resolution"
+        default=0.1, gt=0, description=f"Output raster resolution"
     )
     output_search_radius: float = Field(
-        default=0.4,
+        default=0.2,
         gt=0,
         description="Set value to include `search_radius` neighbors for nearneighbor algorithm. Default: 2 * resolution",
     )

@@ -74,19 +74,19 @@
                 },
                 "active_automatic_resolution": {
                     "default": false,
-                    "description": "Determine resolution of Geotiff automatically from sample spacing.",
+                    "description": "Determine resolution of output raster automatically from sample spacing.",
                     "title": "Active Automatic Resolution",
                     "type": "boolean"
                 },
                 "output_resolution": {
                     "default": 0.1,
-                    "description": "Output Geotiff resolution",
+                    "description": "Output raster resolution",
                     "exclusiveMinimum": 0,
                     "title": "Output Resolution",
                     "type": "number"
                 },
                 "output_search_radius": {
-                    "default": 0.4,
+                    "default": 0.2,
                     "description": "Set value to include `search_radius` neighbors for nearneighbor algorithm. Default: 2 * resolution",
                     "exclusiveMinimum": 0,
                     "title": "Output Search Radius",

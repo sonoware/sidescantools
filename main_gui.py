@@ -1243,12 +1243,12 @@ class ViewAndExportWidget(QVBoxLayout):
                     np.deg2rad(self.main_ui.cfg.main_proc_params.vertical_beam_angle)
                 )
                 resolution = np.nanmax(ground_range) / sidescan_file.ping_len
-                search_range = np.max((0.1, 4 * resolution))
+                search_radius = np.max((0.1, 4 * resolution))
                 self.main_ui.cfg.georef_view_params.output_resolution = np.round(
                     resolution, 3
                 )
                 self.main_ui.cfg.georef_view_params.output_search_radius = np.round(
-                    search_range, 3
+                    search_radius, 3
                 )
                 self.main_ui.update_ui_from_cfg()
 

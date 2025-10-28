@@ -82,7 +82,7 @@ class SidescanToolsMain:
             if self.cfg.main_proc_params.active_pie_slice_filter:
                 print(f"Pie slice filtering {sidescan_path}")
                 preproc.apply_pie_slice_filter()
-            search_range = self.cfg.main_proc_params.btm_refinement_search_range
+            search_radius = self.cfg.main_proc_params.btm_refinement_search_range
             active_depth_refine = (
                 self.cfg.main_proc_params.active_bottom_line_refinement
             )
@@ -96,7 +96,7 @@ class SidescanToolsMain:
             use_intern_altitude = True
             if active_depth_refine:
                 preproc.refine_detected_bottom_line(
-                    search_range,
+                    search_radius,
                     active_single_altitude_offset=active_single_altitude_offset,
                     active_bottom_smoothing=active_btm_smoothing,
                     additional_inset=additional_inset,
@@ -159,12 +159,12 @@ class SidescanToolsMain:
                         np.deg2rad(self.cfg.main_proc_params.vertical_beam_angle)
                     )
                     resolution = np.nanmax(ground_range) / sidescan_file.ping_len
-                    search_range = np.max((0.1, 4 * resolution))
+                    search_radius = np.max((0.1, 4 * resolution))
                     self.cfg.georef_view_params.output_resolution = np.round(
                         resolution, 3
                     )
                     self.cfg.georef_view_params.output_search_radius = np.round(
-                        search_range, 3
+                        search_radius, 3
                     )
 
                 # start georeferencing

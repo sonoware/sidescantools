@@ -41,7 +41,7 @@ georef_view_params:
   active_export_navigation: false
   active_automatic_resolution: false
   output_resolution: 0.1
-  output_search_radius: 0.4
+  output_search_radius: 0.2
   active_blockmedian: true
   active_custom_colormap: false
 meta_infos:

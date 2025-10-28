@@ -7,7 +7,7 @@ pyxtf
 scipy
 scikit-image
 utm
-#GDAL==3.11
+GDAL==3.10.3
 pyproj
 rioxarray
 rasterio

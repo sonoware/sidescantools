@@ -1,50 +1,52 @@
-"0: Main Processing Parameters":
-  Active bottom line refinement: true
-  Active bottom line smoothing: true
-  Active btm refinement shift by offset: true
-  Active convert dB: true
-  Active gain norm: true
-  Active hist equal: true
-  Active pie slice filter: false
-  Active sharpening filter: false
-  Additional bottom line inset: 0
-  Bottom line refinement search range: 0.06
-  EGN table path: ./sidescan_out/egn_table.npz
-  Georef dir: ./georef_out
-  Slant gain norm strategy: 0 # 0: BAC 1: EGN
-  Slant nadir angle: 0
-  Slant vertical beam angle: 60
-"1: Bottom Detection":
-  Btm chunk size: 1000
-  Btm def thresh: 0.6
-  Btm downsampling: 1
-  Btm equal hist: true
-"2: Slant and Gain Correction":
-  BAC resolution: 360
-  EGN table resolution parameters:
-    - 360
-    - 2
-  Slant active export proc data: true
-  Slant active export slant data: true
-  Slant active intern depth: false
-  Slant active multiprocessing: true
-  Slant active use downsampling: true
-  Slant chunk size: 1000
-  Slant num worker: 8
-"3: Georeferencing and Viewing":
-  Georef Navigation: true
-  Georef UTM: true
-  Georef active custom colormap: false
-  Georef active proc data: true
-  Img chunk size: "1000"
-  Img include raw data: false
-  Resampling Method: 0
-  Resolution Mode: 3
-  View reprocess file: false
-  Warp Mode: 0
-"4: Meta info":
-  EGN table name: EGN_table.npz
-  Meta info: {}
-  Path: []
-  Project filename: project_info.yml
-  Working dir: ./sidescan_out
+# yaml-language-server: $schema=project_info_schema.json 
+ 
+main_proc_params:
+  georef_dir: ./georef_out
+  active_convert_dB: true
+  egn_table_path: ./sidescan_out/EGN_table.npz
+  active_bottom_line_refinement: true
+  active_btm_refinement_shift_by_offset: true
+  btm_refinement_search_range: 0.06
+  active_bottom_line_smoothing: true
+  additional_bottom_line_inset: 0
+  active_pie_slice_filter: false
+  active_sharpening_filter: false
+  active_gain_normalization: true
+  active_hist_equalization: true
+  gain_norm_strategy: 0
+  vertical_beam_angle: 60
+  nadir_angle: 0
+bottomline_params:
+  chunk_size: 1000
+  default_threshold: 0.6
+  downsampling_factor: 1
+  active_clahe: true
+slant_gain_params:
+  active_intern_depth: false
+  chunk_size: 1000
+  active_use_downsampling: true
+  active_multiprocessing: true
+  num_worker: 8
+  active_export_proc_data: true
+  active_export_slant_data: true
+  bac_resolution: 360
+  egn_table_resolution_angle: 360
+  egn_table_resolution_range_factor: 2
+georef_view_params:
+  active_view_reprocess_file: false
+  img_chunk_size: 1000
+  img_include_raw_data: false
+  active_proc_data: true
+  active_utm: true
+  active_export_navigation: false
+  active_automatic_resolution: false
+  output_resolution: 0.1
+  output_search_radius: 0.2
+  active_blockmedian: true
+  active_custom_colormap: false
+meta_infos:
+  working_dir: ./sidescan_out
+  project_filename: project_info.yml
+  egn_table_name: EGN_table.npz
+  paths: []
+  meta_info: {}

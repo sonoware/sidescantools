@@ -1,0 +1,345 @@
+{
+    "$defs": {
+        "BottomlineDetectionParameter": {
+            "properties": {
+                "chunk_size": {
+                    "default": 1000,
+                    "description": "Number of pings in a single view",
+                    "exclusiveMinimum": 0,
+                    "title": "Chunk Size",
+                    "type": "integer"
+                },
+                "default_threshold": {
+                    "default": 0.6,
+                    "description": "Threshold used on normalized ping data to make data binary for bottom detection",
+                    "maximum": 1.0,
+                    "minimum": 0.0,
+                    "title": "Default Threshold",
+                    "type": "number"
+                },
+                "downsampling_factor": {
+                    "default": 1,
+                    "description": "Integer number to reduce samples per each ping (Data is decimated using this factor)",
+                    "title": "Downsampling Factor",
+                    "type": "integer"
+                },
+                "active_clahe": {
+                    "default": true,
+                    "description": "Apply CLAHE to the data to improve contrast",
+                    "title": "Active Clahe",
+                    "type": "boolean"
+                }
+            },
+            "title": "BottomlineDetectionParameter",
+            "type": "object"
+        },
+        "GeoreferencingAndViewingParameter": {
+            "properties": {
+                "active_view_reprocess_file": {
+                    "default": false,
+                    "description": "Reprocess file before viewing results in napari. (UI only)",
+                    "title": "Active View Reprocess File",
+                    "type": "boolean"
+                },
+                "img_chunk_size": {
+                    "default": 1000,
+                    "description": "Chunk size used for PNG export",
+                    "exclusiveMinimum": 0,
+                    "title": "Img Chunk Size",
+                    "type": "integer"
+                },
+                "img_include_raw_data": {
+                    "default": false,
+                    "description": "Produces PNG with additional raw unprocessed data",
+                    "title": "Img Include Raw Data",
+                    "type": "boolean"
+                },
+                "active_proc_data": {
+                    "default": true,
+                    "description": "Export processed data in the georeferenced image. Otherwise a waterfall image based on the raw data will be created.",
+                    "title": "Active Proc Data",
+                    "type": "boolean"
+                },
+                "active_utm": {
+                    "default": true,
+                    "description": "Use UTM for export, otherwise WGS84 (unprojected) is used",
+                    "title": "Active Utm",
+                    "type": "boolean"
+                },
+                "active_export_navigation": {
+                    "default": false,
+                    "description": "Export additional navigation data file",
+                    "title": "Active Export Navigation",
+                    "type": "boolean"
+                },
+                "active_automatic_resolution": {
+                    "default": false,
+                    "description": "Determine resolution of output raster automatically from sample spacing.",
+                    "title": "Active Automatic Resolution",
+                    "type": "boolean"
+                },
+                "output_resolution": {
+                    "default": 0.1,
+                    "description": "Output raster resolution",
+                    "exclusiveMinimum": 0,
+                    "title": "Output Resolution",
+                    "type": "number"
+                },
+                "output_search_radius": {
+                    "default": 0.2,
+                    "description": "Set value to include `search_radius` neighbors for nearneighbor algorithm. Default: 2 * resolution",
+                    "exclusiveMinimum": 0,
+                    "title": "Output Search Radius",
+                    "type": "number"
+                },
+                "active_blockmedian": {
+                    "default": true,
+                    "description": "Use Blockmedian to reduce noise and data size",
+                    "title": "Active Blockmedian",
+                    "type": "boolean"
+                },
+                "active_custom_colormap": {
+                    "default": false,
+                    "description": "Use the SidescanTools custom colormap that is used in napari also for image export.",
+                    "title": "Active Custom Colormap",
+                    "type": "boolean"
+                }
+            },
+            "title": "GeoreferencingAndViewingParameter",
+            "type": "object"
+        },
+        "MainProcParameter": {
+            "properties": {
+                "georef_dir": {
+                    "default": "./georef_out",
+                    "description": "Path to directory that will store georeferencing results.",
+                    "title": "Georef Dir",
+                    "type": "string"
+                },
+                "active_convert_dB": {
+                    "default": true,
+                    "description": "Convert data to decibel for display/export",
+                    "title": "Active Convert Db",
+                    "type": "boolean"
+                },
+                "egn_table_path": {
+                    "default": "./sidescan_out/EGN_table.npz",
+                    "description": "Path to .npz EGN Table",
+                    "title": "Egn Table Path",
+                    "type": "string"
+                },
+                "active_bottom_line_refinement": {
+                    "default": true,
+                    "description": "Uses the internal primary sensor altitude information to find the bottom line in an area around the known altitude",
+                    "title": "Active Bottom Line Refinement",
+                    "type": "boolean"
+                },
+                "active_btm_refinement_shift_by_offset": {
+                    "default": true,
+                    "description": " The mean distance of the raw altitude and the detected bottom line is calculated. If this parameter is true, the raw altitude information is shifted by this value and the result is used in the following as bottom line. Otherwise the result of the edge detection itself is used as bottom line.",
+                    "title": "Active Btm Refinement Shift By Offset",
+                    "type": "boolean"
+                },
+                "btm_refinement_search_range": {
+                    "default": 0.06,
+                    "description": "Fraction in float (default=0.06). Defines the range around the sensor altitude which is used for the bottom line refinement.",
+                    "maximum": 1.0,
+                    "minimum": 0.01,
+                    "title": "Btm Refinement Search Range",
+                    "type": "number"
+                },
+                "active_bottom_line_smoothing": {
+                    "default": true,
+                    "description": "Smooth detected bottom line (highly recommended)",
+                    "title": "Active Bottom Line Smoothing",
+                    "type": "boolean"
+                },
+                "additional_bottom_line_inset": {
+                    "default": 0,
+                    "description": "Offset in integer (default=0). Move the bottom line by this amount inwards. May be useful to exclude remaining samples of the watercolumn, but should usually not be needed.Offset in integer (default=0). Move the bottom line by this amount inwards. May be useful to exclude remaining samples of the watercolumn, but should usually not be needed.",
+                    "minimum": 0,
+                    "title": "Additional Bottom Line Inset",
+                    "type": "integer"
+                },
+                "active_pie_slice_filter": {
+                    "default": false,
+                    "description": "A 2D FFT based filter is applied to remove the horizontal stripes that often occur in sidescan images.",
+                    "title": "Active Pie Slice Filter",
+                    "type": "boolean"
+                },
+                "active_sharpening_filter": {
+                    "default": false,
+                    "description": "A homomorphic filter is applied to amplify the high frequency information. This feature is highly experimental and currently not advised.",
+                    "title": "Active Sharpening Filter",
+                    "type": "boolean"
+                },
+                "active_gain_normalization": {
+                    "default": true,
+                    "description": "Perform Gain Normalization via BAC or EGN. Choose strategy via gain_norm_strategy parameter.",
+                    "title": "Active Gain Normalization",
+                    "type": "boolean"
+                },
+                "active_hist_equalization": {
+                    "default": true,
+                    "description": "Apply CLAHE (Contrast Limited Adaptive Histogram Equalization) to the data to improve contrast.",
+                    "title": "Active Hist Equalization",
+                    "type": "boolean"
+                },
+                "gain_norm_strategy": {
+                    "default": 0,
+                    "description": "Enum to choose gain normalization strategy.\n Options: \n 0: BAC\n1: EGN",
+                    "maximum": 2,
+                    "minimum": 0,
+                    "title": "Gain Norm Strategy",
+                    "type": "integer"
+                },
+                "vertical_beam_angle": {
+                    "default": 60,
+                    "description": "Degrees as integer. Angle in the vertical plane that the sound waves cover (usually found in the manual).",
+                    "maximum": 90,
+                    "minimum": 1,
+                    "title": "Vertical Beam Angle",
+                    "type": "integer"
+                },
+                "nadir_angle": {
+                    "default": 0,
+                    "description": "Degrees as integer. Angle between perpendicular and first bottom return (usually needs to be estimated, leave 0 if unsure).",
+                    "exclusiveMaximum": 90,
+                    "minimum": 0,
+                    "title": "Nadir Angle",
+                    "type": "integer"
+                }
+            },
+            "title": "MainProcParameter",
+            "type": "object"
+        },
+        "MetaInfo": {
+            "properties": {
+                "working_dir": {
+                    "default": "./sidescan_out",
+                    "description": "Main directory to store results and exported PNGs.",
+                    "title": "Working Dir",
+                    "type": "string"
+                },
+                "project_filename": {
+                    "default": "project_info.yml",
+                    "description": "Filename of this cfg",
+                    "title": "Project Filename",
+                    "type": "string"
+                },
+                "egn_table_name": {
+                    "default": "EGN_table.npz",
+                    "description": "Name that will be used when a new EGN table is generated.",
+                    "title": "Egn Table Name",
+                    "type": "string"
+                },
+                "paths": {
+                    "description": "List of all imported file paths.",
+                    "items": {
+                        "type": "string"
+                    },
+                    "title": "Paths",
+                    "type": "array"
+                },
+                "meta_info": {
+                    "additionalProperties": true,
+                    "description": "Dictionary of meta information for each imported file.",
+                    "title": "Meta Info",
+                    "type": "object"
+                }
+            },
+            "title": "MetaInfo",
+            "type": "object"
+        },
+        "SlantAndGainCorrectionParameter": {
+            "properties": {
+                "active_intern_depth": {
+                    "default": false,
+                    "description": "Use internal altitude information instead of detected bottom line.",
+                    "title": "Active Intern Depth",
+                    "type": "boolean"
+                },
+                "chunk_size": {
+                    "default": 1000,
+                    "description": "Internal chunk size used for processing.",
+                    "exclusiveMinimum": 0,
+                    "title": "Chunk Size",
+                    "type": "integer"
+                },
+                "active_use_downsampling": {
+                    "default": true,
+                    "description": "Process data with the same downsampling that has been applied while the bottom line detection. Otherwise data is processed with the original resolution.",
+                    "title": "Active Use Downsampling",
+                    "type": "boolean"
+                },
+                "active_multiprocessing": {
+                    "default": true,
+                    "description": "Use multiprocessing for parallel processing of multiple files. (Currently UI only)",
+                    "title": "Active Multiprocessing",
+                    "type": "boolean"
+                },
+                "num_worker": {
+                    "default": 8,
+                    "description": "Number of workers used for multiprocessing.",
+                    "exclusiveMinimum": 0,
+                    "title": "Num Worker",
+                    "type": "integer"
+                },
+                "active_export_proc_data": {
+                    "default": true,
+                    "description": "Export fully processed data as .npz file. This data is saved to the working dir and is loaded for later postprocessing/viewing the data.",
+                    "title": "Active Export Proc Data",
+                    "type": "boolean"
+                },
+                "active_export_slant_data": {
+                    "default": true,
+                    "description": "Export slant corrected data as .npz file. This data is saved to the working dir and is loaded for later postprocessing/viewing the data.",
+                    "title": "Active Export Slant Data",
+                    "type": "boolean"
+                },
+                "bac_resolution": {
+                    "default": 360,
+                    "description": "Number of quantized values of the estimated beam pattern.",
+                    "exclusiveMinimum": 0,
+                    "title": "Bac Resolution",
+                    "type": "integer"
+                },
+                "egn_table_resolution_angle": {
+                    "default": 360,
+                    "description": "Number of quantized values of the estimated beam pattern in angle direction",
+                    "exclusiveMinimum": 0,
+                    "title": "Egn Table Resolution Angle",
+                    "type": "integer"
+                },
+                "egn_table_resolution_range_factor": {
+                    "default": 2,
+                    "description": "Range reduction factor. This defines by resolution in range direction of the resulting EGN table by dividing the ping length by this factor.",
+                    "exclusiveMinimum": 0,
+                    "title": "Egn Table Resolution Range Factor",
+                    "type": "integer"
+                }
+            },
+            "title": "SlantAndGainCorrectionParameter",
+            "type": "object"
+        }
+    },
+    "properties": {
+        "main_proc_params": {
+            "$ref": "#/$defs/MainProcParameter"
+        },
+        "bottomline_params": {
+            "$ref": "#/$defs/BottomlineDetectionParameter"
+        },
+        "slant_gain_params": {
+            "$ref": "#/$defs/SlantAndGainCorrectionParameter"
+        },
+        "georef_view_params": {
+            "$ref": "#/$defs/GeoreferencingAndViewingParameter"
+        },
+        "meta_infos": {
+            "$ref": "#/$defs/MetaInfo"
+        }
+    },
+    "title": "CFG",
+    "type": "object"
+}

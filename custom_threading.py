@@ -635,6 +635,7 @@ class NavPlotter(QtCore.QThread):
             (lola_data, lola_data_ori, head_data, head_data_ori)
         )
 
+
 class GeoreferencerThread(QtCore.QThread):
     finished = QtCore.Signal()
     progress_signal = QtCore.Signal(float)
@@ -643,18 +644,18 @@ class GeoreferencerThread(QtCore.QThread):
     status_signal = QtCore.Signal(str)
 
     def __init__(
-            self,  
-            filepath: pathlib.Path, 
-            active_utm: bool,
-            active_export_navdata: bool,
-            active_blockmedian: bool,
-            proc_data: list,
-            output_folder: os.PathLike,
-            vertical_beam_angle: int,
-            resolution: float,
-            search_radius: float,
-            parent=None,
-        ):
+        self,
+        filepath: pathlib.Path,
+        active_utm: bool,
+        active_export_navdata: bool,
+        active_blockmedian: bool,
+        proc_data: list,
+        output_folder: os.PathLike,
+        vertical_beam_angle: int,
+        resolution: float,
+        search_radius: float,
+        parent=None,
+    ):
         super().__init__(parent)
         self.filepath = filepath
         self.active_utm = active_utm
@@ -675,7 +676,7 @@ class GeoreferencerThread(QtCore.QThread):
             channel=0,
             active_utm=self.active_utm,
             active_export_navdata=self.active_export_navdata,
-            active_blockmedian = self.active_blockmedian,
+            active_blockmedian=self.active_blockmedian,
             proc_data=self.proc_data[0],
             output_folder=self.output_folder,
             vertical_beam_angle=self.vertical_beam_angle,
@@ -689,7 +690,7 @@ class GeoreferencerThread(QtCore.QThread):
             channel=1,
             active_utm=self.active_utm,
             active_export_navdata=self.active_export_navdata,
-            active_blockmedian = self.active_blockmedian,
+            active_blockmedian=self.active_blockmedian,
             proc_data=self.proc_data[1],
             output_folder=self.output_folder,
             vertical_beam_angle=self.vertical_beam_angle,
@@ -711,6 +712,7 @@ class GeoreferencerThread(QtCore.QThread):
             self.error_signal.emit(e)
         finally:
             self.finished.emit()
+
 
 class GeoreferencerManager(QWidget):
     processing_finished = QtCore.Signal(list)
@@ -745,41 +747,47 @@ class GeoreferencerManager(QWidget):
         )
         self.show()
 
-    def start_georef(self, 
-                     filepath, 
-                     active_utm, 
-                     active_export_navdata, 
-                     active_blockmedian,
-                     proc_data,
-                     output_folder,
-                     vertical_beam_angle,
-                     resolution,
-                     search_radius
-                     ):
-        
+    def start_georef(
+        self,
+        filepath,
+        active_utm,
+        active_export_navdata,
+        active_blockmedian,
+        proc_data,
+        output_folder,
+        vertical_beam_angle,
+        resolution,
+        search_radius,
+    ):
+
         self.output_folder = pathlib.Path(output_folder)
 
         self.georef_thread = GeoreferencerThread(
-            filepath, 
-            active_utm, 
+            filepath,
+            active_utm,
             active_export_navdata,
             active_blockmedian,
             proc_data,
             output_folder,
             vertical_beam_angle,
             resolution,
-            search_radius
-            )
+            search_radius,
+        )
         self.georef_thread.progress_signal.connect(
             lambda progress: self.update_pbar(progress)
-            )
+        )
         self.georef_thread.finished.connect(self.cleanup)
         self.georef_thread.finished.connect(self.georef_thread.deleteLater)
-        self.georef_thread.aborted_signal.connect(            
+        self.georef_thread.aborted_signal.connect(
+            lambda msg_str: self.georef_aborted(msg_str)
+        )
+        self.georef_thread.finished.connect(self.cleanup)
+        self.georef_thread.finished.connect(self.georef_thread.deleteLater)
+        self.georef_thread.aborted_signal.connect(
             lambda msg_str: self.georef_aborted(msg_str)
         )
         self.georef_thread.start()
-    
+
     def update_pbar(self, progress: float):
         self.pbar_val += progress  # for 2 channels
         disp_var = self.pbar_val

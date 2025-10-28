@@ -9,7 +9,6 @@ from pyproj import CRS
 from scipy.signal import savgol_filter
 from scipy import interpolate
 import pygmt
-import rioxarray as rio
 from decimal import Decimal
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
@@ -46,12 +45,12 @@ class Georeferencer:
         active_export_navdata: bool = False,
         active_blockmedian: bool = True,
         proc_data=None,
-        nav = [],
+        nav=[],
         output_folder: str | os.PathLike = "./georef_out",
         vertical_beam_angle: int = 60,
         pix_size: float = 0.0,
         resolution: float = 0.0,
-        search_radius: float = 0.0
+        search_radius: float = 0.0,
     ):
         self.filepath = Path(filepath)
         self.sidescan_file = SidescanFile(self.filepath)
@@ -79,7 +78,6 @@ class Georeferencer:
         self.setup_output_folder()
         self.PING = self.sidescan_file.packet_no
 
-
     def setup_output_folder(self):
         if not self.output_folder.exists():
             self.output_folder.mkdir(parents=False, exist_ok=True)
@@ -90,22 +88,26 @@ class Georeferencer:
                 raise FileNotFoundError
 
     def get_pix_size(self, lo, la, res_factor):
-
         """
         Calculate distance between pings
-        Calculate distance between coordinates in m 
-        from a (randomly sampled) subset of coordinates array (else it takes very 
-        long and the distances should be similiar throughout the interp. coords)
-        Args: 
-            - lo: array of interpolated(!) longitudes
-            - la: array of interpolated(!) latitudes
+        Calculate distance between coordinates in m
+        from a middle subset of coordinates array (else it takes very
+        long and the distances should be similar throughout the interp. coords)
+
+
+        Parameters
+        -----------
+        lo: np.ndarray
+            Array of interpolated(!) longitudes
+        la: np.ndarray
+            Array of interpolated(!) latitudes
         """
         import geopy.distance
 
-        # define subset if array length is larger than 300 pings. 
+        # define subset if array length is larger than 300 pings.
         if len(lo) > 300:
-            start = int(len(lo)/2 - 100)
-            stop = int(len(lo)/2 + 100)
+            start = int(len(lo) / 2 - 100)
+            stop = int(len(lo) / 2 + 100)
             lo = lo[start:stop]
             la = la[start:stop]
 
@@ -115,7 +117,7 @@ class Georeferencer:
             c_a = (lat, lon)
             c_b = (la[i - 1], lo[i - 1])
             DIST[i] = geopy.distance.distance(c_a, c_b).meters
-        
+
         DIST[0] = np.nan
         # Round pixel resolution to 3 decimals and multiply by *factor* else too small
         self.pix_size = np.round(np.nanmedian(DIST), 3) * res_factor
@@ -126,11 +128,17 @@ class Georeferencer:
         """
         Calculate Course over Ground (COG)/true heading based on difference between single coordinates.
         Note that coordinates must be unique!
-        Paras:
-            - lo: Longitude or Easting, unique and smoothed (savgol filteres) if neccessary
-            - la: Latitude or Northing, unique and smoothed (savgol filteres) if neccessary
-            - ping_unique: array of unique pings (without duplicates) to build spline
-            - ping_uniform: ping array for original length with monotonous ping numbers to evaluate spline
+
+        Parameters
+        ----------
+        lo: np.ndarray
+            Longitude or Easting, unique and smoothed (savgol filteres) if neccessary
+        la: np.ndarray
+            Latitude or Northing, unique and smoothed (savgol filteres) if neccessary
+        ping_unique:  np.ndarray
+            Array of unique pings (without duplicates) to build spline
+        ping_uniform:  np.ndarray
+            Ping array for original length with monotonous ping numbers to evaluate spline
         """
         cog = np.empty_like(lo)
         LON_DIFF = np.diff(lo, prepend=np.nan)
@@ -211,7 +219,7 @@ class Georeferencer:
 
         # create uniform ping sequence for smooth curvature with original number of pings as length and last entry of unique ping for
         # maximum ping number, else b-spline will extrapolate which messes up coordinates
-        PING_uniform = np.linspace(0, len(PING_UNIQUE)-1, len(self.PING))
+        PING_uniform = np.linspace(0, len(PING_UNIQUE) - 1, len(self.PING))
 
         # B-Spline lon/lats and filter to obtain esqual-interval, unique coordinates for each ping
         lo_spl = interpolate.make_interp_spline(
@@ -296,7 +304,6 @@ class Georeferencer:
             east_out_intp_savgol = savgol_filter(EAST_OUTER, 300, 2)
             north_out_intp_savgol = savgol_filter(NORTH_OUTER, 300, 2)
 
-
             self.LALO_OUTER = [
                 utm.to_latlon(east_ch1, north_ch1, utm_zone, utm_let)
                 for (east_ch1, north_ch1, utm_zone, utm_let) in zip(
@@ -345,7 +352,7 @@ class Georeferencer:
             YY.append(yy)
         XX = np.ndarray.flatten(np.asarray(XX))
         YY = np.ndarray.flatten(np.asarray(YY))
-        self.nav = np.column_stack((np.ndarray.flatten(XX),np.ndarray.flatten(YY)))
+        self.nav = np.column_stack((np.ndarray.flatten(XX), np.ndarray.flatten(YY)))
 
     def channel_stack(self):
         """
@@ -405,83 +412,94 @@ class Georeferencer:
     def georeference(self, bs_data, progress_signal=None):
         """
         Method to georeference point cloud data.
-        Uses pygmt to get region from xyz data by using coordinate precision as spacing. 
+        Uses pygmt to get region from xyz data by using coordinate precision as spacing.
         Runs blockmedian to reduce data size and nearneighbor on blockmedian output
         to produce final interpolated grid.
-        Output from nearneighbor is of type xarray so it can directly 
+        Output from nearneighbor is of type xarray so it can directly
         be used with rioxarray to assign CRS and save to geotiff.
-        
-        - Parameters:
-            - bs_data: 1D array of backscatter data (can be amplitudes or greyscales)
+
+        Parameters
+        ----------
+        bs_data: np.ndarray
+            1D array of backscatter data (can be amplitudes or greyscales)
         """
 
-
         # Determine pixel size based on minimum distance between coordinates
-        self.get_pix_size(self.nav[:,0], self.nav[:,1], res_factor=1)
+        self.get_pix_size(self.nav[:, 0], self.nav[:, 1], res_factor=1)
 
         resolution = f"{self.resolution}e"
         search_radius = f"{self.search_radius}e"
 
         # Define output file names
-        # Convert resolution to mm to avoid "." in file name 
-        out_median = (self.output_folder/f"outmedian_{self.filepath.stem}_ch{self.channel}.xyz")
+        # Convert resolution to mm to avoid "." in file name
+        out_median = (
+            self.output_folder / f"outmedian_{self.filepath.stem}_ch{self.channel}.xyz"
+        )
         if self.resolution < 1.0:
-            res_name = str(int(self.resolution*100)) + "mm"
+            res_name = str(int(self.resolution * 100)) + "mm"
         else:
             res_name = str(int(self.resolution)) + "m"
         if self.active_utm:
             epsg_name = str(self.epsg_code).replace(":", "")
-            out_tiff = (self.output_folder/f"{self.filepath.stem}_{res_name}_ch{self.channel}_{epsg_name}.tif")
+            out_tiff = (
+                self.output_folder
+                / f"{self.filepath.stem}_{res_name}_ch{self.channel}_{epsg_name}.tif"
+            )
         else:
-            out_tiff = (self.output_folder/f"{self.filepath.stem}_{res_name}_ch{self.channel}_EPSG4326.tif")
-
+            out_tiff = (
+                self.output_folder
+                / f"{self.filepath.stem}_{res_name}_ch{self.channel}_EPSG4326.tif"
+            )
 
         xybs = np.column_stack((self.nav, bs_data))
-        crd = Decimal(xybs[0,0])
+        crd = Decimal(xybs[0, 0])
         dgts = len(str(crd).split(".")[1]) - 2
-        prec = 1/(10**dgts)
-        region = pygmt.info(self.nav, per_column=True, spacing=(prec,prec))
+        prec = 1 / (10**dgts)
+        region = pygmt.info(self.nav, per_column=True, spacing=(prec, prec))
 
         if self.active_utm:
-            print(f"Georeferencing with resolution {str(resolution).strip('e')}m and {str(self.search_radius).strip('e')}m in {self.epsg_code}.")
+            print(
+                f"Georeferencing with resolution {str(resolution).strip('e')}m and {str(self.search_radius).strip('e')}m in {self.epsg_code}."
+            )
         else:
-            print(f"Georeferencing with resolution {str(resolution).strip('e')}m and {str(self.search_radius).strip('e')}m in WGS84/EPSG:4326.")
+            print(
+                f"Georeferencing with resolution {str(resolution).strip('e')}m and {str(self.search_radius).strip('e')}m in WGS84/EPSG:4326."
+            )
 
         if self.active_blockmedian:
             print("Applying GMT Blockmedian...")
             pygmt.blockmedian(
-                data=xybs, 
-                outfile=out_median, 
+                data=xybs,
+                outfile=out_median,
                 output_type="file",
-                coltypes="fg", 
-                spacing=resolution, 
-                region=region, 
-                binary="o3d", 
-                ) 
-        
+                coltypes="fg",
+                spacing=resolution,
+                region=region,
+                binary="o3d",
+            )
+
             if progress_signal is not None:
-                progress_signal.emit((1000/len(bs_data)) * 0.05)
+                progress_signal.emit((1000 / len(bs_data)) * 0.05)
 
             print("Applying GMT Nearneighbour alg...")
             data_nn = pygmt.nearneighbor(
-                data=out_median, 
-                coltypes="fg", 
-                region=region, 
-                binary="i3d", 
-                spacing=resolution, 
-                search_radius=search_radius 
-                )
+                data=out_median,
+                coltypes="fg",
+                region=region,
+                binary="i3d",
+                spacing=resolution,
+                search_radius=search_radius,
+            )
         else:
             print("Blockmedian off, using nearneighbor only")
             data_nn = pygmt.nearneighbor(
-                data=xybs, 
-                coltypes="fg", 
-                region=region, 
-                binary="i3d", 
-                spacing=resolution, 
-                search_radius=search_radius 
-                )        
-        
+                data=xybs,
+                coltypes="fg",
+                region=region,
+                binary="i3d",
+                spacing=resolution,
+                search_radius=search_radius,
+            )
 
         # Clip data to range between 0 - 256
         data_clp = data_nn.clip(min=0.0, max=255.0)
@@ -491,18 +509,17 @@ class Georeferencer:
             print(f"Saving to: {out_tiff}")
             data_pr = data_clp.rio.write_crs("EPSG:4326", inplace=True)
             data_rpr = data_pr.rio.reproject(self.epsg_code)
-            data_rpr.rio.to_raster(out_tiff, compress='deflate', tiled=True)
+            data_rpr.rio.to_raster(out_tiff, compress="deflate", tiled=True)
 
         # Save as geotiff (set epsg_code for filename)
         else:
             print(f"Saving to: {out_tiff}")
             self.epsg_code = "EPSG:4326"
             data_pr = data_clp.rio.write_crs(self.epsg_code, inplace=True)
-            data_pr.rio.to_raster(out_tiff, compress='deflate', tiled=True)
+            data_pr.rio.to_raster(out_tiff, compress="deflate", tiled=True)
 
         if progress_signal is not None:
             progress_signal.emit(0.5)
-
 
     def process(self, progress_signal=None):
         # Check if enough data are present, otherwise quit
@@ -511,20 +528,25 @@ class Georeferencer:
             chan_stack_flat = self.channel_stack()
 
             try:
-                self.georeference(bs_data=chan_stack_flat, progress_signal=progress_signal)
+                self.georeference(
+                    bs_data=chan_stack_flat, progress_signal=progress_signal
+                )
             except Exception as e:
                 print(str(e))
 
             # Export navigation data
             if self.active_export_navdata:
                 xyz = np.column_stack((self.nav, chan_stack_flat))
-                nav_ch = (self.output_folder/f"Navigation_{self.filepath.stem}_ch{self.channel}.csv")
+                nav_ch = (
+                    self.output_folder
+                    / f"Navigation_{self.filepath.stem}_ch{self.channel}.csv"
+                )
                 print(f"Saving navinfo to {nav_ch}")
 
                 np.savetxt(
                     nav_ch,
                     xyz,
-                    fmt="%s", 
+                    fmt="%s",
                     delimiter=";",
                     header="Nadir Longitude; Nadir Latitude; BS",
                 )
@@ -576,13 +598,13 @@ def main():
     print("args:", args)
 
     georeferencer = Georeferencer(
-        filepath = args.xtf, 
-        channel=args.channel, 
-        active_utm = args.UTM, 
-        active_export_navdata = args.navdata,
-        active_blockmedian = args.blockmedian,
-        resolution = args.resolution, 
-        search_radius = args.search_radius
+        filepath=args.xtf,
+        channel=args.channel,
+        active_utm=args.UTM,
+        active_export_navdata=args.navdata,
+        active_blockmedian=args.blockmedian,
+        resolution=args.resolution,
+        search_radius=args.search_radius,
     )
     georeferencer.process()
 

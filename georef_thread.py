@@ -236,14 +236,6 @@ class Georeferencer:
         lo_intp = savgol_filter(lo_intp, 100, 2)
         la_intp = savgol_filter(la_intp, 100, 2)
 
-        # Create arrays for heading and coords for plotting in GUI
-        x = range(len(HEAD_savgol))
-        x_ori = range(len(HEAD_ori))
-        self.HEAD_plt = np.column_stack((x, HEAD_savgol))
-        self.HEAD_plt_ori = np.column_stack((x_ori, HEAD_ori))
-        self.LOLA_plt = np.column_stack((lo_intp, la_intp))
-        self.LOLA_plt_ori = np.column_stack((LON_ori, LAT_ori))
-
         # Convert to UTM to calculate outer swath coordinates for both channels
         UTM = np.full_like(LAT_unique, np.nan)
         UTM = UTM.tolist()
@@ -341,6 +333,15 @@ class Georeferencer:
             ]
 
         la_out_intp, lo_out_intp = map(np.array, zip(*self.LALO_OUTER))
+
+
+        # Create arrays for heading and coords for plotting in GUI
+        x = range(len(self.cog_smooth))
+        x_ori = range(len(HEAD_ori))
+        self.HEAD_plt = np.column_stack((x, self.cog_smooth))
+        self.HEAD_plt_ori = np.column_stack((x_ori, HEAD_ori))
+        self.LOLA_plt = np.column_stack((lo_intp, la_intp))
+        self.LOLA_plt_ori = np.column_stack((LON_ori, LAT_ori))
 
         # linspace for coordinates along ping
         XX = []

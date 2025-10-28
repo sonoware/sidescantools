@@ -676,29 +676,24 @@ class SidescanToolsMain(QWidget):
         lola_pen = pg.mkPen(color=(249, 228, 132), width=4, style=QtCore.Qt.SolidLine)
         lola_ori_pen = pg.mkPen(color=(210, 174, 3), width=2, style=QtCore.Qt.DotLine)
         head_pen = pg.mkPen(color=(99, 244, 227), width=4, style=QtCore.Qt.SolidLine)
-        head_ori_pen = pg.mkPen(color=(6, 182, 162), width=2, style=QtCore.Qt.DotLine)
         self.lola_plot_widget.clear()
         self.head_plot_widget.clear()
         self.lola_plot_widget.addLegend()
         self.head_plot_widget.addLegend()
 
         lola_plot_ori = self.lola_plot_widget.plot(
-            lola_data_ori, pen=lola_ori_pen, name="Original Navigation"
+            lola_data_ori, pen=lola_ori_pen, name="Original Track"
         )
         lola_plot_savgol = self.lola_plot_widget.plot(
-            lola_data, pen=lola_pen, title="Navigation", name="Smoothed Navigation"
+            lola_data, pen=lola_pen, title="Navigation", name="Smoothed Track"
         )
-
-        head_plot_ori = self.head_plot_widget.plot(
-            head_data_ori, pen=head_ori_pen, name="Original Heading"
-        )
-        head_plot_savgol = self.head_plot_widget.plot(
-            head_data, pen=head_pen, title="Heading", name="Smoothed Heading"
+        cog_plot_savgol = self.head_plot_widget.plot(
+            head_data, pen=head_pen, title="Course Over Ground (CoG)", name="Smoothed CoG"
         )
 
         self.lola_plot_widget.setLabel("left", "Latitude [°]")
         self.lola_plot_widget.setLabel("bottom", "Longitude [°]")
-        self.head_plot_widget.setLabel("left", "Heading [°]")
+        self.head_plot_widget.setLabel("left", "CoG [°]")
         self.head_plot_widget.setLabel("bottom", "Ping number")
 
     def save_plot(self, plot_id):

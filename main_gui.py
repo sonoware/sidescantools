@@ -97,13 +97,13 @@ class SidescanToolsMain(QWidget):
         self.plot_button = QPushButton("Plot Navigation")
         self.plot_button.clicked.connect(self.run_nav_plots)
 
-        self.head_plot_widget = pg.PlotWidget()
+        self.cog_plot_widget = pg.PlotWidget()
         self.lola_plot_widget = pg.PlotWidget()
         self.lola_plot_widget.setMaximumHeight(300)
-        self.head_plot_widget.setMaximumHeight(300)
-        self.save_button_head = QPushButton("Save Heading to .png/.svg")
+        self.cog_plot_widget.setMaximumHeight(300)
+        self.save_button_cog = QPushButton("Save CoG to .png/.svg")
         self.save_button_lola = QPushButton("Save Navigation to .png/.svg")
-        self.save_button_head.clicked.connect(
+        self.save_button_cog.clicked.connect(
             lambda: self.save_plot(plot_id="plot_head")
         )
         self.save_button_lola.clicked.connect(
@@ -178,8 +178,8 @@ class SidescanToolsMain(QWidget):
         self.left_view.addWidget(self.file_table)
         self.left_view.addWidget(self.lola_plot_widget)
         self.left_view.addWidget(self.save_button_lola)
-        self.left_view.addWidget(self.head_plot_widget)
-        self.left_view.addWidget(self.save_button_head)
+        self.left_view.addWidget(self.cog_plot_widget)
+        self.left_view.addWidget(self.save_button_cog)
 
         # right side widgets: meta info, project cfg and all parameter
         self.right_view.addWidget(self.file_info_text_box)
@@ -677,9 +677,9 @@ class SidescanToolsMain(QWidget):
         lola_ori_pen = pg.mkPen(color=(210, 174, 3), width=2, style=QtCore.Qt.DotLine)
         head_pen = pg.mkPen(color=(99, 244, 227), width=4, style=QtCore.Qt.SolidLine)
         self.lola_plot_widget.clear()
-        self.head_plot_widget.clear()
+        self.cog_plot_widget.clear()
         self.lola_plot_widget.addLegend()
-        self.head_plot_widget.addLegend()
+        self.cog_plot_widget.addLegend()
 
         lola_plot_ori = self.lola_plot_widget.plot(
             lola_data_ori, pen=lola_ori_pen, name="Original Track"
@@ -687,21 +687,21 @@ class SidescanToolsMain(QWidget):
         lola_plot_savgol = self.lola_plot_widget.plot(
             lola_data, pen=lola_pen, title="Navigation", name="Smoothed Track"
         )
-        cog_plot_savgol = self.head_plot_widget.plot(
-            head_data, pen=head_pen, title="Course Over Ground (CoG)", name="Smoothed CoG"
+        cog_plot_savgol = self.cog_plot_widget.plot(
+            head_data, pen=head_pen, title="Course Over Ground (CoG)", name="Course over Ground"
         )
 
         self.lola_plot_widget.setLabel("left", "Latitude [°]")
         self.lola_plot_widget.setLabel("bottom", "Longitude [°]")
-        self.head_plot_widget.setLabel("left", "CoG [°]")
-        self.head_plot_widget.setLabel("bottom", "Ping number")
+        self.cog_plot_widget.setLabel("left", "CoG [°]")
+        self.cog_plot_widget.setLabel("bottom", "Ping number")
 
     def save_plot(self, plot_id):
         outpath, file_filter = QFileDialog.getSaveFileName(
             self, "Save Plot", "", "Images (*.png);;SVG (*.svg)"
         )
         if plot_id == "plot_head":
-            plot_item = self.head_plot_widget.plotItem
+            plot_item = self.cog_plot_widget.plotItem
         elif plot_id == "plot_nav":
             plot_item = self.lola_plot_widget.plotItem
         if outpath:

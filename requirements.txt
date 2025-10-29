@@ -12,3 +12,4 @@ pyproj
 rioxarray
 rasterio
 pygmt
+pydantic

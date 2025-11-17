@@ -256,6 +256,9 @@ class Georeferencer:
             epsg = crs.to_authority()
             self.epsg_code = f"{epsg[0]}:{epsg[1]}"
 
+        # TODO: If layback entered by user, here would be the place to re-calculate centre coordinates northing/easting 
+        # -> these must then also be converted back to lon/lat
+
         # calculate cog from east/north
         self.calculate_cog(EAST, NORTH, PING_UNIQUE, PING_uniform)
 

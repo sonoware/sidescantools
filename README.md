@@ -105,12 +105,12 @@ When using BAC or EGN for Gain Normalisation, the resolution of the estimated be
 - `View Processed Data`: Initiates data viewer to inspect the raw input data, bottom line detection, slant range and EGN corrected data of the currently selected file.
 
 ### Georeferencing and image generation
+<img align="right" width="250" height="400" src="./res/vessel_CS.png" hspace="130" title="Vessel coordinate system as implemented in SidescanTools, top view.">
+<img align="right" width="400" height="250" src="./res/vessel_CS_side.png" hspace="130" title="Vessel coordinate system as implemented in SidescanTools, side view.">
 - Tick `Use processed Data` if above processing steps should be applied, otherwise a waterfall image based on the raw data will be created
 - `Cable Out`: If the sonar has been towed behind and the **layback is not already in the raw data**, enter a cable out length. It will be used to calculate the layback assuming a rope angle of 45°.
 - `X Offset`: Offset in X direction of vessel coordinate system between GNSS antenna position and sonar or winch suspension position. X is positive in forward direction from GNSS antenna position, i.e. negativ values indicate that sonar is installed behind GNSS antenna.
 - `Y Offset`: Offset in Y direction of vessel coordinate system between GNSS antenna position and sonar or winch suspension position. Y is positive towards to right side of the vessel from GNSS antenna position, i.e. negativ values mean that sonar is installed left of GNSS antenna.
-<img align="right" width="250" height="400" src="./res/vessel_CS.png" hspace="130" title="Vessel coordinate system as implemented in SidescanTools, top view.">
-<img align="right" width="400" height="250" src="./res/vessel_CS_side.png" hspace="130" title="Vessel coordinate system as implemented in SidescanTools, side view.">
 - `Resolution`: Set output file resolution. Currently, default is sample size which is probably too small.
 - `Search Radius`: Set value to include <search_radius> neighbours for nearneighbour algorithm. Default: 2 * resolution. More info [here](https://www.pygmt.org/latest/api/generated/pygmt.nearneighbor.html)
 - Use `Blockmedian` to reduce noise and data size. More info [here](https://www.pygmt.org/latest/api/generated/pygmt.blockmedian.html#pygmt.blockmedian)

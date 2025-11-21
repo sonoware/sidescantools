@@ -654,6 +654,7 @@ class GeoreferencerThread(QtCore.QThread):
         vertical_beam_angle: int,
         resolution: float,
         search_radius: float,
+        cable_out: float,
         parent=None,
     ):
         super().__init__(parent)
@@ -666,6 +667,7 @@ class GeoreferencerThread(QtCore.QThread):
         self.vertical_beam_angle = vertical_beam_angle
         self.resolution = resolution
         self.search_radius = search_radius
+        self.cable_out = cable_out
 
     def georef(self):
         georef_success = True
@@ -682,6 +684,7 @@ class GeoreferencerThread(QtCore.QThread):
             vertical_beam_angle=self.vertical_beam_angle,
             resolution=self.resolution,
             search_radius=self.search_radius,
+            cable_out = self.cable_out,
         )  # from georef.py
         processor_0.process(self.progress_signal)
 
@@ -696,6 +699,7 @@ class GeoreferencerThread(QtCore.QThread):
             vertical_beam_angle=self.vertical_beam_angle,
             resolution=self.resolution,
             search_radius=self.search_radius,
+            cable_out = self.cable_out,
         )  # from georef.py
         processor_1.process(self.progress_signal)
 
@@ -758,6 +762,7 @@ class GeoreferencerManager(QWidget):
         vertical_beam_angle,
         resolution,
         search_radius,
+        cable_out,
     ):
 
         self.output_folder = pathlib.Path(output_folder)
@@ -772,6 +777,7 @@ class GeoreferencerManager(QWidget):
             vertical_beam_angle,
             resolution,
             search_radius,
+            cable_out,
         )
         self.georef_thread.progress_signal.connect(
             lambda progress: self.update_pbar(progress)

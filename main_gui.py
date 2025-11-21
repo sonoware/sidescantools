@@ -550,6 +550,12 @@ class SidescanToolsMain(QWidget):
         self.cfg.georef_view_params.cable_out = float(
             self.view_and_export_widget.cable_out_edit.line_edit.text()
         )
+        self.cfg.georef_view_params.x_offset = float(
+            self.view_and_export_widget.x_offset_edit.line_edit.text()
+        )
+        self.cfg.georef_view_params.y_offset = float(
+            self.view_and_export_widget.y_offset_edit.line_edit.text()
+        )
         self.cfg.georef_view_params.active_export_navigation = (
             self.view_and_export_widget.active_navdata_checkbox.isChecked()
         )
@@ -647,6 +653,12 @@ class SidescanToolsMain(QWidget):
         )
         self.view_and_export_widget.cable_out_edit.line_edit.setText(
             str(self.cfg.georef_view_params.cable_out)
+        )
+        self.view_and_export_widget.x_offset_edit.line_edit.setText(
+            str(self.cfg.georef_view_params.x_offset)
+        )
+        self.view_and_export_widget.y_offset_edit.line_edit.setText(
+            str(self.cfg.georef_view_params.y_offset)
         )
         self.view_and_export_widget.active_navdata_checkbox.setChecked(
             self.cfg.georef_view_params.active_export_navigation
@@ -1143,6 +1155,24 @@ class ViewAndExportWidget(QVBoxLayout):
             "formed by the sensor depth, rope angle and cable length. It will be calculated assuming rope angle of 45°."
             "Unit is meters [m]."
         )
+        self.x_offset_edit = LabeledLineEdit(
+            "X Offset [m]:",
+            QtGui.QDoubleValidator(-999.0, 999.0, 2, self),
+            self.main_ui.cfg.georef_view_params.cable_out,
+        )
+        self.x_offset_edit.label.setToolTip(
+            "Offset distance in X (positiv along ship from GNSS position) direction from GNSS antenna to sonar or winch point."
+            "Unit is meters [m]."
+        )
+        self.y_offset_edit = LabeledLineEdit(
+            "Y Offset [m]:",
+            QtGui.QDoubleValidator(-999.0, 999.0, 2, self),
+            self.main_ui.cfg.georef_view_params.cable_out,
+        )
+        self.y_offset_edit.label.setToolTip(
+            "Offset distance in Y (positiv to right side of ship from GNSS position) direction from GNSS antenna to sonar or winch point."
+            "Unit is meters [m]."
+        )
         self.active_automatic_resolution_checkbox = QCheckBox(
             "Determine resolution automatically"
         )
@@ -1213,6 +1243,8 @@ class ViewAndExportWidget(QVBoxLayout):
         self.addWidget(self.georef_label)
         self.addWidget(self.active_use_proc_data_checkbox)
         self.addLayout(self.cable_out_edit)
+        self.addLayout(self.x_offset_edit)
+        self.addLayout(self.y_offset_edit)
         self.addWidget(self.active_automatic_resolution_checkbox)
         self.addLayout(self.resolution_edit)
         self.addLayout(self.search_radius_edit)
@@ -1484,11 +1516,15 @@ class ViewAndExportWidget(QVBoxLayout):
         if (
             self.resolution_edit.line_edit.text() == ""
             or self.search_radius_edit.line_edit.text() == ""
+            or self.cable_out_edit.line_edit.text() == ""
+            or self.x_offset_edit.line_edit.text() == ""
+            or self.y_offset_edit.line_edit.text() == ""
         ):
             msg = QMessageBox()
             font = QtGui.QFont("Arial", 15)
             msg.setText(
-                f"Must enter some number for resolution and search radius field"
+                f"Must enter some number for resolution and search radius field." \
+                "If no values known, enter 0.0"
             )
             msg.setWindowTitle("Empty Value error")
             msg.setIcon(QMessageBox.Warning)
@@ -1509,7 +1545,9 @@ class ViewAndExportWidget(QVBoxLayout):
                 ),
                 resolution=float(self.resolution_edit.line_edit.text()),
                 search_radius=float(self.search_radius_edit.line_edit.text()),
-                cable_out = float(self.cable_out_edit.line_edit.text())
+                cable_out = float(self.cable_out_edit.line_edit.text()),
+                x_offset = float(self.x_offset_edit.line_edit.text()),
+                y_offset = float(self.y_offset_edit.line_edit.text())
             )
 
     def generate_wc_img(self, active_generate_all: bool):

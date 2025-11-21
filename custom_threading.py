@@ -626,7 +626,7 @@ class NavPlotter(QtCore.QThread):
         get_nav.prep_data()
         print("Getting navigation data...")
         lola_data = get_nav.LOLA_plt
-        head_data = get_nav.HEAD_plt
+        head_data = get_nav.cog_smooth
         lola_data_ori = get_nav.LOLA_plt_ori
         head_data_ori = get_nav.HEAD_plt_ori
         head_data = np.column_stack((head_data[:, 0], head_data[:, 1]))

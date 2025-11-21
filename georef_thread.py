@@ -37,6 +37,8 @@ class Georeferencer:
     LOLA_plt_ori: np.ndarray
     HEAD_plt_ori: np.ndarray
     cable_out: float
+    x_offset: float
+    y_offset: float
 
     def __init__(
         self,
@@ -53,6 +55,8 @@ class Georeferencer:
         resolution: float = 0.0,
         search_radius: float = 0.0,
         cable_out: float = 0.0,
+        x_offset: float = 0.0,
+        y_offset: float = 0.0,
     ):
         self.filepath = Path(filepath)
         self.sidescan_file = SidescanFile(self.filepath)
@@ -75,6 +79,8 @@ class Georeferencer:
         self.LOLA_plt_ori = np.empty_like(proc_data)
         self.HEAD_plt_ori = np.empty_like(proc_data)
         self.cable_out = cable_out
+        self.x_offset = x_offset
+        self.y_offset = y_offset
         if proc_data is not None:
             self.proc_data = proc_data
             self.active_proc_data = True
@@ -200,10 +206,10 @@ class Georeferencer:
         self.PING = self.PING[ZERO_MASK]
 
         # Unwrap to avoid jumps when crossing 0/360° degree angle
-        HEAD_ori_rad = np.deg2rad(HEAD_ori)
-        head_unwrapped = np.unwrap(HEAD_ori_rad)
-        head_unwrapped_savgol = savgol_filter(head_unwrapped, 100, 2)
-        HEAD_savgol = (np.rad2deg(head_unwrapped_savgol)) % 360
+        #HEAD_ori_rad = np.deg2rad(HEAD_ori)
+        #head_unwrapped = np.unwrap(HEAD_ori_rad)
+        #head_unwrapped_savgol = savgol_filter(head_unwrapped, 100, 2)
+        #HEAD_savgol = (np.rad2deg(head_unwrapped_savgol)) % 360
 
         # Remove duplicate values
         UNIQUE_MASK = np.empty_like(LON_ori)
@@ -232,7 +238,6 @@ class Georeferencer:
                 UTM[idx] = utm.from_latlon(la, lo)
             except:
                 ValueError("Values or lon and/or lat must not be 0")
-            
 
         if UTM:
             EAST = [utm_coord[0] for utm_coord in UTM]
@@ -248,33 +253,31 @@ class Georeferencer:
         # calculate cog from east/north
         self.calculate_cog(EAST, NORTH, PING_UNIQUE, PING_uniform)
 
-        # add offset https://apps.dtic.mil/sti/pdfs/AD1005010.pdf
+        # add offsets https://apps.dtic.mil/sti/pdfs/AD1005010.pdf
         # 
-        if self.cable_out:
-            layback = math.sin(np.deg2rad(45)) * self.cable_out
-            NORTH_LAY = []
-            EAST_LAY = []
-            LALO_LAY = []
-            for east, north, utm_zone, letter, head in zip(EAST, NORTH, UTM_ZONE, UTM_LET, self.cog_smooth):
-                east_lay = east - layback*math.sin(np.deg2rad(head))
-                north_lay = north - layback*math.cos(np.deg2rad(head))
-                lalo_lay = utm.to_latlon(east_lay, north_lay, utm_zone, letter)
-                EAST_LAY.append(east_lay)
-                NORTH_LAY.append(north_lay)
-                LALO_LAY.append(lalo_lay)
+        layback = math.sin(np.deg2rad(45)) * self.cable_out
+        north_offset = []
+        east_offset = []
+        lalo_offset = []
+        for east, north, utm_zone, letter, head in zip(EAST, NORTH, UTM_ZONE, UTM_LET, self.cog_smooth):
+            east_lay = east - layback*math.sin(np.deg2rad(head)) + self.x_offset * math.cos(np.deg2rad(head))
+            north_lay = north - layback*math.cos(np.deg2rad(head))+ self.y_offset * math.sin(np.deg2rad(head))
+            lalo_lay = utm.to_latlon(east_lay, north_lay, utm_zone, letter)
+            east_offset.append(east_lay)
+            north_offset.append(north_lay)
+            lalo_offset.append(lalo_lay)
 
-            NORTH = NORTH_LAY
-            EAST = EAST_LAY
-            LAT_unique, LON_unique = map(np.array, zip(*LALO_LAY))
-            print(layback, self.cable_out)
+        #NORTH = north_offset
+        #EAST = east_offset
+        Lat_offset, Lon_offset = map(np.array, zip(*lalo_offset))
 
 
         # B-Spline lon/lats and filter to obtain esqual-interval, unique coordinates for each ping
         lo_spl = interpolate.make_interp_spline(
-            PING_UNIQUE, LON_unique, k=3, bc_type="not-a-knot"
+            PING_UNIQUE, Lon_offset, k=3, bc_type="not-a-knot"
         )
         la_spl = interpolate.make_interp_spline(
-            PING_UNIQUE, LAT_unique, k=3, bc_type="not-a-knot"
+            PING_UNIQUE, Lat_offset, k=3, bc_type="not-a-knot"
         )
 
         # Evaluate spline at equally spaced pings and smooth again with savgol filter
@@ -287,10 +290,10 @@ class Georeferencer:
 
         # interpolate easting northing to full swath length
         east_spl = interpolate.make_interp_spline(
-            PING_UNIQUE, EAST, k=3, bc_type="not-a-knot"
+            PING_UNIQUE, east_offset, k=3, bc_type="not-a-knot"
         )
         north_spl = interpolate.make_interp_spline(
-            PING_UNIQUE, NORTH, k=3, bc_type="not-a-knot"
+            PING_UNIQUE, north_offset, k=3, bc_type="not-a-knot"
         )
         east_intp = east_spl(PING_uniform)
         north_intp = north_spl(PING_uniform)
@@ -362,10 +365,10 @@ class Georeferencer:
 
 
         # Create arrays for heading and coords for plotting in GUI
-        x = range(len(self.cog_smooth))
-        x_ori = range(len(HEAD_ori))
-        self.HEAD_plt = np.column_stack((x, self.cog_smooth))
-        self.HEAD_plt_ori = np.column_stack((x_ori, HEAD_ori))
+        #x = range(len(self.cog_smooth))
+        #x_ori = range(len(HEAD_ori))
+        #self.HEAD_plt = np.column_stack((x, self.cog_smooth))
+        #self.HEAD_plt_ori = np.column_stack((x_ori, HEAD_ori))
         self.LOLA_plt = np.column_stack((lo_intp, la_intp))
         self.LOLA_plt_ori = np.column_stack((LON_ori, LAT_ori))
 

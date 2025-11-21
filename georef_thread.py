@@ -205,11 +205,12 @@ class Georeferencer:
         SLANT_RANGE = SLANT_RANGE[ZERO_MASK]
         self.PING = self.PING[ZERO_MASK]
 
+        # Process heading for plotting 
         # Unwrap to avoid jumps when crossing 0/360° degree angle
-        #HEAD_ori_rad = np.deg2rad(HEAD_ori)
-        #head_unwrapped = np.unwrap(HEAD_ori_rad)
-        #head_unwrapped_savgol = savgol_filter(head_unwrapped, 100, 2)
-        #HEAD_savgol = (np.rad2deg(head_unwrapped_savgol)) % 360
+        HEAD_ori_rad = np.deg2rad(HEAD_ori)
+        head_unwrapped = np.unwrap(HEAD_ori_rad)
+        head_unwrapped_savgol = savgol_filter(head_unwrapped, 100, 2)
+        HEAD_savgol = (np.rad2deg(head_unwrapped_savgol)) % 360
 
         # Remove duplicate values
         UNIQUE_MASK = np.empty_like(LON_ori)
@@ -253,7 +254,7 @@ class Georeferencer:
         # calculate cog from east/north
         self.calculate_cog(EAST, NORTH, PING_UNIQUE, PING_uniform)
 
-        # add offsets https://apps.dtic.mil/sti/pdfs/AD1005010.pdf
+        # add offsets following: https://apps.dtic.mil/sti/pdfs/AD1005010.pdf
         # 
         layback = math.sin(np.deg2rad(45)) * self.cable_out
         north_offset = []
@@ -267,8 +268,6 @@ class Georeferencer:
             north_offset.append(north_lay)
             lalo_offset.append(lalo_lay)
 
-        #NORTH = north_offset
-        #EAST = east_offset
         Lat_offset, Lon_offset = map(np.array, zip(*lalo_offset))
 
 
@@ -365,10 +364,10 @@ class Georeferencer:
 
 
         # Create arrays for heading and coords for plotting in GUI
-        #x = range(len(self.cog_smooth))
-        #x_ori = range(len(HEAD_ori))
-        #self.HEAD_plt = np.column_stack((x, self.cog_smooth))
-        #self.HEAD_plt_ori = np.column_stack((x_ori, HEAD_ori))
+        x = range(len(self.cog_smooth))
+        x_ori = range(len(HEAD_ori))
+        self.HEAD_plt = np.column_stack((x, self.cog_smooth))
+        self.HEAD_plt_ori = np.column_stack((x_ori, HEAD_ori))
         self.LOLA_plt = np.column_stack((lo_intp, la_intp))
         self.LOLA_plt_ori = np.column_stack((LON_ori, LAT_ori))
 

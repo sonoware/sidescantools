@@ -165,6 +165,9 @@ class GeoreferencingAndViewingParameter(BaseModel):
         default=True,
         description="Use UTM for export, otherwise WGS84 (unprojected) is used",
     )
+    cable_out: float = Field(
+        default=0.0, gt=0, description=f"Cable out length. Leave default if device not towed. Layback derived from cable out assuming  drag angle of 45°"
+    )
     active_export_navigation: bool = Field(
         default=False, description="Export additional navigation data file"
     )

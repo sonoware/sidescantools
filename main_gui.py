@@ -547,6 +547,9 @@ class SidescanToolsMain(QWidget):
         self.cfg.georef_view_params.active_utm = (
             self.view_and_export_widget.active_utm_checkbox.isChecked()
         )
+        self.cfg.georef_view_params.cable_out = float(
+            self.view_and_export_widget.cable_out_edit.line_edit.text()
+        )
         self.cfg.georef_view_params.active_export_navigation = (
             self.view_and_export_widget.active_navdata_checkbox.isChecked()
         )
@@ -641,6 +644,9 @@ class SidescanToolsMain(QWidget):
         )
         self.view_and_export_widget.active_utm_checkbox.setChecked(
             self.cfg.georef_view_params.active_utm
+        )
+        self.view_and_export_widget.cable_out_edit.line_edit.setText(
+            str(self.cfg.georef_view_params.cable_out)
         )
         self.view_and_export_widget.active_navdata_checkbox.setChecked(
             self.cfg.georef_view_params.active_export_navigation
@@ -1126,6 +1132,17 @@ class ViewAndExportWidget(QVBoxLayout):
         self.active_use_proc_data_checkbox.setToolTip(
             "Export images using the processed (filtered and corrected) data. Otherwise raw data is exported."
         )
+        self.cable_out_edit = LabeledLineEdit(
+            "Cable Out [m]:",
+            QtGui.QDoubleValidator(1.0, 1000.0, 2, self),
+            self.main_ui.cfg.georef_view_params.cable_out,
+        )
+        self.cable_out_edit.label.setToolTip(
+            "Set layback. If pole-/ or hullmounted or unknown, leave default 0.0. " \
+            "Careful: Layback is not the cable length but the counter-cathode (direct distance) of the triangle " \
+            "formed by the sensor depth, rope angle and cable length."
+            "Unit is meters [m]."
+        )
         self.active_automatic_resolution_checkbox = QCheckBox(
             "Determine resolution automatically"
         )
@@ -1140,7 +1157,6 @@ class ViewAndExportWidget(QVBoxLayout):
             QtGui.QDoubleValidator(0.00001, 1000.0, 3, self),
             self.main_ui.cfg.georef_view_params.output_resolution,
         )
-
         self.search_radius_edit = LabeledLineEdit(
             "Search Radius [m]:",
             QtGui.QDoubleValidator(0.00001, 2000.0, 3, self),
@@ -1196,6 +1212,7 @@ class ViewAndExportWidget(QVBoxLayout):
         self.addWidget(QHLine())
         self.addWidget(self.georef_label)
         self.addWidget(self.active_use_proc_data_checkbox)
+        self.addLayout(self.cable_out_edit)
         self.addWidget(self.active_automatic_resolution_checkbox)
         self.addLayout(self.resolution_edit)
         self.addLayout(self.search_radius_edit)
@@ -1492,6 +1509,7 @@ class ViewAndExportWidget(QVBoxLayout):
                 ),
                 resolution=float(self.resolution_edit.line_edit.text()),
                 search_radius=float(self.search_radius_edit.line_edit.text()),
+                cable_out = float(self.cable_out_edit.line_edit.text())
             )
 
     def generate_wc_img(self, active_generate_all: bool):

@@ -1523,8 +1523,8 @@ class ViewAndExportWidget(QVBoxLayout):
             msg = QMessageBox()
             font = QtGui.QFont("Arial", 15)
             msg.setText(
-                f"Must enter some number for resolution and search radius field." \
-                "If no values known, enter 0.0"
+                f"Must enter some number for resolution and search radius field. " \
+                "If no values are known, enter 0.0 (default)"
             )
             msg.setWindowTitle("Empty Value error")
             msg.setIcon(QMessageBox.Warning)

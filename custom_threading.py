@@ -655,6 +655,8 @@ class GeoreferencerThread(QtCore.QThread):
         resolution: float,
         search_radius: float,
         cable_out: float,
+        x_offset: float,
+        y_offset: float,
         parent=None,
     ):
         super().__init__(parent)
@@ -668,6 +670,8 @@ class GeoreferencerThread(QtCore.QThread):
         self.resolution = resolution
         self.search_radius = search_radius
         self.cable_out = cable_out
+        self.x_offset = x_offset
+        self.y_offset = y_offset
 
     def georef(self):
         georef_success = True
@@ -685,6 +689,8 @@ class GeoreferencerThread(QtCore.QThread):
             resolution=self.resolution,
             search_radius=self.search_radius,
             cable_out = self.cable_out,
+            x_offset = self.x_offset,
+            y_offset = self.y_offset
         )  # from georef.py
         processor_0.process(self.progress_signal)
 
@@ -700,6 +706,8 @@ class GeoreferencerThread(QtCore.QThread):
             resolution=self.resolution,
             search_radius=self.search_radius,
             cable_out = self.cable_out,
+            x_offset = self.x_offset,
+            y_offset = self.y_offset
         )  # from georef.py
         processor_1.process(self.progress_signal)
 
@@ -763,6 +771,8 @@ class GeoreferencerManager(QWidget):
         resolution,
         search_radius,
         cable_out,
+        x_offset,
+        y_offset,
     ):
 
         self.output_folder = pathlib.Path(output_folder)
@@ -778,6 +788,8 @@ class GeoreferencerManager(QWidget):
             resolution,
             search_radius,
             cable_out,
+            x_offset,
+            y_offset,
         )
         self.georef_thread.progress_signal.connect(
             lambda progress: self.update_pbar(progress)

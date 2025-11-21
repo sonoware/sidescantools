@@ -36,6 +36,7 @@ class Georeferencer:
     HEAD_plt: np.ndarray
     LOLA_plt_ori: np.ndarray
     HEAD_plt_ori: np.ndarray
+    cable_out: float
 
     def __init__(
         self,
@@ -51,6 +52,7 @@ class Georeferencer:
         pix_size: float = 0.0,
         resolution: float = 0.0,
         search_radius: float = 0.0,
+        cable_out: float = 0.0,
     ):
         self.filepath = Path(filepath)
         self.sidescan_file = SidescanFile(self.filepath)
@@ -72,6 +74,7 @@ class Georeferencer:
         self.HEAD_plt = np.empty_like(proc_data)
         self.LOLA_plt_ori = np.empty_like(proc_data)
         self.HEAD_plt_ori = np.empty_like(proc_data)
+        self.cable_out = cable_out
         if proc_data is not None:
             self.proc_data = proc_data
             self.active_proc_data = True
@@ -221,6 +224,51 @@ class Georeferencer:
         # maximum ping number, else b-spline will extrapolate which messes up coordinates
         PING_uniform = np.linspace(0, len(PING_UNIQUE) - 1, len(self.PING))
 
+        # Convert to UTM to calculate outer swath coordinates for both channels
+        UTM = np.full_like(LAT_unique, np.nan)
+        UTM = UTM.tolist()
+        for idx, (la, lo) in enumerate(zip(LAT_unique, LON_unique)):
+            try:
+                UTM[idx] = utm.from_latlon(la, lo)
+            except:
+                ValueError("Values or lon and/or lat must not be 0")
+            
+
+        if UTM:
+            EAST = [utm_coord[0] for utm_coord in UTM]
+            NORTH = [utm_coord[1] for utm_coord in UTM]
+            NORTH = np.asarray(NORTH)
+            EAST = np.asarray(EAST)
+            UTM_ZONE = [utm_coord[2] for utm_coord in UTM]
+            UTM_LET = [utm_coord[3] for utm_coord in UTM]
+            crs = CRS.from_dict({"proj": "utm", "zone": UTM_ZONE[0], "south": False})
+            epsg = crs.to_authority()
+            self.epsg_code = f"{epsg[0]}:{epsg[1]}"
+
+        # calculate cog from east/north
+        self.calculate_cog(EAST, NORTH, PING_UNIQUE, PING_uniform)
+
+        # add offset https://apps.dtic.mil/sti/pdfs/AD1005010.pdf
+        # 
+        if self.cable_out:
+            layback = math.sin(np.deg2rad(45)) * self.cable_out
+            NORTH_LAY = []
+            EAST_LAY = []
+            LALO_LAY = []
+            for east, north, utm_zone, letter, head in zip(EAST, NORTH, UTM_ZONE, UTM_LET, self.cog_smooth):
+                east_lay = east - layback*math.sin(np.deg2rad(head))
+                north_lay = north - layback*math.cos(np.deg2rad(head))
+                lalo_lay = utm.to_latlon(east_lay, north_lay, utm_zone, letter)
+                EAST_LAY.append(east_lay)
+                NORTH_LAY.append(north_lay)
+                LALO_LAY.append(lalo_lay)
+
+            NORTH = NORTH_LAY
+            EAST = EAST_LAY
+            LAT_unique, LON_unique = map(np.array, zip(*LALO_LAY))
+            print(layback, self.cable_out)
+
+
         # B-Spline lon/lats and filter to obtain esqual-interval, unique coordinates for each ping
         lo_spl = interpolate.make_interp_spline(
             PING_UNIQUE, LON_unique, k=3, bc_type="not-a-knot"
@@ -236,31 +284,6 @@ class Georeferencer:
         lo_intp = savgol_filter(lo_intp, 100, 2)
         la_intp = savgol_filter(la_intp, 100, 2)
 
-        # Convert to UTM to calculate outer swath coordinates for both channels
-        UTM = np.full_like(LAT_unique, np.nan)
-        UTM = UTM.tolist()
-        for idx, (la, lo) in enumerate(zip(LAT_unique, LON_unique)):
-            try:
-                UTM[idx] = utm.from_latlon(la, lo)
-            except:
-                ValueError("Values or lon and/or lat must not be 0")
-
-        if UTM:
-            EAST = [utm_coord[0] for utm_coord in UTM]
-            NORTH = [utm_coord[1] for utm_coord in UTM]
-            NORTH = np.asarray(NORTH)
-            EAST = np.asarray(EAST)
-            UTM_ZONE = [utm_coord[2] for utm_coord in UTM]
-            UTM_LET = [utm_coord[3] for utm_coord in UTM]
-            crs = CRS.from_dict({"proj": "utm", "zone": UTM_ZONE[0], "south": False})
-            epsg = crs.to_authority()
-            self.epsg_code = f"{epsg[0]}:{epsg[1]}"
-
-        # TODO: If layback entered by user, here would be the place to re-calculate centre coordinates northing/easting 
-        # -> these must then also be converted back to lon/lat
-
-        # calculate cog from east/north
-        self.calculate_cog(EAST, NORTH, PING_UNIQUE, PING_uniform)
 
         # interpolate easting northing to full swath length
         east_spl = interpolate.make_interp_spline(

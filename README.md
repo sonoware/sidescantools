@@ -106,6 +106,7 @@ When using BAC or EGN for Gain Normalisation, the resolution of the estimated be
 
 ### Georeferencing and image generation
 - Tick `Use processed Data` if above processing steps should be applied, otherwise a waterfall image based on the raw data will be created
+- `Cable Out`: If the soanr has been towed behind and the **layback is not already in the raw data**, enter a cable out length. It will be used to calculate the layback assuming a rope angle of 45°.
 - `Resolution`: Set output file resolution. Currently, default is 0.2m. **Planned:** Use sample size as resolution default.
 - `Search Radius`: Set value to include <search_radius> neighbours for nearneighbour algorithm. Default: 2 * resolution. More info [here](https://www.pygmt.org/latest/api/generated/pygmt.nearneighbor.html)
 - Use `Blockmedian` to reduce noise and data size. More info [here](https://www.pygmt.org/latest/api/generated/pygmt.blockmedian.html#pygmt.blockmedian)
@@ -128,8 +129,8 @@ This command processes the specified file or all files within the folder, using 
 ## Output
 The tool produces:
 
-- A **fully processed waterfall-like image** (.png format) stored in the same folder as the input data.
-- An **GeoTIFF** of the processed data, saved in a separate folder as specified in `project_info.yml`.
+- A **fully processed waterfall image** (.png format) stored in the same folder as the input data.
+- A **GeoTIFF** of the processed data, saved in a separate folder as specified in `project_info.yml`.
 
 **_Note_**: This workflow is intended for datasets where the sensor altitude is known during acquisition. This altitude information is used and refined during processing.
 

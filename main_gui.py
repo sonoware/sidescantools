@@ -1138,9 +1138,9 @@ class ViewAndExportWidget(QVBoxLayout):
             self.main_ui.cfg.georef_view_params.cable_out,
         )
         self.cable_out_edit.label.setToolTip(
-            "Set layback. If pole-/ or hullmounted or unknown, leave default 0.0. " \
-            "Careful: Layback is not the cable length but the counter-cathode (direct distance) of the triangle " \
-            "formed by the sensor depth, rope angle and cable length."
+            "Set cable out length. If pole-/ or hullmounted or unknown, leave 0.0, default is 0.0m. " \
+            "Layback is not the cable length but the counter-cathode (direct distance) of the triangle " \
+            "formed by the sensor depth, rope angle and cable length. It will be calculated assuming rope angle of 45°."
             "Unit is meters [m]."
         )
         self.active_automatic_resolution_checkbox = QCheckBox(

@@ -165,7 +165,7 @@ class Georeferencer:
         cog = np.rad2deg(cog)
 
         # Interpolate cog with univariate to get smooth curve; smoothing factor have been empirically defined
-        cog_spl = interpolate.UnivariateSpline(ping_unique, cog, k=3, s=len(ping_unique))
+        cog_spl = interpolate.UnivariateSpline(ping_unique, cog, k=3, s=len(ping_unique)/2)
         cog_intp = cog_spl(ping_uniform)
         self.cog_smooth = savgol_filter(cog_intp, 100, 3)
 

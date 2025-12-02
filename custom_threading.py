@@ -626,7 +626,7 @@ class NavPlotter(QtCore.QThread):
         get_nav.prep_data()
         print("Getting navigation data...")
         lola_data = get_nav.LOLA_plt
-        head_data = get_nav.HEAD_plt
+        head_data = get_nav.cog_smooth
         lola_data_ori = get_nav.LOLA_plt_ori
         head_data_ori = get_nav.HEAD_plt_ori
         head_data = np.column_stack((head_data[:, 0], head_data[:, 1]))
@@ -654,6 +654,9 @@ class GeoreferencerThread(QtCore.QThread):
         vertical_beam_angle: int,
         resolution: float,
         search_radius: float,
+        cable_out: float,
+        x_offset: float,
+        y_offset: float,
         parent=None,
     ):
         super().__init__(parent)
@@ -666,6 +669,9 @@ class GeoreferencerThread(QtCore.QThread):
         self.vertical_beam_angle = vertical_beam_angle
         self.resolution = resolution
         self.search_radius = search_radius
+        self.cable_out = cable_out
+        self.x_offset = x_offset
+        self.y_offset = y_offset
 
     def georef(self):
         georef_success = True
@@ -682,6 +688,9 @@ class GeoreferencerThread(QtCore.QThread):
             vertical_beam_angle=self.vertical_beam_angle,
             resolution=self.resolution,
             search_radius=self.search_radius,
+            cable_out = self.cable_out,
+            x_offset = self.x_offset,
+            y_offset = self.y_offset
         )  # from georef.py
         processor_0.process(self.progress_signal)
 
@@ -696,6 +705,9 @@ class GeoreferencerThread(QtCore.QThread):
             vertical_beam_angle=self.vertical_beam_angle,
             resolution=self.resolution,
             search_radius=self.search_radius,
+            cable_out = self.cable_out,
+            x_offset = self.x_offset,
+            y_offset = self.y_offset
         )  # from georef.py
         processor_1.process(self.progress_signal)
 
@@ -758,6 +770,9 @@ class GeoreferencerManager(QWidget):
         vertical_beam_angle,
         resolution,
         search_radius,
+        cable_out,
+        x_offset,
+        y_offset,
     ):
 
         self.output_folder = pathlib.Path(output_folder)
@@ -772,6 +787,9 @@ class GeoreferencerManager(QWidget):
             vertical_beam_angle,
             resolution,
             search_radius,
+            cable_out,
+            x_offset,
+            y_offset,
         )
         self.georef_thread.progress_signal.connect(
             lambda progress: self.update_pbar(progress)

@@ -104,9 +104,15 @@ When using BAC or EGN for Gain Normalisation, the resolution of the estimated be
 - `Apply Contrast Limited Adaptive Histogram Equalization`: Apply CLAHE to the data to improve contrast
 - `View Processed Data`: Initiates data viewer to inspect the raw input data, bottom line detection, slant range and EGN corrected data of the currently selected file.
 
+<img align="right" width="250" height="400" src="./res/vessel_CS.png" hspace="130" title="Vessel coordinate system as implemented in SidescanTools, top view.">
+<img align="right" width="400" height="250" src="./res/vessel_CS_side.png" hspace="130" title="Vessel coordinate system as implemented in SidescanTools, side view.">
+
 ### Georeferencing and image generation
 - Tick `Use processed Data` if above processing steps should be applied, otherwise a waterfall image based on the raw data will be created
-- `Resolution`: Set output file resolution. Currently, default is 0.2m. **Planned:** Use sample size as resolution default.
+- `Cable Out`: If the sonar has been towed behind and the **layback is not already in the raw data**, enter a cable out length. It will be used to calculate the layback assuming a rope angle of 45°.
+- `X Offset`: Offset in X direction of vessel coordinate system between GNSS antenna position and sonar or winch suspension position. X is positive in forward direction from GNSS antenna position, i.e. negativ values indicate that sonar is installed behind GNSS antenna.
+- `Y Offset`: Offset in Y direction of vessel coordinate system between GNSS antenna position and sonar or winch suspension position. Y is positive towards to right side of the vessel from GNSS antenna position, i.e. negativ values mean that sonar is installed left of GNSS antenna.
+- `Resolution`: Set output file resolution. Currently, default is sample size which is probably too small.
 - `Search Radius`: Set value to include <search_radius> neighbours for nearneighbour algorithm. Default: 2 * resolution. More info [here](https://www.pygmt.org/latest/api/generated/pygmt.nearneighbor.html)
 - Use `Blockmedian` to reduce noise and data size. More info [here](https://www.pygmt.org/latest/api/generated/pygmt.blockmedian.html#pygmt.blockmedian)
 - Untick `UTM` if you prefer WGS84 (unprojected) 
@@ -128,8 +134,8 @@ This command processes the specified file or all files within the folder, using 
 ## Output
 The tool produces:
 
-- A **fully processed waterfall-like image** (.png format) stored in the same folder as the input data.
-- An **GeoTIFF** of the processed data, saved in a separate folder as specified in `project_info.yml`.
+- A **fully processed waterfall image** (.png format) stored in the same folder as the input data.
+- A **GeoTIFF** of the processed data, saved in a separate folder as specified in `project_info.yml`.
 
 **_Note_**: This workflow is intended for datasets where the sensor altitude is known during acquisition. This altitude information is used and refined during processing.
 
@@ -190,4 +196,4 @@ In the following the most important CFG parameters which are relevant for  proce
 - `Slant vertical beam angle`: Degrees as integer. Angle in the vertical plane that the sound waves cover (usually found in the manual)
 
 # About
-SidescanTools is an open-source software project by [GEOMAR](https://www.geomar.de/ghostnetbusters) and [sonoware](https://www.sonoware.de/news/2024-12-06_uebergabe_foerderbescheid/) funded by the AI Fund of the State of Schleswig-Holstein. The logo design and artwork has been done by [Aili Xue](https://ailixue.myportfolio.com/work).
+SidescanTools is an open-source software project by [GEOMAR](https://www.geomar.de/ghostnetbusters) and [sonoware](https://www.sonoware.de/news/2024-12-06_uebergabe_foerderbescheid/) funded by the AI Fund of the State of Schleswig-Holstein. The logo design and artwork has been done by [Aili Xue](https://ailixue2025.myportfolio.com/logos).

@@ -197,3 +197,9 @@ In the following the most important CFG parameters which are relevant for  proce
 
 # About
 SidescanTools is an open-source software project by [GEOMAR](https://www.geomar.de/ghostnetbusters) and [sonoware](https://www.sonoware.de/news/2024-12-06_uebergabe_foerderbescheid/) funded by the AI Fund of the State of Schleswig-Holstein. The logo design and artwork has been done by [Aili Xue](https://ailixue2025.myportfolio.com/logos).
+
+# Support
+If you are having any problems or questions when using SidescanTools or encounter any bugs, don't hesitate to contact us by opening an Issue.
+
+# Extensions and Commercial Support
+Commercial support, including the development of custom extensions and additional features, is available upon request. Please contact us at sidescantools (at) sonoware.de if you are interested in professional assistance or would like to collaborate with us.

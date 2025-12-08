@@ -430,7 +430,7 @@ class SidescanToolsMain(QWidget):
         filepath = pathlib.Path(self.cfg.meta_infos.working_dir)
 
         # Check if file exists and warn user
-        dlg = OverwriteWarnDialog(self)
+        dlg = OverwriteWarnDialog(self, str(filepath))
         if dlg.exec():
             # Save
             self.cfg.save_cfg_and_schema(filepath / "project_info.yml")
@@ -706,7 +706,10 @@ class SidescanToolsMain(QWidget):
             lola_data, pen=lola_pen, title="Navigation", name="Smoothed Track"
         )
         cog_plot_savgol = self.cog_plot_widget.plot(
-            head_data, pen=head_pen, title="Course Over Ground (CoG)", name="Course over Ground"
+            head_data,
+            pen=head_pen,
+            title="Course Over Ground (CoG)",
+            name="Course over Ground",
         )
 
         self.lola_plot_widget.setLabel("left", "Latitude [°]")
@@ -1150,8 +1153,8 @@ class ViewAndExportWidget(QVBoxLayout):
             self.main_ui.cfg.georef_view_params.cable_out,
         )
         self.cable_out_edit.label.setToolTip(
-            "Set cable out length. If pole-/ or hullmounted or unknown, leave 0.0, default is 0.0m. " \
-            "Layback is not the cable length but the counter-cathode (direct distance) of the triangle " \
+            "Set cable out length. If pole-/ or hullmounted or unknown, leave 0.0, default is 0.0m. "
+            "Layback is not the cable length but the counter-cathode (direct distance) of the triangle "
             "formed by the sensor depth, rope angle and cable length. It will be calculated assuming rope angle of 45°."
             "Unit is meters [m]."
         )
@@ -1523,7 +1526,7 @@ class ViewAndExportWidget(QVBoxLayout):
             msg = QMessageBox()
             font = QtGui.QFont("Arial", 15)
             msg.setText(
-                f"Must enter some number for resolution and search radius field. " \
+                f"Must enter some number for resolution and search radius field. "
                 "If no values are known, enter 0.0 (default)"
             )
             msg.setWindowTitle("Empty Value error")
@@ -1545,9 +1548,9 @@ class ViewAndExportWidget(QVBoxLayout):
                 ),
                 resolution=float(self.resolution_edit.line_edit.text()),
                 search_radius=float(self.search_radius_edit.line_edit.text()),
-                cable_out = float(self.cable_out_edit.line_edit.text()),
-                x_offset = float(self.x_offset_edit.line_edit.text()),
-                y_offset = float(self.y_offset_edit.line_edit.text())
+                cable_out=float(self.cable_out_edit.line_edit.text()),
+                x_offset=float(self.x_offset_edit.line_edit.text()),
+                y_offset=float(self.y_offset_edit.line_edit.text()),
             )
 
     def generate_wc_img(self, active_generate_all: bool):

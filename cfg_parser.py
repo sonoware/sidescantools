@@ -166,13 +166,19 @@ class GeoreferencingAndViewingParameter(BaseModel):
         description="Use UTM for export, otherwise WGS84 (unprojected) is used",
     )
     cable_out: float = Field(
-        default=0.0, gt=0, description=f"Cable out length. Leave default if device not towed. Layback derived from cable out assuming  drag angle of 45°"
+        default=0.0,
+        gt=0,
+        description=f"Cable out length. Leave default if device not towed. Layback derived from cable out assuming  drag angle of 45°",
     )
     x_offset: float = Field(
-        default=0.0, gt=0, description=f"Offset distance in X (ship along) direction from GNSS antenna to sonar or winch point. Unit is meters [m]."
+        default=0.0,
+        gt=0,
+        description=f"Offset distance in X (ship along) direction from GNSS antenna to sonar or winch point. Unit is meters [m].",
     )
     y_offset: float = Field(
-        default=0.0, gt=0, description=f"Offset distance in Y (ship across) direction from GNSS antenna to sonar or winch point. Unit is meters [m]."
+        default=0.0,
+        gt=0,
+        description=f"Offset distance in Y (ship across) direction from GNSS antenna to sonar or winch point. Unit is meters [m].",
     )
     active_export_navigation: bool = Field(
         default=False, description="Export additional navigation data file"
@@ -236,25 +242,30 @@ class CFG(BaseModel):
         dst_path = Path(dst_path)
         if dst_path.is_dir():
             dst_path = dst_path / "project_info.yml"
-        if dst_path.parent.exists():
-            if dst_path.suffix == ".yml":
-                # schema
-                with open(
-                    dst_path.parent / (dst_path.stem + "_schema.json"), "w"
-                ) as fd:
-                    json.dump(self.model_json_schema(), fd, indent=4)
+        if not dst_path.parent.exists():
+            dst_path.parent.mkdir()
+        if dst_path.suffix == ".yml" or dst_path.suffix == ".yaml":
+            # schema
+            with open(dst_path.parent / (dst_path.stem + "_schema.json"), "w") as fd:
+                json.dump(self.model_json_schema(), fd, indent=4)
 
-                # cfg
-                with open(dst_path, "w") as fd:
-                    # schema usage
-                    fd.write(
-                        f"# yaml-language-server: $schema={dst_path.stem}_schema.json \n \n"
-                    )
-                    # dump all to yml
-                    model = self.model_dump(by_alias=True)
-                    yaml.safe_dump(model, fd, sort_keys=False)
+            # cfg
+            with open(dst_path, "w") as fd:
+                # schema usage
+                fd.write(
+                    f"# yaml-language-server: $schema={dst_path.stem}_schema.json \n \n"
+                )
+                # dump all to yml
+                model = self.model_dump(by_alias=True)
+                yaml.safe_dump(model, fd, sort_keys=False)
+            print(f"Default CFG written to: {dst_path}")
+            print(
+                f"Default schema written to: {dst_path.parent}/{dst_path.stem}_schema.json"
+            )
         else:
-            raise FileNotFoundError(f"Failed to save CFG to {dst_path}.")
+            raise ValueError(
+                f"Failed to save CFG to {dst_path}, because the given filepath is not a valid .yml filename."
+            )
 
     @classmethod
     def load_cfg(cls, src_path: os.PathLike):

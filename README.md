@@ -20,7 +20,7 @@ The main processing steps of SidescanTools are:
    - Apply sharpening filter
    - Apply one of two **Gain Normalization** Strategies:
 
-     - Beam-angle Correction (BAC): Average intensities **per beam angle** over all pings in a single file
+     - Beam Angle Correction (BAC): Average intensities **per beam angle** over all pings in a single file
      - Empirical Gain Normalization (EGN): Average intensities **per beam angle and distance** over all pings of all loaded files
 
    **_Notes_**:
@@ -35,7 +35,7 @@ The main processing steps of SidescanTools are:
 
 # Getting Started
 * SidescanTools may be used with **full feature extent** as [graphical tool](#gui-usage) (GUI)
-* You may also use the [**command-line interface**](#cli-usage) (CLI) for batch processing
+* You may also use the [**command-line interface**](#cli-usage) (CLI) for (batch) processing of data with altitude information
 
 The following steps apply to both variants:
 1. Clone this git repository
@@ -47,11 +47,6 @@ The following steps apply to both variants:
 
 3. In the virtual environment, start the GUI (`python main_gui.py`) or CLI (`python main_cli.py file_or_folder_path project_info.yml`)
 
-When creating a docker image, you may need to add the following lines to your `environment.yaml`:
-   ```
-   - conda-forge::sqlite=3.50.0
-   - conda-forge::libsqlite=3.50.0
-   ```
 
 
 # GUI Usage

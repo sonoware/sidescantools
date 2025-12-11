@@ -172,12 +172,10 @@ class GeoreferencingAndViewingParameter(BaseModel):
     )
     x_offset: float = Field(
         default=0.0,
-        ge=0.0,
         description=f"Offset distance in X (ship along) direction from GNSS antenna to sonar or winch point. Unit is meters [m].",
     )
     y_offset: float = Field(
         default=0.0,
-        ge=0.0,
         description=f"Offset distance in Y (ship across) direction from GNSS antenna to sonar or winch point. Unit is meters [m].",
     )
     active_export_navigation: bool = Field(

@@ -68,7 +68,7 @@
                 },
                 "cable_out": {
                     "default": 0.0,
-                    "description": "Cable out length. Leave default if device not towed. Layback derived from cable out assuming  drag angle of 45\u00b0",
+                    "description": "Cable out length. Leave default if device not towed. Layback derived from cable out assuming drag angle of 45\u00b0",
                     "minimum": 0.0,
                     "title": "Cable Out",
                     "type": "number"

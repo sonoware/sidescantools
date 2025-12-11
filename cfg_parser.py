@@ -168,7 +168,7 @@ class GeoreferencingAndViewingParameter(BaseModel):
     cable_out: float = Field(
         default=0.0,
         ge=0.0,
-        description=f"Cable out length. Leave default if device not towed. Layback derived from cable out assuming  drag angle of 45°",
+        description=f"Cable out length. Leave default if device not towed. Layback derived from cable out assuming drag angle of 45°",
     )
     x_offset: float = Field(
         default=0.0,

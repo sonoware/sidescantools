@@ -66,6 +66,25 @@
                     "title": "Active Utm",
                     "type": "boolean"
                 },
+                "cable_out": {
+                    "default": 0.0,
+                    "description": "Cable out length. Leave default if device not towed. Layback derived from cable out assuming drag angle of 45\u00b0",
+                    "minimum": 0.0,
+                    "title": "Cable Out",
+                    "type": "number"
+                },
+                "x_offset": {
+                    "default": 0.0,
+                    "description": "Offset distance in X (ship along) direction from GNSS antenna to sonar or winch point. Unit is meters [m].",
+                    "title": "X Offset",
+                    "type": "number"
+                },
+                "y_offset": {
+                    "default": 0.0,
+                    "description": "Offset distance in Y (ship across) direction from GNSS antenna to sonar or winch point. Unit is meters [m].",
+                    "title": "Y Offset",
+                    "type": "number"
+                },
                 "active_export_navigation": {
                     "default": false,
                     "description": "Export additional navigation data file",

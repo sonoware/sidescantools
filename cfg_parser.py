@@ -167,17 +167,15 @@ class GeoreferencingAndViewingParameter(BaseModel):
     )
     cable_out: float = Field(
         default=0.0,
-        gt=0,
-        description=f"Cable out length. Leave default if device not towed. Layback derived from cable out assuming  drag angle of 45°",
+        ge=0.0,
+        description=f"Cable out length. Leave default if device not towed. Layback derived from cable out assuming drag angle of 45°",
     )
     x_offset: float = Field(
         default=0.0,
-        gt=0,
         description=f"Offset distance in X (ship along) direction from GNSS antenna to sonar or winch point. Unit is meters [m].",
     )
     y_offset: float = Field(
         default=0.0,
-        gt=0,
         description=f"Offset distance in Y (ship across) direction from GNSS antenna to sonar or winch point. Unit is meters [m].",
     )
     active_export_navigation: bool = Field(

@@ -430,7 +430,7 @@ class SidescanToolsMain(QWidget):
         filepath = pathlib.Path(self.cfg.meta_infos.working_dir)
 
         # Check if file exists and warn user
-        dlg = OverwriteWarnDialog(self)
+        dlg = OverwriteWarnDialog(self, str(filepath))
         if dlg.exec():
             # Save
             self.cfg.save_cfg_and_schema(filepath / "project_info.yml")

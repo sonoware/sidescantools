@@ -1,5 +1,5 @@
-# yaml-language-server: $schema=project_info_schema.json 
- 
+# yaml-language-server: $schema=project_info_schema.json
+
 main_proc_params:
   georef_dir: ./georef_out
   active_convert_dB: true
@@ -38,6 +38,9 @@ georef_view_params:
   img_include_raw_data: false
   active_proc_data: true
   active_utm: true
+  cable_out: 0.0
+  x_offset: 0.0
+  y_offset: 0.0
   active_export_navigation: false
   active_automatic_resolution: false
   output_resolution: 0.1

@@ -41,13 +41,20 @@ class ImportThread(QtCore.QThread):
                 import_success = False
                 break
 
+            # check if internal altitude is available
+            internal_altitude_available = "None"
+            if np.any(sidescan_file.sensor_aux_altitude > 0):
+                internal_altitude_available = "Yes"
             meta_info = (
                 f"<b>Date          :</b> " + str(sidescan_file.timestamp[0]) + "<br />"
             )
-            meta_info += f"<b>Channels        :</b> {sidescan_file.num_ch}<br />"
-            meta_info += f"<b>Number of pings :</b> {sidescan_file.num_ping}<br />"
+            meta_info += f"<b>Channels:</b> {sidescan_file.num_ch}<br />"
+            meta_info += f"<b>Number of pings:</b> {sidescan_file.num_ping}<br />"
             meta_info += f"<b>Samples per ping:</b> {sidescan_file.ping_len}<br />"
-            meta_info += f"<b>Slant ranges    :</b> {np.min(sidescan_file.slant_range)} - {np.max(sidescan_file.slant_range)} m<br />"
+            meta_info += f"<b>Slant ranges:</b> {np.min(sidescan_file.slant_range)} - {np.max(sidescan_file.slant_range)} m<br />"
+            meta_info += (
+                f"<b>Internal Altitude available:</b> " + internal_altitude_available
+            )
 
             meta_list_html.append({filename: meta_info})
         if import_success:
@@ -688,9 +695,9 @@ class GeoreferencerThread(QtCore.QThread):
             vertical_beam_angle=self.vertical_beam_angle,
             resolution=self.resolution,
             search_radius=self.search_radius,
-            cable_out = self.cable_out,
-            x_offset = self.x_offset,
-            y_offset = self.y_offset
+            cable_out=self.cable_out,
+            x_offset=self.x_offset,
+            y_offset=self.y_offset,
         )  # from georef.py
         processor_0.process(self.progress_signal)
 
@@ -705,9 +712,9 @@ class GeoreferencerThread(QtCore.QThread):
             vertical_beam_angle=self.vertical_beam_angle,
             resolution=self.resolution,
             search_radius=self.search_radius,
-            cable_out = self.cable_out,
-            x_offset = self.x_offset,
-            y_offset = self.y_offset
+            cable_out=self.cable_out,
+            x_offset=self.x_offset,
+            y_offset=self.y_offset,
         )  # from georef.py
         processor_1.process(self.progress_signal)
 

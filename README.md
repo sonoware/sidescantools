@@ -83,11 +83,11 @@ In the following all GUI elements are explained in more detail.
 ### Slant Range Correction and Gain Normalisation
 - `Apply Downsampling`: Use downsampling factor as defined in bottom line detection. If unchecked, data will only be downsampled for bottom line detection but not for final image/geotiff generation.
 - `Apply Gain Normalisation`: Apply BAC or EGN to the data.
-- `Vertical Beam Angle` (only relevant if internal depth is unknown or shall be omitted): Angle in the vertical plane that the sound waves cover(usually found in the manual)
-- Tick `Use Internal Depth` if the flying altitude of the side scan instrument is known & has been logged correctly
+- `Vertical Beam Angle`: Angle in the vertical plane that the sound waves cover(usually found in the manual)
+- Tick `Use Internal Altitude` if the flying altitude of the side scan instrument is known & has been logged correctly. This information is used for Slant Range Correction instead of an additional bottom line
 
 ### Advanced Gain Normalisation Filter
-- `Nadir Angle` (only relevant if internal depth is unknown or shall be omitted): Angle between perpendicular and first bottom return (usually need to be estimated, leave 0° if unsure)
+- `Nadir Angle`: Angle between perpendicular and first bottom return (usually needs to be estimated, leave 0° if unsure)
 - `Chunk Size`: Number of pings per chunk to calculate EGN table and use for waterfall image generation
 - `Generate EGN table`: Initiates EGN table generation. All files loaded in the project that have bottom line information available will be processed. For each sonar file, the required information is saved to individual EGN info files. In a last step, all these info files are combined into one EGN table that can be applied to gain normalise all data of this side scan sonar type (see next step). This process needs quite some time (check console outputs).
 - `Process All Files`: Applies previously calculated slant range correction & EGN to all loaded files at once. This will take some time depending on the amount of data (check console outputs).

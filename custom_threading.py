@@ -629,8 +629,6 @@ class NavPlotter(QtCore.QThread):
         head_data = get_nav.cog_smooth
         lola_data_ori = get_nav.LOLA_plt_ori
         head_data_ori = get_nav.HEAD_plt_ori
-        head_data = np.column_stack((head_data[:, 0], head_data[:, 1]))
-        head_data_ori = np.column_stack((head_data_ori[:, 0], head_data_ori[:, 1]))
         self.signals.results_signal.emit(
             (lola_data, lola_data_ori, head_data, head_data_ori)
         )
@@ -688,9 +686,9 @@ class GeoreferencerThread(QtCore.QThread):
             vertical_beam_angle=self.vertical_beam_angle,
             resolution=self.resolution,
             search_radius=self.search_radius,
-            cable_out = self.cable_out,
-            x_offset = self.x_offset,
-            y_offset = self.y_offset
+            cable_out=self.cable_out,
+            x_offset=self.x_offset,
+            y_offset=self.y_offset,
         )  # from georef.py
         processor_0.process(self.progress_signal)
 
@@ -705,9 +703,9 @@ class GeoreferencerThread(QtCore.QThread):
             vertical_beam_angle=self.vertical_beam_angle,
             resolution=self.resolution,
             search_radius=self.search_radius,
-            cable_out = self.cable_out,
-            x_offset = self.x_offset,
-            y_offset = self.y_offset
+            cable_out=self.cable_out,
+            x_offset=self.x_offset,
+            y_offset=self.y_offset,
         )  # from georef.py
         processor_1.process(self.progress_signal)
 

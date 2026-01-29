@@ -221,6 +221,10 @@ class MetaInfo(BaseModel):
         default_factory=dict,
         description="Dictionary of meta information for each imported file.",
     )
+    internal_altitude_dict: dict = Field(
+        default_factory=dict,
+        description="Dict of bool info if internal altitude information is present for each file.",
+    )
 
 
 class CFG(BaseModel):

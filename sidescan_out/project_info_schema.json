@@ -265,6 +265,14 @@
                     "description": "Dictionary of meta information for each imported file.",
                     "title": "Meta Info",
                     "type": "object"
+                },
+                "internal_altitude_available": {
+                    "description": "List of bool info if internal altitude information is present for each file.",
+                    "items": {
+                        "type": "boolean"
+                    },
+                    "title": "Internal Altitude Available",
+                    "type": "array"
                 }
             },
             "title": "MetaInfo",

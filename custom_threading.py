@@ -29,6 +29,7 @@ class ImportThread(QtCore.QThread):
     def run(self):
         self.status_signal.emit("starting import")
         meta_list_html = []
+        internal_alt_list = []
         import_success = True
         err_str = ""
         for idx, filename in enumerate(self.filenames):
@@ -42,9 +43,9 @@ class ImportThread(QtCore.QThread):
                 break
 
             # check if internal altitude is available
-            internal_altitude_available = "None"
-            if np.any(sidescan_file.sensor_aux_altitude > 0):
-                internal_altitude_available = "Yes"
+            internal_altitude_available = False
+            if np.any(sidescan_file.sensor_primary_altitude > 0):
+                internal_altitude_available = True
             meta_info = (
                 f"<b>Date          :</b> " + str(sidescan_file.timestamp[0]) + "<br />"
             )
@@ -52,14 +53,12 @@ class ImportThread(QtCore.QThread):
             meta_info += f"<b>Number of pings:</b> {sidescan_file.num_ping}<br />"
             meta_info += f"<b>Samples per ping:</b> {sidescan_file.ping_len}<br />"
             meta_info += f"<b>Slant ranges:</b> {np.min(sidescan_file.slant_range)} - {np.max(sidescan_file.slant_range)} m<br />"
-            meta_info += (
-                f"<b>Internal Altitude available:</b> " + internal_altitude_available
-            )
 
             meta_list_html.append({filename: meta_info})
+            internal_alt_list.append({filename: internal_altitude_available})
         if import_success:
             self.status_signal.emit("import finished")
-            self.results_signal.emit(meta_list_html)
+            self.results_signal.emit([meta_list_html, internal_alt_list])
         else:
             self.status_signal.emit("import failed")
             self.aborted_signal.emit(err_str)

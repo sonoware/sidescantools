@@ -62,6 +62,7 @@ class SidescanToolsMain(QWidget):
         "Slant corrected": [],
         "Gain corrected": [],
         "File size": [],
+        "Internal Altitude": [],
     }
     cfg: CFG
 
@@ -274,8 +275,9 @@ class SidescanToolsMain(QWidget):
 
     def import_new_files_from_manager(self, filenames: list, meta_info_list: list):
         # append meta data to cfg for saving/loading capabilities
-        for new_info in meta_info_list:
-            self.cfg.meta_infos.meta_info.update(new_info)
+        for new_info in zip(meta_info_list[0], meta_info_list[1]):
+            self.cfg.meta_infos.meta_info.update(new_info[0])
+            self.cfg.meta_infos.internal_altitude_dict.update(new_info[1])
         # check for duplicates and sort full list
         full_list = self.file_dict["Path"]
         full_list.extend(filenames)
@@ -288,6 +290,7 @@ class SidescanToolsMain(QWidget):
         self.file_dict["File size"] = ["0"] * num_files
         self.file_dict["Slant corrected"] = ["N"] * num_files
         self.file_dict["Gain corrected"] = ["N"] * num_files
+        self.file_dict["Internal Altitude"] = ["None"] * num_files
         # update UI
         self.update_table()
         self.update_right_view_size()
@@ -303,6 +306,7 @@ class SidescanToolsMain(QWidget):
         self.file_dict["File size"].pop(idx_del)
         self.file_dict["Slant corrected"].pop(idx_del)
         self.file_dict["Gain corrected"].pop(idx_del)
+        self.file_dict["Internal Altitude"].pop(idx_del)
 
         self.update_table()
         self.update_right_view_size()
@@ -318,12 +322,13 @@ class SidescanToolsMain(QWidget):
         num_files = len(self.file_dict["Path"])
         self.file_table.clearContents()
         self.file_table.setRowCount(num_files)
-        self.file_table.setColumnCount(5)
+        self.file_table.setColumnCount(6)
         self.file_table.setColumnWidth(0, 600)
         self.file_table.setColumnWidth(1, 100)
         self.file_table.setColumnWidth(2, 100)
         self.file_table.setColumnWidth(3, 100)
         self.file_table.setColumnWidth(4, 100)
+        self.file_table.setColumnWidth(5, 100)
         self.file_table.setHorizontalHeaderLabels(self.file_dict.keys())
 
         yes_icon = self.style().standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton)
@@ -357,6 +362,9 @@ class SidescanToolsMain(QWidget):
             new_item = QTableWidgetItem(self.file_dict["File size"][idx])
             self.file_table.setItem(idx, 4, new_item)
 
+            new_item = QTableWidgetItem(self.file_dict["Internal Altitude"][idx])
+            self.file_table.setItem(idx, 5, new_item)
+
         # check whether a file is selected, if there is none, select index 0
         if len(self.file_table.selectedIndexes()) <= 0:
             if selected_idx == -1:
@@ -372,6 +380,7 @@ class SidescanToolsMain(QWidget):
 
     def check_for_btm_line_data_and_size(self):
         for idx, filepath in enumerate(self.file_dict["Path"]):
+            filepath_str = filepath
             filepath = pathlib.Path(filepath)
             work_dir = pathlib.Path(self.cfg.meta_infos.working_dir)
             if filepath.exists():
@@ -393,6 +402,13 @@ class SidescanToolsMain(QWidget):
                     self.file_dict["Gain corrected"][idx] = "Y"
                 else:
                     self.file_dict["Gain corrected"][idx] = "N"
+
+                # Update if internal altitude is available
+                internal_alt_available = "None"
+                if filepath_str in self.cfg.meta_infos.internal_altitude_dict:
+                    if self.cfg.meta_infos.internal_altitude_dict[filepath_str]:
+                        internal_alt_available = "Available"
+                self.file_dict["Internal Altitude"][idx] = internal_alt_available
             else:
                 self.file_dict["File size"][idx] = "Couldn't read"
 
@@ -460,6 +476,7 @@ class SidescanToolsMain(QWidget):
             self.file_dict["Slant corrected"] = ["N"] * num_files
             self.file_dict["Gain corrected"] = ["N"] * num_files
             self.file_dict["File size"] = ["0"] * num_files
+            self.file_dict["Internal Altitude"] = ["None"] * num_files
             self.update_table()
             self.update_ui_from_cfg()
         else:
@@ -897,9 +914,9 @@ class ProcessingWidget(QVBoxLayout):
         )
         self.optional_egn_label = QLabel("Advanced Gain Normalisation Parameter")
         self.optional_egn_label.setFont(title_font)
-        self.active_intern_depth_checkbox = QCheckBox("Use internal Depth")
+        self.active_intern_depth_checkbox = QCheckBox("Use internal Altitude")
         self.active_intern_depth_checkbox.setToolTip(
-            "Use internal depth information for slant range correction. Otherwise depth is estimated from detected bottom line."
+            "Use internal altitude information for slant range correction. Otherwise depth is estimated from detected bottom line."
         )
         self.active_intern_depth_checkbox.setChecked(
             self.main_ui.cfg.slant_gain_params.active_intern_depth
@@ -1024,6 +1041,7 @@ class ProcessingWidget(QVBoxLayout):
     def process_all_files(self):
         path_list = []
         for idx, path in enumerate(self.main_ui.cfg.meta_infos.paths):
+            # TODO: Check for intern altitude settings and if available and add then
             if self.main_ui.file_dict["Bottom line"][idx] == "Y":
                 path_list.append(pathlib.Path(path))
 

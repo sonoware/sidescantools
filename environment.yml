@@ -17,7 +17,5 @@ dependencies:
   - rioxarray==0.18.1
   - rasterio==1.4.3
   - pyqtgraph
-  - pip
-  - pip:
-      - pyxtf==1.4.2
-      - utm==0.8.1
+  - conda-forge::utm==0.7.0
+  - conda-forge::pyxtf==1.4.2

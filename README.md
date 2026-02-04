@@ -37,13 +37,17 @@ The main processing steps of SidescanTools are:
 * SidescanTools may be used with **full feature extent** as [graphical tool](#gui-usage) (GUI)
 * You may also use the [**command-line interface**](#cli-usage) (CLI) for (batch) processing of data with altitude information
 
-The following steps apply to both variants:
+1. Preferably create a new conda environment
+2. In this environment, install the conda package via: `conda install conda-forge::sidescantools`
+3. Start SidescanTools: `sidescantools`
+
+Otherwise, you can execute the source code by the following steps (they apply to both variants):
 1. Clone this git repository
 2. Install required packages:
    - For GUI, use `environment.yml`: `conda env create -f environment.yml`
    - For CLI, use `environment_cli.yml`: `conda env create -f environment_cli.yml`
 
-   We recommend to use Anaconda/Miniconda for platform-indepent installation to ensure GDAL and other dependencies are installed correctly.
+   We recommend to use Anaconda/Miniconda for platform-independent installation to ensure GDAL and other dependencies are installed correctly.
 
 3. In the virtual environment, start the GUI (`python main_gui.py`) or CLI (`python main_cli.py file_or_folder_path project_info.yml`)
 

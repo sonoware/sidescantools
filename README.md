@@ -40,7 +40,7 @@ The main processing steps of SidescanTools are:
 <!-- Uncomment the following when the conda package is built: -->
 <!-- 1. Preferably create a new conda environment
 2. In this environment, install the conda package via: `conda install conda-forge::sidescantools`
-3. Start SidescanTools: `sidescantools`
+3. Start SidescanTools GUI: `sidescantools_gui` or CLI: `sidescantools_cli`
 
 Otherwise, you can execute the source code by the following steps (they apply to both variants): -->
 1. Clone this git repository

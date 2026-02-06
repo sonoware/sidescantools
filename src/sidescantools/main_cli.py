@@ -329,7 +329,7 @@ class SidescanToolsMain:
             os.remove(egn_info)
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="Tool to process sidescan sonar data")
     parser.add_argument("-w", "--write_cfg", action="store_true")
     parser.add_argument(
@@ -360,3 +360,7 @@ if __name__ == "__main__":
             sidescantools.gen_egn_table()
         else:
             sidescantools.process()
+
+
+if __name__ == "__main__":
+    main()

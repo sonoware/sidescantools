@@ -24,6 +24,7 @@ requirements:
   run:
     - python >=3.12,<=3.13
     - conda-forge::pydantic
+    - scikit-image==0.25.2
     - geopy
     - numpy==2.3.3
     - conda-forge::napari

@@ -1,13 +1,13 @@
 import numpy as np
 import copy
 import scipy.signal as scisig
-from sidescan_file import SidescanFile
+from sidescantools.sidescan_file import SidescanFile
 from skimage.morphology.misc import remove_small_holes, remove_small_objects
 import skimage
 from skimage import feature
 from pathlib import Path
 import geopy.distance as geo_dist
-from aux_functions import convert_to_dB, hist_equalization
+from sidescantools.aux_functions import convert_to_dB, hist_equalization
 
 
 class SidescanPreprocessor:

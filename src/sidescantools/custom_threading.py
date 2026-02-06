@@ -6,13 +6,16 @@ from qtpy.QtWidgets import (
 )
 import qtpy.QtCore as QtCore
 import qtpy.QtGui as QtGui
-from sidescan_file import SidescanFile
-from sidescan_preproc import SidescanPreprocessor
-from georef_thread import Georeferencer
+from sidescantools.sidescan_file import SidescanFile
+from sidescantools.sidescan_preproc import SidescanPreprocessor
+from sidescantools.georef_thread import Georeferencer
 import numpy as np
 import os
 import pathlib
-from egn_table_build import generate_egn_info, generate_egn_table_from_infos
+from sidescantools.egn_table_build import (
+    generate_egn_info,
+    generate_egn_table_from_infos,
+)
 
 
 class ImportThread(QtCore.QThread):

@@ -23,8 +23,8 @@ from qtpy.QtGui import QPalette, QColor, QShortcut, QKeySequence
 import qtpy.QtCore as QtCore
 import qtpy.QtGui as QtGui
 import sys, os, pathlib
-from bottom_detection_napari_ui import run_napari_btm_line
-from georef_thread import Georeferencer
+from sidescantools.bottom_detection_napari_ui import run_napari_btm_line
+from sidescantools.georef_thread import Georeferencer
 import pyqtgraph as pg
 import pyqtgraph.exporters as exporters
 import copy
@@ -32,7 +32,7 @@ from math import log
 import numpy as np
 import napari
 from napari.utils.colormaps import Colormap
-from custom_widgets import (
+from sidescantools.custom_widgets import (
     QHLine,
     Labeled2Buttons,
     LabeledLineEdit,
@@ -40,8 +40,8 @@ from custom_widgets import (
     ErrorWarnDialog,
     FilePicker,
 )
-from aux_functions import convert_to_dB, hist_equalization
-from custom_threading import (
+from sidescantools.aux_functions import convert_to_dB, hist_equalization
+from sidescantools.custom_threading import (
     FileImportManager,
     EGNTableBuilder,
     PreProcManager,
@@ -50,9 +50,9 @@ from custom_threading import (
 )
 
 import scipy.signal as scisig
-from cfg_parser import GAINSTRAT, CFG
-from georef_thread import Georeferencer
-from sidescan_file import SidescanFile
+from sidescantools.cfg_parser import GAINSTRAT, CFG
+from sidescantools.georef_thread import Georeferencer
+from sidescantools.sidescan_file import SidescanFile
 
 
 class SidescanToolsMain(QWidget):

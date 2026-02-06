@@ -1,15 +1,18 @@
 from pathlib import Path
 import argparse
 import numpy as np
-from sidescan_file import SidescanFile
-from sidescan_preproc import SidescanPreprocessor
-from georef_thread import Georeferencer
-from aux_functions import convert_to_dB, hist_equalization
+from sidescantools.sidescan_file import SidescanFile
+from sidescantools.sidescan_preproc import SidescanPreprocessor
+from sidescantools.georef_thread import Georeferencer
+from sidescantools.aux_functions import convert_to_dB, hist_equalization
 from timeit import default_timer as timer
 import os
-from egn_table_build import generate_egn_info, generate_egn_table_from_infos
+from sidescantools.egn_table_build import (
+    generate_egn_info,
+    generate_egn_table_from_infos,
+)
 from datetime import datetime
-from cfg_parser import CFG
+from sidescantools.cfg_parser import CFG
 
 PLOTTING = False
 if PLOTTING:

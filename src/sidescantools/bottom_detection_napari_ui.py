@@ -1,9 +1,9 @@
 import napari
 from magicgui import magicgui
 from pathlib import Path
-from sidescan_preproc import SidescanPreprocessor
+from sidescantools.sidescan_preproc import SidescanPreprocessor
 import numpy as np
-from sidescan_file import SidescanFile
+from sidescantools.sidescan_file import SidescanFile
 import os
 
 

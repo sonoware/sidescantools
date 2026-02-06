@@ -4,7 +4,7 @@ import os
 import numpy as np
 import utm
 import math
-from sidescan_file import SidescanFile
+from sidescantools.sidescan_file import SidescanFile
 from pyproj import CRS
 from scipy.signal import savgol_filter
 from scipy import interpolate
@@ -165,7 +165,9 @@ class Georeferencer:
         cog = np.rad2deg(cog)
 
         # Interpolate cog with univariate to get smooth curve; smoothing factor have been empirically defined
-        cog_spl = interpolate.UnivariateSpline(ping_unique, cog, k=3, s=len(ping_unique)/2)
+        cog_spl = interpolate.UnivariateSpline(
+            ping_unique, cog, k=3, s=len(ping_unique) / 2
+        )
         cog_intp = cog_spl(ping_uniform)
         self.cog_smooth = savgol_filter(cog_intp, 100, 3)
 
@@ -205,7 +207,7 @@ class Georeferencer:
         SLANT_RANGE = SLANT_RANGE[ZERO_MASK]
         self.PING = self.PING[ZERO_MASK]
 
-        # Process heading for plotting 
+        # Process heading for plotting
         # Unwrap to avoid jumps when crossing 0/360° degree angle
         HEAD_ori_rad = np.deg2rad(HEAD_ori)
         head_unwrapped = np.unwrap(HEAD_ori_rad)
@@ -255,21 +257,30 @@ class Georeferencer:
         self.calculate_cog(EAST, NORTH, PING_UNIQUE, PING_uniform)
 
         # add offsets following: https://apps.dtic.mil/sti/pdfs/AD1005010.pdf
-        # 
+        #
         layback = math.sin(np.deg2rad(45)) * self.cable_out
         north_offset = []
         east_offset = []
         lalo_offset = []
-        for east, north, utm_zone, letter, head in zip(EAST, NORTH, UTM_ZONE, UTM_LET, self.cog_smooth):
-            east_lay = east - layback*math.sin(np.deg2rad(head)) + self.x_offset * math.cos(np.deg2rad(head))
-            north_lay = north - layback*math.cos(np.deg2rad(head))+ self.y_offset * math.sin(np.deg2rad(head))
+        for east, north, utm_zone, letter, head in zip(
+            EAST, NORTH, UTM_ZONE, UTM_LET, self.cog_smooth
+        ):
+            east_lay = (
+                east
+                - layback * math.sin(np.deg2rad(head))
+                + self.x_offset * math.cos(np.deg2rad(head))
+            )
+            north_lay = (
+                north
+                - layback * math.cos(np.deg2rad(head))
+                + self.y_offset * math.sin(np.deg2rad(head))
+            )
             lalo_lay = utm.to_latlon(east_lay, north_lay, utm_zone, letter)
             east_offset.append(east_lay)
             north_offset.append(north_lay)
             lalo_offset.append(lalo_lay)
 
         Lat_offset, Lon_offset = map(np.array, zip(*lalo_offset))
-
 
         # B-Spline lon/lats and filter to obtain esqual-interval, unique coordinates for each ping
         lo_spl = interpolate.make_interp_spline(
@@ -285,7 +296,6 @@ class Georeferencer:
 
         lo_intp = savgol_filter(lo_intp, 100, 2)
         la_intp = savgol_filter(la_intp, 100, 2)
-
 
         # interpolate easting northing to full swath length
         east_spl = interpolate.make_interp_spline(
@@ -361,7 +371,6 @@ class Georeferencer:
             ]
 
         la_out_intp, lo_out_intp = map(np.array, zip(*self.LALO_OUTER))
-
 
         # Create arrays for heading and coords for plotting in GUI
         x = range(len(self.cog_smooth))

@@ -1,5 +1,5 @@
-from sidescan_file import SidescanFile
-from sidescan_preproc import SidescanPreprocessor
+from sidescantools.sidescan_file import SidescanFile
+from sidescantools.sidescan_preproc import SidescanPreprocessor
 import numpy as np
 import os
 import pathlib

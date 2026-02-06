@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools >= 77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sidescantools"
+version = "1.0.0"
+description = "Tools for sidescan sonar processing"
+readme = "README.md"
+requires-python = ">=3.12,<=3.13"
+authors = [
+  { name="SidescanTools Team", email="sidescantools@sonoware.de" }
+]
+license = "GPL-3.0"
+license-files = ["LICENSE"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

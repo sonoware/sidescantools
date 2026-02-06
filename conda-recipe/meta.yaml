@@ -1,0 +1,49 @@
+{% set name = "sidescantools" %}
+{% set version = "1.0.0" %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  path: ..
+
+build:
+  number: 0
+  script: python -m pip install . --no-deps -vv
+  entry_points:
+    - sidescantools_gui = sidescantools.main_gui:main
+    - sidescantools_cli = sidescantools.main_cli:main
+
+requirements:
+  host:
+    - python >=3.12,<=3.13
+    - pip
+    - setuptools
+    - wheel
+  run:
+    - python >=3.12,<=3.13
+    - conda-forge::pydantic
+    - geopy
+    - numpy==2.3.3
+    - conda-forge::napari
+    - conda-forge::pyqt==5.*
+    - conda-forge::gdal==3.10.3
+    - pyyaml
+    - qtpy
+    - pyproj
+    - pygmt==0.17.0
+    - rioxarray==0.18.1
+    - rasterio==1.4.3
+    - pyqtgraph
+    - conda-forge::utm
+    - conda-foreg::pyxtf
+
+test:
+  imports:
+    - sidescantools
+
+about:
+  home: https://sidescantools.de
+  summary: "Tools for sidescan sonar processing"
+  license: GPL-3.0

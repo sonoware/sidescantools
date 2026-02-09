@@ -1,9 +1,6 @@
-{% set name = "sidescantools" %}
-{% set version = "1.0.0" %}
-
 package:
-  name: {{ name|lower }}
-  version: {{ version }}
+  name: sidescantools
+  version: 1.0.0
 
 source:
   path: ..
@@ -48,3 +45,7 @@ about:
   home: https://sidescantools.de
   summary: "Tools for sidescan sonar processing"
   license: GPL-3.0
+
+extra:
+  recipe-maintainers:
+    - sonofisp

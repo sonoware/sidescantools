@@ -44,15 +44,15 @@ The main processing steps of SidescanTools are:
 
 Otherwise, you can execute the source code by the following steps (they apply to both variants): -->
 1. Clone this git repository
-2. Install required packages:
+2. Install required packages in a new environment:
    - For GUI, use `environment.yml`: `conda env create -f environment.yml`
    - For CLI, use `environment_cli.yml`: `conda env create -f environment_cli.yml`
 
    We recommend to use Anaconda/Miniconda for platform-independent installation to ensure GDAL and other dependencies are installed correctly.
 
-3. In the virtual environment, start the GUI (`python main_gui.py`) or CLI (`python main_cli.py file_or_folder_path project_info.yml`)
-<!-- 3. In the virtual environment, install the package locally via pip: `pip install -e .`
-4. Start the GUI (`python src/sidescantools/main_gui.py`) or CLI (`python src/sidescantools/main_cli.py file_or_folder_path project_info.yml`) -->
+3. In the virtual environment, install the package locally via pip: `pip install -e .`
+4. Start the GUI: `python src/sidescantools/main_gui.py` \
+ or CLI: `python src/sidescantools/main_cli.py file_or_folder_path project_info.yml`
 
 # GUI Usage
 The GUI tool works based on a project directory, which can be set via the `Working directory` button.

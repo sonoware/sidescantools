@@ -336,6 +336,7 @@ class PreProcWorker(QtCore.QRunnable):
         active_bac: bool,
         active_sharpening_filter: bool,
         num_angle_bac: int,
+        active_internal_altitude: bool,
     ):
         super().__init__()
         self.filepath = pathlib.Path(filepath)
@@ -356,6 +357,7 @@ class PreProcWorker(QtCore.QRunnable):
         self.active_bac = active_bac
         self.active_sharpening_filter = active_sharpening_filter
         self.num_angle_bac = num_angle_bac
+        self.active_internal_altitude = active_internal_altitude
 
     @QtCore.Slot()
     def run(self):
@@ -366,25 +368,28 @@ class PreProcWorker(QtCore.QRunnable):
 
     def do_slant_corr_and_processing(self):
         sidescan_file = SidescanFile(filepath=self.filepath)
-        bottom_info = np.load(self.bottom_file)
-        # Check if downsampling was applied
-        try:
-            downsampling_factor = bottom_info["downsampling_factor"]
-        except:
-            downsampling_factor = 1
+        downsampling_factor = 1
+        if not self.active_internal_altitude:
+            bottom_info = np.load(self.bottom_file)
+            # Check if downsampling was applied
+            try:
+                downsampling_factor = bottom_info["downsampling_factor"]
+            except:
+                downsampling_factor = 1
 
-        portside_bottom_dist = bottom_info["bottom_info_port"].flatten()[
-            : sidescan_file.num_ping
-        ]
-        starboard_bottom_dist = bottom_info["bottom_info_star"].flatten()[
-            : sidescan_file.num_ping
-        ]
+            portside_bottom_dist = bottom_info["bottom_info_port"].flatten()[
+                : sidescan_file.num_ping
+            ]
+            starboard_bottom_dist = bottom_info["bottom_info_star"].flatten()[
+                : sidescan_file.num_ping
+            ]
 
         if not self.active_downsampling:
             if downsampling_factor != 1:
                 # rescale bottom info
-                portside_bottom_dist = portside_bottom_dist * downsampling_factor
-                starboard_bottom_dist = starboard_bottom_dist * downsampling_factor
+                if not self.active_internal_altitude:
+                    portside_bottom_dist = portside_bottom_dist * downsampling_factor
+                    starboard_bottom_dist = starboard_bottom_dist * downsampling_factor
                 downsampling_factor = 1
 
         preproc = SidescanPreprocessor(
@@ -393,27 +398,36 @@ class PreProcWorker(QtCore.QRunnable):
             downsampling_factor=downsampling_factor,
         )
         # flip order for xtf files to contain backwards compability
-        if self.filepath.suffix.casefold() == ".xtf":
-            portside_bottom_dist = np.flip(portside_bottom_dist)
-            starboard_bottom_dist = np.flip(starboard_bottom_dist)
+        if not self.active_internal_altitude:
+            if self.filepath.suffix.casefold() == ".xtf":
+                portside_bottom_dist = np.flip(portside_bottom_dist)
+                starboard_bottom_dist = np.flip(starboard_bottom_dist)
 
-        preproc.portside_bottom_dist = portside_bottom_dist
-        preproc.starboard_bottom_dist = starboard_bottom_dist
-        preproc.napari_portside_bottom = np.zeros(
-            (preproc.num_chunk, preproc.chunk_size), dtype=int
-        )
-        preproc.napari_starboard_bottom = np.zeros(
-            (preproc.num_chunk, preproc.chunk_size), dtype=int
-        )
-        for chunk_idx in range(preproc.num_chunk):
-            port_chunk = portside_bottom_dist[
-                chunk_idx * preproc.chunk_size : (chunk_idx + 1) * preproc.chunk_size
-            ]
-            preproc.napari_portside_bottom[chunk_idx, : len(port_chunk)] = port_chunk
-            star_chunk = starboard_bottom_dist[
-                chunk_idx * preproc.chunk_size : (chunk_idx + 1) * preproc.chunk_size
-            ]
-            preproc.napari_starboard_bottom[chunk_idx, : len(star_chunk)] = star_chunk
+            preproc.portside_bottom_dist = portside_bottom_dist
+            preproc.starboard_bottom_dist = starboard_bottom_dist
+            preproc.napari_portside_bottom = np.zeros(
+                (preproc.num_chunk, preproc.chunk_size), dtype=int
+            )
+            preproc.napari_starboard_bottom = np.zeros(
+                (preproc.num_chunk, preproc.chunk_size), dtype=int
+            )
+            for chunk_idx in range(preproc.num_chunk):
+                port_chunk = portside_bottom_dist[
+                    chunk_idx
+                    * preproc.chunk_size : (chunk_idx + 1)
+                    * preproc.chunk_size
+                ]
+                preproc.napari_portside_bottom[chunk_idx, : len(port_chunk)] = (
+                    port_chunk
+                )
+                star_chunk = starboard_bottom_dist[
+                    chunk_idx
+                    * preproc.chunk_size : (chunk_idx + 1)
+                    * preproc.chunk_size
+                ]
+                preproc.napari_starboard_bottom[chunk_idx, : len(star_chunk)] = (
+                    star_chunk
+                )
 
         # slant range correction and EGN data
         if self.active_export_slant_corr_mat:
@@ -437,6 +451,7 @@ class PreProcWorker(QtCore.QRunnable):
                 nadir_angle=self.nadir_angle,
                 save_to=slant_data_path,
                 active_mult_slant_range_resampling=False,
+                use_intern_altitude=self.active_internal_altitude,
             )
         self.signals.progress.emit(0.4)
         gain_corrected_path = self.work_dir / (
@@ -545,6 +560,7 @@ class PreProcManager(QWidget):
         active_bac: bool,
         active_sharpening_filter: bool,
         num_angle_bac: int,
+        active_internal_altitude: bool,
     ):
 
         # change title to reflect actual processing
@@ -557,9 +573,11 @@ class PreProcManager(QWidget):
         for sonar_file_path in files:
             sonar_file_path = pathlib.Path(sonar_file_path)
             bottom_path = work_dir / (sonar_file_path.stem + "_bottom_info.npz")
+            res_sonar_path_list.append(sonar_file_path)
             if bottom_path.exists():
-                res_sonar_path_list.append(sonar_file_path)
                 res_bottom_path_list.append(bottom_path)
+            else:
+                res_bottom_path_list.append("none")
 
         self.num_files = len(res_sonar_path_list)
         if self.num_files > 0:
@@ -583,6 +601,7 @@ class PreProcManager(QWidget):
                     active_bac=active_bac,
                     active_sharpening_filter=active_sharpening_filter,
                     num_angle_bac=num_angle_bac,
+                    active_internal_altitude=active_internal_altitude,
                 )
                 new_worker.signals.error_signal.connect(
                     lambda err: self.build_aborted(err)

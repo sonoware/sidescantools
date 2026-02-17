@@ -278,6 +278,27 @@ class SidescanPreprocessor:
         star_map = np.zeros(map_shape)
         port_map = np.zeros(map_shape)
 
+        if not hasattr(self, "starboard_bottom_dist"):
+            raw_altitude = self.sidescan_file.sensor_primary_altitude
+            if np.max(raw_altitude) == 0:
+                raise ValueError("No depth information found in intern data.")
+            raw_altitude = self.fill_zeros_with_last(raw_altitude)
+
+            # read depth info and calc corresponding sample idx
+            stepsize = self.sidescan_file.slant_range[0, :] / self.ping_len
+            self.dep_info = [
+                raw_altitude / stepsize,
+                raw_altitude / stepsize,
+            ]
+            self.dep_info = np.clip(self.dep_info, a_min=1, a_max=self.ping_len - 1)
+            self.portside_bottom_dist = self.ping_len - np.round(
+                self.dep_info[0]
+            ).astype(int)
+            self.starboard_bottom_dist = np.round(self.dep_info[1]).astype(int)
+
+        # because of an older bug this might still be saved as a float values
+        self.starboard_bottom_dist = self.starboard_bottom_dist.astype(int)
+        self.portside_bottom_dist = self.portside_bottom_dist.astype(int)
         for chunk_idx in range(self.num_chunk):
             starboard_dep_chunk = self.starboard_bottom_dist[
                 chunk_idx * self.chunk_size : (chunk_idx + 1) * self.chunk_size

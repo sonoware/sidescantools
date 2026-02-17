@@ -1050,12 +1050,12 @@ class ProcessingWidget(QVBoxLayout):
     def process_single_file(self):
         if len(self.main_ui.file_table.selectedIndexes()) > 0:
             filepath = pathlib.Path(
-                self.main_ui.cfg.meta_infos.paths[
+                self.main_ui.file_dict["Path"][
                     self.main_ui.file_table.selectedIndexes()[0].row()
                 ]
             )
         else:
-            filepath = pathlib.Path(self.main_ui.cfg.meta_infos.paths[0])
+            filepath = pathlib.Path(self.main_ui.file_dict["Path"][0])
 
         self.start_intern_processing_manager([filepath])
 
@@ -1083,6 +1083,7 @@ class ProcessingWidget(QVBoxLayout):
             active_bac=self.beam_ang_corr_radio_btn.isChecked(),
             active_sharpening_filter=self.sharpening_filter_checkbox.isChecked(),
             num_angle_bac=self.main_ui.cfg.slant_gain_params.bac_resolution,
+            active_internal_altitude=self.active_intern_depth_checkbox.isChecked(),
         )
 
     def proc_strat_changed(self, btn_object):
@@ -1334,7 +1335,7 @@ class ViewAndExportWidget(QVBoxLayout):
         file_idx = 0
         if len(self.main_ui.file_table.selectedIndexes()) > 0:
             file_idx = self.main_ui.file_table.selectedIndexes()[0].row()
-        filepath = pathlib.Path(self.main_ui.cfg.meta_infos.paths[file_idx])
+        filepath = pathlib.Path(self.main_ui.file_dict["Path"][file_idx])
         load_slant = self.main_ui.file_dict["Slant corrected"][file_idx] == "Y"
         load_egn = self.main_ui.file_dict["Gain corrected"][file_idx] == "Y"
         if self.active_reprocess_file_checkbox.isChecked():
@@ -1370,6 +1371,7 @@ class ViewAndExportWidget(QVBoxLayout):
             active_bac=self.main_ui.processing_widget.beam_ang_corr_radio_btn.isChecked(),
             active_sharpening_filter=self.main_ui.processing_widget.sharpening_filter_checkbox.isChecked(),
             num_angle_bac=self.main_ui.cfg.slant_gain_params.bac_resolution,
+            active_internal_altitude=self.main_ui.processing_widget.active_intern_depth_checkbox.isChecked(),
         )
 
     def preproc_to_run_napari(self, res: list):
@@ -1503,6 +1505,7 @@ class ViewAndExportWidget(QVBoxLayout):
             active_bac=self.main_ui.processing_widget.beam_ang_corr_radio_btn.isChecked(),
             active_sharpening_filter=self.main_ui.processing_widget.sharpening_filter_checkbox.isChecked(),
             num_angle_bac=self.main_ui.cfg.slant_gain_params.bac_resolution,
+            active_internal_altitude=self.main_ui.processing_widget.active_intern_depth_checkbox.isChecked(),
         )
 
     def start_georeferencer(self, res_list: list):
@@ -1622,6 +1625,7 @@ class ViewAndExportWidget(QVBoxLayout):
             active_bac=self.main_ui.processing_widget.beam_ang_corr_radio_btn.isChecked(),
             active_sharpening_filter=self.main_ui.processing_widget.sharpening_filter_checkbox.isChecked(),
             num_angle_bac=self.main_ui.cfg.slant_gain_params.bac_resolution,
+            active_internal_altitude=self.main_ui.processing_widget.active_intern_depth_checkbox.isChecked(),
         )
 
     def start_wc_image_export(self, res_list: list):

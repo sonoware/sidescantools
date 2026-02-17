@@ -1,7 +1,7 @@
 import numpy as np
-from xtf_wrapper import XTFWrapper
+from sidescantools.xtf_wrapper import XTFWrapper
 import pyxtf
-from jsf import JSFFile, JSFSystemInformation, JSFSonarDataPacket
+from sidescantools.jsf import JSFFile, JSFSystemInformation, JSFSonarDataPacket
 import os
 from pathlib import Path
 from datetime import datetime

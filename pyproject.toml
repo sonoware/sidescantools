@@ -7,7 +7,7 @@ name = "sidescantools"
 version = "1.0.0"
 description = "Tools for sidescan sonar processing"
 readme = "README.md"
-requires-python = ">=3.12,<=3.13"
+requires-python = ">=3.12,<=3.13.12"
 authors = [
   { name="SidescanTools Team", email="sidescantools@sonoware.de" }
 ]

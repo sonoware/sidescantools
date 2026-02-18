@@ -2,7 +2,7 @@
 # SidescanTools
 
 SidescanTools is an open-source software to read and <br />
-<img align="right" width="250" height="250" src="./res/sidescantools_logo_rund.png" hspace="25" title="Logo design and artwork by Aili Xue">
+<img align="right" width="250" height="250" src="./src/sidescantools/res/sidescantools_logo_rund.png" hspace="25" title="Logo design and artwork by Aili Xue">
 process data from side-scan sonar instruments. <br />
 This tool can be used to create high-resolution 2D images of the sea floor.
 The data can be processed to reduce noise, apply slant-range correction and gain normalisation on a set of side-scan files.
@@ -109,8 +109,8 @@ When using BAC or EGN for Gain Normalisation, the resolution of the estimated be
 - `Apply Contrast Limited Adaptive Histogram Equalization`: Apply CLAHE to the data to improve contrast
 - `View Processed Data`: Initiates data viewer to inspect the raw input data, bottom line detection, slant range and EGN corrected data of the currently selected file.
 
-<img align="right" width="250" height="400" src="./res/vessel_CS.png" hspace="130" title="Vessel coordinate system as implemented in SidescanTools, top view.">
-<img align="right" width="400" height="250" src="./res/vessel_CS_side.png" hspace="130" title="Vessel coordinate system as implemented in SidescanTools, side view.">
+<img align="right" width="250" height="400" src="./src/sidescantools/res/vessel_CS.png" hspace="130" title="Vessel coordinate system as implemented in SidescanTools, top view.">
+<img align="right" width="400" height="250" src="./src/sidescantools/res/vessel_CS_side.png" hspace="130" title="Vessel coordinate system as implemented in SidescanTools, side view.">
 
 ### Georeferencing and image generation
 - Tick `Use processed Data` if above processing steps should be applied, otherwise a waterfall image based on the raw data will be created
